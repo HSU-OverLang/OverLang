@@ -1,40 +1,50 @@
 package kr.ac.hansung.cse.overlang.global.response;
 
-import lombok.Getter;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-@Getter
 public class ApiResponse<T> {
 
-  private final boolean success;
-  private final T data;
-  private final ErrorResponse error;
+  @Schema(
+      description = "응답 상태",
+      allowableValues = {"SUCCESS", "ERROR"})
+  private Status status; // SUCCESS / ERROR
 
-  private ApiResponse(boolean success, T data, ErrorResponse error) {
-    this.success = success;
-    this.data = data;
-    this.error = error;
+  @Schema(description = "응답 데이터")
+  private T data;
+
+  @Schema(description = "에러 정보 (성공 시 null)")
+  private ErrorResponse error;
+
+  public enum Status {
+    SUCCESS,
+    ERROR
   }
 
   public static <T> ApiResponse<T> success(T data) {
-    return new ApiResponse<>(true, data, null);
+    ApiResponse<T> response = new ApiResponse<>();
+    response.status = Status.SUCCESS;
+    response.data = data;
+    response.error = null;
+    return response;
   }
 
-  public static ApiResponse<Void> success() {
-    return new ApiResponse<>(true, null, null);
+  public static <T> ApiResponse<T> error(String code, String message) {
+    ApiResponse<T> response = new ApiResponse<>();
+    response.status = Status.ERROR;
+    response.data = null;
+    response.error = new ErrorResponse(code, message);
+    return response;
   }
 
-  public static ApiResponse<Void> error(String code, String message) {
-    return new ApiResponse<>(false, null, new ErrorResponse(code, message));
+  public Status getStatus() {
+    return status;
   }
 
-  @Getter
-  public static class ErrorResponse {
-    private final String code;
-    private final String message;
+  public T getData() {
+    return data;
+  }
 
-    private ErrorResponse(String code, String message) {
-      this.code = code;
-      this.message = message;
-    }
+  public ErrorResponse getError() {
+    return error;
   }
 }
