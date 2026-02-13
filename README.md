@@ -6,7 +6,7 @@
 
 ## 📋 프로젝트 소개
 
-AI 기반 자막 자동 생성 및 실시간 편집이 가능한 웹 플랫폼입니다. 
+AI 기반 자막 자동 생성 및 실시간 편집이 가능한 웹 플랫폼입니다.
 WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타임라인 기반 비주얼 에디터로 자막 편집 작업을 간편하게 수행할 수 있습니다.
 
 ### 주요 기능
@@ -34,11 +34,11 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **Framework**: Spring Boot 3.3.x
 - **Language**: Java 17
 - **Security**: Spring Security (JWT)
-- **Database**: MySQL 8.0.x
+- **Database**: PostgreSQL
 - **ORM**: Spring Data JPA (Hibernate)
 - **Build Tool**: Gradle
 
-### AI Worker
+### AI
 - **Language**: Python 3.11
 - **AI Framework**: PyTorch 2.8.0 (CUDA 12.6)
 - **Speech Recognition**: WhisperX 3.7.6, Faster-Whisper 1.2.1
@@ -47,7 +47,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 ### Infrastructure
 - **Containerization**: Docker & Docker Compose
 - **Cache**: Redis 7
-- **Database**: MySQL 8.0
+- **Database**: PostgreSQL
 
 ---
 
@@ -77,7 +77,7 @@ project-root/
 │   │       └── config/     # 설정 클래스
 │   └── build.gradle
 │
-├── worker/                  # AI 워커 (Python)
+├── ai/                  # AI (Python)
 │   ├── models/             # AI 모델 관련
 │   ├── services/           # 자막 생성 로직
 │   ├── utils/              # 유틸리티
@@ -98,7 +98,7 @@ project-root/
 - **Java**: 17 (LTS)
 - **Python**: 3.11
 - **Docker**: 최신 버전
-- **NVIDIA GPU**: CUDA 12.6 이상 (AI Worker용, VRAM 8GB 이상 권장)
+- **NVIDIA GPU**: CUDA 12.6 이상 (AI 용, VRAM 8GB 이상 권장)
 
 ### 설치 및 실행
 
@@ -120,8 +120,8 @@ VITE_API_BASE_URL=http://localhost:8080/api
 
 **Backend (`/backend/.env`)**
 ```env
-DB_HOST=mysql
-DB_PORT=3306
+DB_HOST=postgres
+DB_PORT=5432
 DB_NAME=subtitle_db
 DB_USERNAME=root
 DB_PASSWORD=your_password
@@ -130,12 +130,12 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 ```
 
-**Worker (`/worker/.env`)**
+**ai (`/ai/.env`)**
 ```env
 REDIS_HOST=redis
 REDIS_PORT=6379
-DB_HOST=mysql
-DB_PORT=3306
+DB_HOST=postgres
+DB_PORT=5432
 CUDA_VISIBLE_DEVICES=0
 ```
 
@@ -171,10 +171,21 @@ cd backend
 # http://localhost:8080
 ```
 
-**Worker 실행**
+**AI 실행**
 ```bash
-cd worker
+cd ai
+
+# 가상환경 생성 및 활성화
+python -m venv venv
+# Windows
+.\venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
+
+# 의존성 설치
 pip install -r requirements.txt
+
+# AI 실행
 python main.py
 ```
 
@@ -205,18 +216,17 @@ cd backend
 
 1. **브랜치 생성**
    ```bash
-   # 기능 개발
-   git checkout -b feat/fe-player
+   # 기능 개발 & 버그 수정
+   git checkout -b fe/mypage
    
-   # 버그 수정
-   git checkout -b fix/12-login-error
+   # 문서 작업
+   git checkout -b doc/api-spec
    ```
 
 2. **커밋 메시지 규칙**
    ```bash
-   # 깃모지 사용
-   git commit -m "✨ 비디오 플레이어 컴포넌트 추가"
-   git commit -m "🐛 로그인 에러 수정"
+   git commit -m "design: 마이페이지 UI 구현"
+   git commit -m "fix: 로그인 에러 수정"
    ```
 
 3. **Pull Request**
@@ -228,20 +238,25 @@ cd backend
 
 | 타입 | 형식 | 예시 |
 |------|------|------|
-| 기능 개발 | `feat/역할-기능명` | `feat/fe-player`, `feat/be-auth` |
-| 버그 수정 | `fix/이슈번호-설명` | `fix/12-login-error` |
-| 문서 작업 | `docs/내용` | `docs/api-spec` |
+| 기능 개발 | `역할/기능명` | `fe/player`, `be/auth` |
+| 버그 수정 | `역할/기능명` | `fe/mypage`, `be/auth` |
+| 문서 작업 | `doc/내용` | `doc/api-spec` |
 
 ### 커밋 타입
 
 | 타입 | 설명 |
 |------|------|
-| `feat` | 새로운 기능 추가 |
+| `feat` | 새로운 기능 추가 또는 기존 기능 개선 |
 | `fix` | 버그 수정 |
-| `refactor` | 코드 리팩토링 |
-| `doc` | 문서 작업 |
-| `test` | 테스트 코드 |
-| `chore` | 환경 설정, 패키지 설치 |
+| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선) |
+| `doc` | 문서 작업 (README 등) |
+| `test` | 테스트 코드 추가 또는 수정 |
+| `chore` | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등) |
+| `perform` | 성능 개선 |
+| `clean` | 불필요한 코드 제거, 정리 |
+| `design` | UI/UX 스타일 작업 또는 개선 |
+| `style` | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
+| `comment` | 주석 수정, 추가 |
 
 ### 코드 스타일
 
@@ -263,7 +278,7 @@ npm run format      # 코드 포맷팅
 ./gradlew spotlessApply
 ```
 
-**Worker**
+**AI**
 - Formatter: Black
 - Linter: Ruff
 
@@ -329,16 +344,16 @@ ruff check .
 |--------|------|------|
 | Frontend | 5173 | React 개발 서버 |
 | Backend | 8080 | Spring Boot API |
-| MySQL | 3306 | 데이터베이스 |
+| PostgreSQL | 5432 | 데이터베이스 |
 | Redis | 6379 | 캐시 서버 |
-| Worker | - | AI 자막 생성 |
+| AI | - | AI 자막 생성 |
 
 ### GPU 사용 설정
 
-Worker 컨테이너는 NVIDIA GPU를 사용합니다:
+AI 컨테이너는 NVIDIA GPU를 사용합니다:
 
 ```yaml
-worker:
+ai:
   runtime: nvidia
   environment:
     - CUDA_VISIBLE_DEVICES=0
@@ -353,8 +368,8 @@ worker:
 | 역할 | 담당자 | 주요 기술 |
 |------|--------|-----------|
 | Frontend | 이지원 | React, TypeScript, Tailwind |
-| Backend | 한국희 | Spring Boot, JPA, MySQL |
-| AI Worker | 서유정 | Python, PyTorch, WhisperX |
+| Backend | 한국희 | Spring Boot, JPA, PostgreSQL |
+| AI | 서유정 | Python, PyTorch, WhisperX |
 
 ---
 

@@ -1,0 +1,15 @@
+# Core AI
+torch>=2.0.0
+torchaudio>=2.0.0
+whisperx
+faster-whisper
+transformers
+
+# Utilities
+ffmpeg-python
+numpy
+pandas
+
+# Dev Tools
+black
+ruff

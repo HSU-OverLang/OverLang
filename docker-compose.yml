@@ -1,0 +1,26 @@
+services:
+  ai:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    container_name: overlang_ai
+    volumes:
+      - ./ai:/app
+      - ./ai/models:/app/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: tail -f /dev/null  # Keep alive for development
+
+  # Database & Cache (Optional for now, but good to have)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
