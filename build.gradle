@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.10'
+    id 'io.spring.dependency-management' version '1.1.7'
+    // 1. Spotless 플러그인 추가
+    id "com.diffplug.spotless" version "6.25.0"
+}
+
+group = 'kr.ac.hansung.cse'
+version = '0.0.1-SNAPSHOT'
+description = 'overlang-backend'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // 2. Swagger(SpringDoc) 의존성 추가
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    compileOnly 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    runtimeOnly 'org.postgresql:postgresql'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// 3. Spotless 상세 설정 (파일 최하단에 추가)
+spotless {
+    java {
+        googleJavaFormat() // Google Java Style 가이드 적용
+        removeUnusedImports() // 사용하지 않는 import문 자동 삭제
+        trimTrailingWhitespace() // 줄 끝 공백 제거
+        endWithNewline() // 파일 끝에 빈 줄 추가
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
