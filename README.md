@@ -31,8 +31,8 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **Icons**: Lucide React 0.563.0
 
 ### Backend
-- **Framework**: Spring Boot 3.3.x
-- **Language**: Java 17
+- **Framework**: Spring Boot 3.5.10
+- **Language**: Java 21
 - **Security**: Spring Security (JWT)
 - **Database**: PostgreSQL
 - **ORM**: Spring Data JPA (Hibernate)
@@ -95,7 +95,7 @@ project-root/
 ### 사전 요구사항
 
 - **Node.js**: 22.19.0
-- **Java**: 17 (LTS)
+- **Java**: 21 (LTS)
 - **Python**: 3.11
 - **Docker**: 최신 버전
 - **NVIDIA GPU**: CUDA 12.6 이상 (AI 용, VRAM 8GB 이상 권장)
@@ -321,16 +321,18 @@ ruff check .
 
 ### 주요 엔드포인트
 
-| 메서드 | 엔드포인트 | 설명 |
-|--------|-----------|------|
-| POST | `/auth/login` | 로그인 |
-| POST | `/auth/register` | 회원가입 |
-| POST | `/videos/upload` | 영상 업로드 |
-| GET | `/videos/:id` | 영상 정보 조회 |
-| GET | `/subtitles/:videoId` | 자막 조회 |
-| POST | `/subtitles` | 자막 생성 |
-| PUT | `/subtitles/:id` | 자막 수정 |
+| 메서드  | 엔드포인트             | 설명 |
+|------|-------------------|------|
+| POST | `/auth/login`     | 로그인 |
+| POST | `/auth/register`  | 회원가입 |
+| POST | `/videos/upload`  | 영상 업로드 |
+| GET  | `/videos/:id`     | 영상 정보 조회 |
+| GET  | `/subtitles/:videoId` | 자막 조회 |
+| POST | `/subtitles`      | 자막 생성 |
+| PUT  | `/subtitles/:id`  | 자막 수정 |
 | POST | `/subtitles/translate` | 자막 번역 요청 |
+| GET  | `/api/v1/health/` | 서버 및 DB 상태 체크 |
+
 
 자세한 API 문서는 노션 페이지를 참고하세요.
 
