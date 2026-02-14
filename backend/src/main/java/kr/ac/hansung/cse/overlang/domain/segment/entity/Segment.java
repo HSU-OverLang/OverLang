@@ -42,5 +42,4 @@ public class Segment extends BaseTimeEntity {
     this.seq = seq;
     this.text = text;
   }
-
 }

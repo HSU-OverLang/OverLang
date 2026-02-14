@@ -46,5 +46,4 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
     this.segments.add(segment);
     segment.setJob(this);
   }
-
 }

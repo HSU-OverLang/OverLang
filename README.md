@@ -32,6 +32,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **Icons**: Lucide React 0.563.0
 
 ### Backend
+
 - **Framework**: Spring Boot 3.5.10
 - **Language**: Java 21
 - **Security**: Spring Security (JWT)
@@ -40,6 +41,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **Build Tool**: Gradle
 
 ### AI
+
 - **Language**: Python 3.11
 - **AI Framework**: PyTorch 2.8.0 (CUDA 12.6)
 - **Speech Recognition**: WhisperX 3.7.6, Faster-Whisper 1.2.1
@@ -71,7 +73,7 @@ project-root/
 │
 ├── backend/                 # Spring Boot 백엔드
 │   ├── src/main/java/kr/ac/hansung/cse/overlang/
-│   │   ├── api/            
+│   │   ├── api/
 │   │   │   ├── controller/ # REST 컨트롤러 (Dummy 포함)
 │   │   │   └── dto/        # Request/Response DTO
 │   │   ├── domain/         # 도메인 계층
@@ -132,9 +134,12 @@ VITE_API_BASE_URL=http://localhost:8080/api
 
 ```env
 # Database 설정 (PostgreSQL)
-DB_URL=jdbc:postgresql://localhost:5432/overlang
-DB_USERNAME=your_username_here
-DB_PASSWORD=your_password_here
+# docker-compose.yml 및 ai/.env 와 동일한 규격 사용
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=overlang
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
 
 # Firebase 설정 (Admin SDK)
 # 파일은 backend/src/main/resources/ 경로에 위치해야 합니다.
@@ -142,6 +147,7 @@ FIREBASE_SERVICE_ACCOUNT_PATH=your-firebase-admin.json
 ```
 
 **ai (`/ai/.env`)**
+
 ```env
 REDIS_HOST=redis
 REDIS_PORT=6379
@@ -194,6 +200,7 @@ cd backend
 ```
 
 **AI 실행**
+
 ```bash
 cd ai
 
@@ -243,6 +250,7 @@ python main.py --input sample.mp4 --no-align --batch-size 8 --warmup
 # 전체 옵션 확인
 python main.py --help
 ```
+
 ---
 
 ## 📝 개발 가이드
@@ -256,7 +264,7 @@ python main.py --help
    ```bash
    # 기능 개발 & 버그 수정
    git checkout -b fe/mypage
-   
+
    # 문서 작업
    git checkout -b doc/api-spec
    ```
@@ -275,27 +283,27 @@ python main.py --help
 
 ### 브랜치 네이밍
 
-| 타입 | 형식 | 예시 |
-|------|------|------|
+| 타입      | 형식          | 예시                   |
+| --------- | ------------- | ---------------------- |
 | 기능 개발 | `역할/기능명` | `fe/player`, `be/auth` |
 | 버그 수정 | `역할/기능명` | `fe/mypage`, `be/auth` |
-| 문서 작업 | `doc/내용` | `doc/api-spec` |
+| 문서 작업 | `doc/내용`    | `doc/api-spec`         |
 
 ### 커밋 타입
 
-| 타입 | 설명 |
-|------|------|
-| `feat` | 새로운 기능 추가 또는 기존 기능 개선 |
-| `fix` | 버그 수정 |
-| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선) |
-| `doc` | 문서 작업 (README 등) |
-| `test` | 테스트 코드 추가 또는 수정 |
-| `chore` | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등) |
-| `perform` | 성능 개선 |
-| `clean` | 불필요한 코드 제거, 정리 |
-| `design` | UI/UX 스타일 작업 또는 개선 |
-| `style` | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
-| `comment` | 주석 수정, 추가 |
+| 타입       | 설명                                                      |
+| ---------- | --------------------------------------------------------- |
+| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                      |
+| `fix`      | 버그 수정                                                 |
+| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)                  |
+| `doc`      | 문서 작업 (README 등)                                     |
+| `test`     | 테스트 코드 추가 또는 수정                                |
+| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등)        |
+| `perform`  | 성능 개선                                                 |
+| `clean`    | 불필요한 코드 제거, 정리                                  |
+| `design`   | UI/UX 스타일 작업 또는 개선                               |
+| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
+| `comment`  | 주석 수정, 추가                                           |
 
 ### 코드 스타일
 
@@ -320,6 +328,7 @@ npm run format      # 코드 포맷팅
 ```
 
 **AI**
+
 - Formatter: Black
 - Linter: Ruff
 
@@ -364,19 +373,18 @@ ruff check .
 
 ### 주요 엔드포인트
 
-| 메서드  | 엔드포인트                  | 설명              |
-|------|------------------------|-----------------|
-| POST | `/api/v1/auth/login`   | 로그인(더미)         |
-| GET  | `/api/v1/projects`     | 프로젝트 목록 조회 (더미) |
-| POST | `/auth/register`       | 회원가입            |
-| POST | `/videos/upload`       | 영상 업로드          |
-| GET  | `/videos/:id`          | 영상 정보 조회        |
-| GET  | `/subtitles/:videoId`  | 자막 조회           |
-| POST | `/subtitles`           | 자막 생성           |
-| PUT  | `/subtitles/:id`       | 자막 수정           |
-| POST | `/subtitles/translate` | 자막 번역 요청        |
-| GET  | `/api/v1/health/`      | 서버 및 DB 상태 체크   |
-
+| 메서드 | 엔드포인트             | 설명                      |
+| ------ | ---------------------- | ------------------------- |
+| POST   | `/api/v1/auth/login`   | 로그인(더미)              |
+| GET    | `/api/v1/projects`     | 프로젝트 목록 조회 (더미) |
+| POST   | `/auth/register`       | 회원가입                  |
+| POST   | `/videos/upload`       | 영상 업로드               |
+| GET    | `/videos/:id`          | 영상 정보 조회            |
+| GET    | `/subtitles/:videoId`  | 자막 조회                 |
+| POST   | `/subtitles`           | 자막 생성                 |
+| PUT    | `/subtitles/:id`       | 자막 수정                 |
+| POST   | `/subtitles/translate` | 자막 번역 요청            |
+| GET    | `/api/v1/health/`      | 서버 및 DB 상태 체크      |
 
 자세한 API 문서는 노션 페이지를 참고하세요.
 
@@ -430,12 +438,15 @@ ai:
 - **노션**: [프로젝트 문서](https://notion.so/your-workspace)
 
 ---
+
 ## 📖 API Interactive Document
 
 서버 실행 후 브라우저에서 아래 주소로 접속하면 실시간으로 API를 테스트하고 명세를 확인할 수 있습니다.
+
 - **Swagger UI**: http://localhost:8080/swagger-ui/index.html
 
 ---
+
 ## 🔗 관련 링크 (References)
 
 프로젝트 개발 및 유지보수에 필요한 공식 기술 문서들입니다.
