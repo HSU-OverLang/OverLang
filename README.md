@@ -174,7 +174,7 @@ docker-compose logs -f
 docker-compose down
 ```
 
-#### 4️⃣ 로컬 개발 환경 (선택)
+#### 4️⃣ 로컬 개발 환경
 
 **Frontend 개발 서버**
 
@@ -197,8 +197,10 @@ cd backend
 ```bash
 cd ai
 
-# 가상환경 생성 및 활성화
+# 가상환경 생성
 python -m venv venv
+
+# 활성화
 # Windows
 .\venv\Scripts\activate
 # Linux/Mac
@@ -206,9 +208,6 @@ source venv/bin/activate
 
 # 의존성 설치
 pip install -r requirements.txt
-
-# AI 실행
-python main.py
 ```
 
 ---
@@ -231,6 +230,19 @@ cd backend
 ./gradlew test # 테스트 코드 실행 및 빌드 검증
 ```
 
+### AI 테스트
+
+```bash
+cd ai
+# 기본 실행
+python main.py --input sample.mp4
+
+# 옵션 사용 (속도 최적화)
+python main.py --input sample.mp4 --no-align --batch-size 8 --warmup
+
+# 전체 옵션 확인
+python main.py --help
+```
 ---
 
 ## 📝 개발 가이드
