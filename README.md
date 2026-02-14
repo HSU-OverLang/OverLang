@@ -70,13 +70,20 @@ project-root/
 │   └── vite.config.ts
 │
 ├── backend/                 # Spring Boot 백엔드
-│   ├── src/main/java/
-│   │   └── com/project/
-│   │       ├── controller/ # REST API 컨트롤러
-│   │       ├── service/    # 비즈니스 로직
-│   │       ├── repository/ # 데이터 액세스
-│   │       ├── entity/     # JPA 엔티티
-│   │       └── config/     # 설정 클래스
+│   ├── src/main/java/kr/ac/hansung/cse/overlang/
+│   │   ├── api/            
+│   │   │   ├── controller/ # REST 컨트롤러 (Dummy 포함)
+│   │   │   └── dto/        # Request/Response DTO
+│   │   ├── domain/         # 도메인 계층
+│   │   │   ├── common/     # 공통 엔티티
+│   │   │   ├── job/        # 작업 도메인
+│   │   │   ├── member/     # 회원 도메인
+│   │   │   ├── project/    # 프로젝트 도메인
+│   │   │   └── segment/    # 자막 구간 도메인
+│   │   └── global/         # Infrastructure / Common Settings
+│   │       ├── advice/     # 예외 처리
+│   │       ├── config/     # 보안, Swagger, Firebase 등 설정
+│   │       └── response/   # 공통 응답 규격
 │   └── build.gradle
 │
 ├── ai/                  # AI (Python)
@@ -124,14 +131,14 @@ VITE_API_BASE_URL=http://localhost:8080/api
 **Backend (`/backend/.env`)**
 
 ```env
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=subtitle_db
-DB_USERNAME=root
-DB_PASSWORD=your_password
-JWT_SECRET=your_jwt_secret_key
-REDIS_HOST=redis
-REDIS_PORT=6379
+# Database 설정 (PostgreSQL)
+DB_URL=jdbc:postgresql://localhost:5432/overlang
+DB_USERNAME=your_username_here
+DB_PASSWORD=your_password_here
+
+# Firebase 설정 (Admin SDK)
+# 파일은 backend/src/main/resources/ 경로에 위치해야 합니다.
+FIREBASE_SERVICE_ACCOUNT_PATH=your-firebase-admin.json
 ```
 
 **ai (`/ai/.env`)**
@@ -147,7 +154,7 @@ CUDA_VISIBLE_DEVICES=0
 
 #### 3️⃣ Docker로 전체 스택 실행
 
-**일반 실행 (AI 제외, Frontend/Backend 개발자용)**
+**일반 실행 (AI 제외, FE/BE 개발자용)**
 
 ```bash
 docker-compose up -d
@@ -220,7 +227,8 @@ npm run test:e2e    # E2E 테스트
 
 ```bash
 cd backend
-./gradlew test
+./gradlew spotlessCheck # 코드 스타일 검사 (Spotless)
+./gradlew test # 테스트 코드 실행 및 빌드 검증
 ```
 
 ---
@@ -344,17 +352,18 @@ ruff check .
 
 ### 주요 엔드포인트
 
-| 메서드  | 엔드포인트             | 설명 |
-|------|-------------------|------|
-| POST | `/auth/login`     | 로그인 |
-| POST | `/auth/register`  | 회원가입 |
-| POST | `/videos/upload`  | 영상 업로드 |
-| GET  | `/videos/:id`     | 영상 정보 조회 |
-| GET  | `/subtitles/:videoId` | 자막 조회 |
-| POST | `/subtitles`      | 자막 생성 |
-| PUT  | `/subtitles/:id`  | 자막 수정 |
-| POST | `/subtitles/translate` | 자막 번역 요청 |
-| GET  | `/api/v1/health/` | 서버 및 DB 상태 체크 |
+| 메서드  | 엔드포인트                  | 설명              |
+|------|------------------------|-----------------|
+| POST | `/api/v1/auth/login`   | 로그인(더미)         |
+| GET  | `/api/v1/projects`     | 프로젝트 목록 조회 (더미) |
+| POST | `/auth/register`       | 회원가입            |
+| POST | `/videos/upload`       | 영상 업로드          |
+| GET  | `/videos/:id`          | 영상 정보 조회        |
+| GET  | `/subtitles/:videoId`  | 자막 조회           |
+| POST | `/subtitles`           | 자막 생성           |
+| PUT  | `/subtitles/:id`       | 자막 수정           |
+| POST | `/subtitles/translate` | 자막 번역 요청        |
+| GET  | `/api/v1/health/`      | 서버 및 DB 상태 체크   |
 
 
 자세한 API 문서는 노션 페이지를 참고하세요.
@@ -406,12 +415,20 @@ ai:
 
 ## 📞 문의
 
-- **이메일**: team@example.com
 - **노션**: [프로젝트 문서](https://notion.so/your-workspace)
 
 ---
+## 📖 API Interactive Document
 
-- [React 공식 문서](https://react.dev)
-- [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
-- [WhisperX GitHub](https://github.com/m-bain/whisperX)
-- [Tailwind CSS 문서](https://tailwindcss.com/docs)
+서버 실행 후 브라우저에서 아래 주소로 접속하면 실시간으로 API를 테스트하고 명세를 확인할 수 있습니다.
+- **Swagger UI**: http://localhost:8080/swagger-ui/index.html
+
+---
+## 🔗 관련 링크 (References)
+
+프로젝트 개발 및 유지보수에 필요한 공식 기술 문서들입니다.
+
+- **Frontend**: [React 공식 문서](https://react.dev)
+- **Tailwind CSS**: [Tailwind CSS 문서](https://tailwindcss.com/docs)
+- **Backend**: [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
+- **AI**: [WhisperX GitHub](https://github.com/m-bain/whisperX)
