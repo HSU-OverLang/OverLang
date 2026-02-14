@@ -1,4 +1,4 @@
-package kr.ac.hansung.cse.overlang.api.dto;
+package kr.ac.hansung.cse.overlang.api.dto.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

@@ -1,6 +1,7 @@
-package kr.ac.hansung.cse.overlang.api.dto;
+package kr.ac.hansung.cse.overlang.api.dto.project;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import kr.ac.hansung.cse.overlang.domain.project.entity.ProjectStatus;
 
 @Schema(description = "프로젝트 목록 응답 DTO")
 public record ProjectResponse(
@@ -10,6 +11,9 @@ public record ProjectResponse(
         @Schema(description = "프로젝트 제목", example = "OverLang 서비스")
         String title,
 
-        @Schema(description = "프로젝트 설명", example = "외국어 학습 플랫폼입니다.")
-        String description
+        @Schema(description = "원본 영상 URL", example = "https://s3.amazonaws.com/video.mp4")
+        String videoUrl,
+
+        @Schema(description = "프로젝트 상태 (CREATED, PROCESSING, COMPLETED 등)", example = "CREATED")
+        ProjectStatus status
 ) {}
