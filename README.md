@@ -22,6 +22,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 ## 🏗️ 기술 스택
 
 ### Frontend
+
 - **Framework**: React 19.2.4
 - **Language**: TypeScript 5.9.3
 - **Build Tool**: Vite 7.3.1
@@ -45,6 +46,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **NLP**: Transformers 4.57.6
 
 ### Infrastructure
+
 - **Containerization**: Docker & Docker Compose
 - **Cache**: Redis 7
 - **Database**: PostgreSQL
@@ -114,11 +116,13 @@ cd subtitle-platform
 각 디렉토리에 `.env` 파일을 생성합니다.
 
 **Frontend (`/frontend/.env`)**
+
 ```env
 VITE_API_BASE_URL=http://localhost:8080/api
 ```
 
 **Backend (`/backend/.env`)**
+
 ```env
 DB_HOST=postgres
 DB_PORT=5432
@@ -143,10 +147,19 @@ CUDA_VISIBLE_DEVICES=0
 
 #### 3️⃣ Docker로 전체 스택 실행
 
-```bash
-# 전체 서비스 시작
-docker-compose up -d
+**일반 실행 (AI 제외, Frontend/Backend 개발자용)**
 
+```bash
+docker-compose up -d
+```
+
+**AI 포함 실행 (GPU 보유자용)**
+
+```bash
+docker-compose --profile gpu-only up -d
+```
+
+```bash
 # 로그 확인
 docker-compose logs -f
 
@@ -157,6 +170,7 @@ docker-compose down
 #### 4️⃣ 로컬 개발 환경 (선택)
 
 **Frontend 개발 서버**
+
 ```bash
 cd frontend
 npm install
@@ -165,6 +179,7 @@ npm run dev
 ```
 
 **Backend 개발 서버**
+
 ```bash
 cd backend
 ./gradlew bootRun
@@ -194,6 +209,7 @@ python main.py
 ## 🧪 테스트
 
 ### Frontend 테스트
+
 ```bash
 cd frontend
 npm run test        # Unit 테스트
@@ -201,6 +217,7 @@ npm run test:e2e    # E2E 테스트
 ```
 
 ### Backend 테스트
+
 ```bash
 cd backend
 ./gradlew test
@@ -215,6 +232,7 @@ cd backend
 이 프로젝트는 **GitHub Flow**를 따릅니다.
 
 1. **브랜치 생성**
+
    ```bash
    # 기능 개발 & 버그 수정
    git checkout -b fe/mypage
@@ -224,6 +242,7 @@ cd backend
    ```
 
 2. **커밋 메시지 규칙**
+
    ```bash
    git commit -m "design: 마이페이지 UI 구현"
    git commit -m "fix: 로그인 에러 수정"
@@ -261,6 +280,7 @@ cd backend
 ### 코드 스타일
 
 **Frontend**
+
 - Formatter: Prettier (Google JavaScript Style Guide)
 - Linter: ESLint
 - 자동 포맷팅: 파일 저장 시 자동 적용
@@ -271,6 +291,7 @@ npm run format      # 코드 포맷팅
 ```
 
 **Backend**
+
 - Formatter: Spotless (Google Java Format)
 - PR 전 반드시 실행:
 
@@ -296,6 +317,7 @@ ruff check .
 모든 API는 다음 형식을 따릅니다:
 
 **성공 응답**
+
 ```json
 {
   "status": "SUCCESS",
@@ -308,6 +330,7 @@ ruff check .
 ```
 
 **에러 응답**
+
 ```json
 {
   "status": "ERROR",
@@ -342,13 +365,13 @@ ruff check .
 
 ### 서비스 목록
 
-| 서비스 | 포트 | 설명 |
-|--------|------|------|
-| Frontend | 5173 | React 개발 서버 |
-| Backend | 8080 | Spring Boot API |
-| PostgreSQL | 5432 | 데이터베이스 |
-| Redis | 6379 | 캐시 서버 |
-| AI | - | AI 자막 생성 |
+| 서비스     | 포트 | 설명            |
+| ---------- | ---- | --------------- |
+| Frontend   | 5173 | React 개발 서버 |
+| Backend    | 8080 | Spring Boot API |
+| PostgreSQL | 5432 | 데이터베이스    |
+| Redis      | 6379 | 캐시 서버       |
+| AI         | -    | AI 자막 생성    |
 
 ### GPU 사용 설정
 
@@ -367,11 +390,11 @@ ai:
 
 ## 👥 팀 구성
 
-| 역할 | 담당자 | 주요 기술 |
-|------|--------|-----------|
-| Frontend | 이지원 | React, TypeScript, Tailwind |
-| Backend | 한국희 | Spring Boot, JPA, PostgreSQL |
-| AI | 서유정 | Python, PyTorch, WhisperX |
+| 역할     | 담당자 | 주요 기술                    |
+| -------- | ------ | ---------------------------- |
+| Frontend | 이지원 | React, TypeScript, Tailwind  |
+| Backend  | 한국희 | Spring Boot, JPA, PostgreSQL |
+| AI       | 서유정 | Python, PyTorch, WhisperX    |
 
 ---
 
@@ -387,7 +410,6 @@ ai:
 - **노션**: [프로젝트 문서](https://notion.so/your-workspace)
 
 ---
-
 
 - [React 공식 문서](https://react.dev)
 - [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
