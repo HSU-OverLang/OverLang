@@ -84,8 +84,6 @@ dist
 
 # Gatsby files
 .cache/
-# Comment in the public line in if your project uses Gatsby and not Next.js
-# https://nextjs.org/blog/next-9-1#public-directory-support
 # public
 
 # vuepress build output
@@ -146,12 +144,20 @@ __pycache__/
 *.py[cod]
 .ruff_cache/
 ai/models/
+
+# IDE / build caches
 HELP.md
-.gradle
+
+# Gradle caches
+.gradle/
+**/.gradle/
+
+# Build outputs
 build/
+**/build/
+
+# (Optional) keep wrapper jar if you ever ignore gradle/**
 !gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
 
 ### STS ###
 .apt_generated
@@ -166,7 +172,8 @@ bin/
 !**/src/test/**/bin/
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
+**/.idea/
 *.iws
 *.iml
 *.ipr
@@ -186,3 +193,6 @@ out/
 
 ### Firebase Service Account Key
 backend/src/main/resources/overlang-firebase-admin.json
+
+# Java class files
+*.class
