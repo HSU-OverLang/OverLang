@@ -18,6 +18,9 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
+  @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
+  private final List<Segment> segments = new ArrayList<>();
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "project_id", nullable = false)
   private Project project;
@@ -44,6 +47,4 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
     segment.setJob(this);
   }
 
-  @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
-  private final List<Segment> segments = new ArrayList<>();
 }
