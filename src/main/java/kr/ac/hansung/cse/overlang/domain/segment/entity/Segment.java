@@ -31,6 +31,10 @@ public class Segment extends BaseTimeEntity {
   @Column(columnDefinition = "TEXT", nullable = false)
   private String text; // 자막 내용
 
+  public void setJob(Job job) {
+    this.job = job;
+  }
+
   public Segment(Job job, Double startTime, Double endTime, Integer seq, String text) {
     this.job = job;
     this.startTime = startTime;
@@ -39,7 +43,4 @@ public class Segment extends BaseTimeEntity {
     this.text = text;
   }
 
-  public void setJob(Job job) {
-    this.job = job;
-  }
 }

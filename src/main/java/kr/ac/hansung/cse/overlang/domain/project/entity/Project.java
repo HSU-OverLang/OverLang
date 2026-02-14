@@ -18,6 +18,9 @@ public class Project extends BaseTimeEntity { // 생성/수정 시간 자동화
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
+  @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<Job> jobs = new ArrayList<>();
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
@@ -43,7 +46,4 @@ public class Project extends BaseTimeEntity { // 생성/수정 시간 자동화
     jobs.add(job);
     job.setProject(this);
   }
-
-  @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-  private List<Job> jobs = new ArrayList<>();
 }

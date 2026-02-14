@@ -2,7 +2,7 @@ package kr.ac.hansung.cse.overlang.api.controller;
 
 import java.sql.Connection;
 import javax.sql.DataSource;
-import kr.ac.hansung.cse.overlang.api.dto.HealthResponse;
+import kr.ac.hansung.cse.overlang.api.dto.health.HealthResponse;
 import kr.ac.hansung.cse.overlang.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
