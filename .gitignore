@@ -144,6 +144,8 @@ venv/
 env/
 __pycache__/
 *.py[cod]
+.ruff_cache/
+ai/models/
 HELP.md
 .gradle
 build/

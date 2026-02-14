@@ -250,7 +250,6 @@ python main.py --input sample.mp4 --no-align --batch-size 8 --warmup
 # 전체 옵션 확인
 python main.py --help
 ```
-
 ---
 
 ## 📝 개발 가이드
