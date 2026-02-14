@@ -25,3 +25,18 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: overlang_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: overlang
+      POSTGRES_USER: overlang
+      POSTGRES_PASSWORD: overlang1234
+    volumes:
+      - overlang_pgdata:/var/lib/postgresql/data
+
+volumes:
+  overlang_pgdata:
