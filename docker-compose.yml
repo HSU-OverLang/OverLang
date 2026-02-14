@@ -1,5 +1,6 @@
 services:
   ai:
+    profiles: ["gpu-only"] # GPU가 있는 경우에만 실행 (--profile gpu-only)
     build:
       context: ./ai
       dockerfile: Dockerfile
@@ -17,7 +18,7 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    command: tail -f /dev/null  # Keep alive for development
+    command: tail -f /dev/null # Keep alive for development
 
   # Database & Cache (Optional for now, but good to have)
   redis:

@@ -22,6 +22,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 ## 🏗️ 기술 스택
 
 ### Frontend
+
 - **Framework**: React 19.2.4
 - **Language**: TypeScript 5.9.3
 - **Build Tool**: Vite 7.3.1
@@ -31,6 +32,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **Icons**: Lucide React 0.563.0
 
 ### Backend
+
 - **Framework**: Spring Boot 3.3.x
 - **Language**: Java 17
 - **Security**: Spring Security (JWT)
@@ -39,12 +41,14 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 - **Build Tool**: Gradle
 
 ### AI
+
 - **Language**: Python 3.11
 - **AI Framework**: PyTorch 2.8.0 (CUDA 12.6)
 - **Speech Recognition**: WhisperX 3.7.6, Faster-Whisper 1.2.1
 - **NLP**: Transformers 4.57.6
 
 ### Infrastructure
+
 - **Containerization**: Docker & Docker Compose
 - **Cache**: Redis 7
 - **Database**: PostgreSQL
@@ -114,11 +118,13 @@ cd subtitle-platform
 각 디렉토리에 `.env` 파일을 생성합니다.
 
 **Frontend (`/frontend/.env`)**
+
 ```env
 VITE_API_BASE_URL=http://localhost:8080/api
 ```
 
 **Backend (`/backend/.env`)**
+
 ```env
 DB_HOST=postgres
 DB_PORT=5432
@@ -131,6 +137,7 @@ REDIS_PORT=6379
 ```
 
 **ai (`/ai/.env`)**
+
 ```env
 REDIS_HOST=redis
 REDIS_PORT=6379
@@ -143,10 +150,19 @@ CUDA_VISIBLE_DEVICES=0
 
 #### 3️⃣ Docker로 전체 스택 실행
 
-```bash
-# 전체 서비스 시작
-docker-compose up -d
+**일반 실행 (AI 제외, Frontend/Backend 개발자용)**
 
+```bash
+docker-compose up -d
+```
+
+**AI 포함 실행 (GPU 보유자용)**
+
+```bash
+docker-compose --profile gpu-only up -d
+```
+
+```bash
 # 로그 확인
 docker-compose logs -f
 
@@ -157,6 +173,7 @@ docker-compose down
 #### 4️⃣ 로컬 개발 환경 (선택)
 
 **Frontend 개발 서버**
+
 ```bash
 cd frontend
 npm install
@@ -165,6 +182,7 @@ npm run dev
 ```
 
 **Backend 개발 서버**
+
 ```bash
 cd backend
 ./gradlew bootRun
@@ -172,6 +190,7 @@ cd backend
 ```
 
 **AI 실행**
+
 ```bash
 cd ai
 
@@ -194,6 +213,7 @@ python main.py
 ## 🧪 테스트
 
 ### Frontend 테스트
+
 ```bash
 cd frontend
 npm run test        # Unit 테스트
@@ -201,6 +221,7 @@ npm run test:e2e    # E2E 테스트
 ```
 
 ### Backend 테스트
+
 ```bash
 cd backend
 ./gradlew test
@@ -215,15 +236,17 @@ cd backend
 이 프로젝트는 **GitHub Flow**를 따릅니다.
 
 1. **브랜치 생성**
+
    ```bash
    # 기능 개발 & 버그 수정
    git checkout -b fe/mypage
-   
+
    # 문서 작업
    git checkout -b doc/api-spec
    ```
 
 2. **커밋 메시지 규칙**
+
    ```bash
    git commit -m "design: 마이페이지 UI 구현"
    git commit -m "fix: 로그인 에러 수정"
@@ -236,31 +259,32 @@ cd backend
 
 ### 브랜치 네이밍
 
-| 타입 | 형식 | 예시 |
-|------|------|------|
+| 타입      | 형식          | 예시                   |
+| --------- | ------------- | ---------------------- |
 | 기능 개발 | `역할/기능명` | `fe/player`, `be/auth` |
 | 버그 수정 | `역할/기능명` | `fe/mypage`, `be/auth` |
-| 문서 작업 | `doc/내용` | `doc/api-spec` |
+| 문서 작업 | `doc/내용`    | `doc/api-spec`         |
 
 ### 커밋 타입
 
-| 타입 | 설명 |
-|------|------|
-| `feat` | 새로운 기능 추가 또는 기존 기능 개선 |
-| `fix` | 버그 수정 |
-| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선) |
-| `doc` | 문서 작업 (README 등) |
-| `test` | 테스트 코드 추가 또는 수정 |
-| `chore` | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등) |
-| `perform` | 성능 개선 |
-| `clean` | 불필요한 코드 제거, 정리 |
-| `design` | UI/UX 스타일 작업 또는 개선 |
-| `style` | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
-| `comment` | 주석 수정, 추가 |
+| 타입       | 설명                                                      |
+| ---------- | --------------------------------------------------------- |
+| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                      |
+| `fix`      | 버그 수정                                                 |
+| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)                  |
+| `doc`      | 문서 작업 (README 등)                                     |
+| `test`     | 테스트 코드 추가 또는 수정                                |
+| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등)        |
+| `perform`  | 성능 개선                                                 |
+| `clean`    | 불필요한 코드 제거, 정리                                  |
+| `design`   | UI/UX 스타일 작업 또는 개선                               |
+| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
+| `comment`  | 주석 수정, 추가                                           |
 
 ### 코드 스타일
 
 **Frontend**
+
 - Formatter: Prettier (Google JavaScript Style Guide)
 - Linter: ESLint
 - 자동 포맷팅: 파일 저장 시 자동 적용
@@ -271,6 +295,7 @@ npm run format      # 코드 포맷팅
 ```
 
 **Backend**
+
 - Formatter: Spotless (Google Java Format)
 - PR 전 반드시 실행:
 
@@ -279,6 +304,7 @@ npm run format      # 코드 포맷팅
 ```
 
 **AI**
+
 - Formatter: Black
 - Linter: Ruff
 
@@ -296,6 +322,7 @@ ruff check .
 모든 API는 다음 형식을 따릅니다:
 
 **성공 응답**
+
 ```json
 {
   "status": "SUCCESS",
@@ -308,6 +335,7 @@ ruff check .
 ```
 
 **에러 응답**
+
 ```json
 {
   "status": "ERROR",
@@ -321,16 +349,16 @@ ruff check .
 
 ### 주요 엔드포인트
 
-| 메서드 | 엔드포인트 | 설명 |
-|--------|-----------|------|
-| POST | `/auth/login` | 로그인 |
-| POST | `/auth/register` | 회원가입 |
-| POST | `/videos/upload` | 영상 업로드 |
-| GET | `/videos/:id` | 영상 정보 조회 |
-| GET | `/subtitles/:videoId` | 자막 조회 |
-| POST | `/subtitles` | 자막 생성 |
-| PUT | `/subtitles/:id` | 자막 수정 |
-| POST | `/subtitles/translate` | 자막 번역 요청 |
+| 메서드 | 엔드포인트             | 설명           |
+| ------ | ---------------------- | -------------- |
+| POST   | `/auth/login`          | 로그인         |
+| POST   | `/auth/register`       | 회원가입       |
+| POST   | `/videos/upload`       | 영상 업로드    |
+| GET    | `/videos/:id`          | 영상 정보 조회 |
+| GET    | `/subtitles/:videoId`  | 자막 조회      |
+| POST   | `/subtitles`           | 자막 생성      |
+| PUT    | `/subtitles/:id`       | 자막 수정      |
+| POST   | `/subtitles/translate` | 자막 번역 요청 |
 
 자세한 API 문서는 노션 페이지를 참고하세요.
 
@@ -340,13 +368,13 @@ ruff check .
 
 ### 서비스 목록
 
-| 서비스 | 포트 | 설명 |
-|--------|------|------|
-| Frontend | 5173 | React 개발 서버 |
-| Backend | 8080 | Spring Boot API |
-| PostgreSQL | 5432 | 데이터베이스 |
-| Redis | 6379 | 캐시 서버 |
-| AI | - | AI 자막 생성 |
+| 서비스     | 포트 | 설명            |
+| ---------- | ---- | --------------- |
+| Frontend   | 5173 | React 개발 서버 |
+| Backend    | 8080 | Spring Boot API |
+| PostgreSQL | 5432 | 데이터베이스    |
+| Redis      | 6379 | 캐시 서버       |
+| AI         | -    | AI 자막 생성    |
 
 ### GPU 사용 설정
 
@@ -365,11 +393,11 @@ ai:
 
 ## 👥 팀 구성
 
-| 역할 | 담당자 | 주요 기술 |
-|------|--------|-----------|
-| Frontend | 이지원 | React, TypeScript, Tailwind |
-| Backend | 한국희 | Spring Boot, JPA, PostgreSQL |
-| AI | 서유정 | Python, PyTorch, WhisperX |
+| 역할     | 담당자 | 주요 기술                    |
+| -------- | ------ | ---------------------------- |
+| Frontend | 이지원 | React, TypeScript, Tailwind  |
+| Backend  | 한국희 | Spring Boot, JPA, PostgreSQL |
+| AI       | 서유정 | Python, PyTorch, WhisperX    |
 
 ---
 
@@ -385,7 +413,6 @@ ai:
 - **노션**: [프로젝트 문서](https://notion.so/your-workspace)
 
 ---
-
 
 - [React 공식 문서](https://react.dev)
 - [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
