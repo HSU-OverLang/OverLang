@@ -42,7 +42,6 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// 3. Spotless 상세 설정 (파일 최하단에 추가)
 spotless {
     java {
         googleJavaFormat() // Google Java Style 가이드 적용
@@ -54,4 +53,8 @@ spotless {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+configurations.configureEach {
+    exclude group: "commons-logging", module: "commons-logging"
 }
