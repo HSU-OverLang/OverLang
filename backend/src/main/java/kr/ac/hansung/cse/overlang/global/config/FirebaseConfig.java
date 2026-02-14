@@ -32,7 +32,7 @@ public class FirebaseConfig {
       InputStream in = new ClassPathResource(keyPath).getInputStream();
 
       FirebaseOptions options =
-              FirebaseOptions.builder().setCredentials(GoogleCredentials.fromStream(in)).build();
+          FirebaseOptions.builder().setCredentials(GoogleCredentials.fromStream(in)).build();
 
       FirebaseApp.initializeApp(options);
       log.info("Firebase Admin initialization successful (Path: {})", keyPath);

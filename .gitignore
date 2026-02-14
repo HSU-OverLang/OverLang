@@ -185,4 +185,4 @@ out/
 .vscode/
 
 ### Firebase Service Account Key
-src/main/resources/overlang-firebase-admin.json
+backend/src/main/resources/overlang-firebase-admin.json
