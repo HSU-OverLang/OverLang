@@ -1,8 +1,8 @@
 package com.overlang.domain.segment.entity;
 
-import jakarta.persistence.*;
 import com.overlang.domain.common.BaseTimeEntity;
 import com.overlang.domain.job.entity.Job; // Job 연결
+import jakarta.persistence.*;
 import lombok.*;
 
 @Entity

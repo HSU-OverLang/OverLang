@@ -1,9 +1,9 @@
 package com.overlang.api.controller;
 
-import java.sql.Connection;
-import javax.sql.DataSource;
 import com.overlang.api.dto.health.HealthResponse;
 import com.overlang.global.response.ApiResponse;
+import java.sql.Connection;
+import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
