@@ -11,7 +11,7 @@ public class WebConfig implements WebMvcConfigurer {
   public void addCorsMappings(CorsRegistry registry) {
     registry
         .addMapping("/**") // 모든 API 경로에 대해
-        .allowedOrigins("http://localhost:3000") // 프론트엔드 개발 서버 주소
+        .allowedOrigins("http://localhost:5173") // 프론트엔드 개발 서버 주소
         .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
         .allowedHeaders("*")
         .allowCredentials(true)
