@@ -1,4 +1,4 @@
-package com.overlang.api.controller.auth;
+package com.overlang.api.controller;
 
 import com.overlang.global.auth.BearerTokenResolver;
 import com.overlang.global.auth.FirebaseTokenVerifier;
