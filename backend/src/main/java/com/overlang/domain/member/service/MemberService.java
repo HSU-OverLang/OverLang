@@ -16,22 +16,29 @@ public class MemberService {
 
   public record MemberWithStatus(Member member, boolean isNewMember) {}
 
+  /** 로그인/회원가입 전용 - 있으면 조회 - 없으면 생성 */
   @Transactional
   public MemberWithStatus findOrCreate(String firebaseUid, String email, String name) {
     if (email == null || email.isBlank()) {
       throw new UnauthorizedException("Firebase token does not contain email");
     }
 
-    // 조회를 시도
     return memberRepository
         .findByFirebaseUid(firebaseUid)
-        .map(member -> new MemberWithStatus(member, false)) // 이미 있으면 기존 유저(false)
+        .map(member -> new MemberWithStatus(member, false))
         .orElseGet(
             () -> {
-              // 없으면 생성
               Member newMember = createSafely(firebaseUid, email, name);
-              return new MemberWithStatus(newMember, true); // 새로 만들었으면 true
+              return new MemberWithStatus(newMember, true);
             });
+  }
+
+  /** 조회 전용 (/me) - 절대 생성하지 않음 */
+  @Transactional(readOnly = true)
+  public Member getByFirebaseUid(String firebaseUid) {
+    return memberRepository
+        .findByFirebaseUid(firebaseUid)
+        .orElseThrow(() -> new UnauthorizedException("Member not found"));
   }
 
   private Member createSafely(String firebaseUid, String email, String name) {
@@ -39,6 +46,7 @@ public class MemberService {
       String finalName = (name != null && !name.isBlank()) ? name : defaultName(email);
       return memberRepository.save(new Member(email, finalName, firebaseUid));
     } catch (DataIntegrityViolationException e) {
+      // 동시성으로 이미 생성된 경우 재조회
       return memberRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> e);
     }
   }
