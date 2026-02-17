@@ -21,7 +21,7 @@ public class Member {
   @Column(nullable = false)
   private String name;
 
-  @Column(unique = true)
+  @Column(unique = true, nullable = false)
   private String firebaseUid;
 
   // 데이터를 넣을 때 쓸 생성자
