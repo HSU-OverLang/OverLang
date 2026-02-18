@@ -15,14 +15,14 @@ public class FirebaseTokenVerifier {
       FirebaseToken decoded = FirebaseAuth.getInstance().verifyIdToken(idToken);
 
       String uid = decoded.getUid();
-      String email = decoded.getEmail(); // null 가능
+      String email = decoded.getEmail();
+      String name = decoded.getName();
 
-      log.info("Firebase verify success: uid={}, email={}", uid, email);
-      return new FirebaseUserInfo(uid, email);
+      log.info("Firebase verify success: uid={}, email={}, name={}", uid, email, name);
+      return new FirebaseUserInfo(uid, email, name);
 
     } catch (FirebaseAuthException e) {
       log.warn("Firebase verify failed: {}", e.getMessage());
-      // ✅ 1,2번(UnauthorizedException + 401 핸들러) 했으면 이거 던지면 401로 떨어짐
       throw new UnauthorizedException("Invalid or expired Firebase ID token");
     }
   }
