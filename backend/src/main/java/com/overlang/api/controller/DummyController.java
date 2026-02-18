@@ -1,7 +1,5 @@
 package com.overlang.api.controller;
 
-import com.overlang.api.dto.auth.AuthResponse;
-import com.overlang.api.dto.auth.LoginRequest;
 import com.overlang.api.dto.project.ProjectResponse;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.global.response.ApiResponse;
@@ -26,13 +24,6 @@ public class DummyController {
                 2L, "AI 분석 완료 영상", "https://example.com/video2.mp4", ProjectStatus.COMPLETED),
             new ProjectResponse(
                 3L, "분석 중인 프로젝트", "https://example.com/video3.mp4", ProjectStatus.PROCESSING));
-    return ApiResponse.success(data);
-  }
-
-  @Operation(summary = "더미 로그인")
-  @PostMapping("/auth/login")
-  public ApiResponse<AuthResponse> login(@RequestBody LoginRequest request) {
-    AuthResponse data = new AuthResponse("fake-jwt-access-token", "fake-jwt-refresh-token");
     return ApiResponse.success(data);
   }
 }

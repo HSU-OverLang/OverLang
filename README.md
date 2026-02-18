@@ -58,7 +58,7 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 ## 📁 프로젝트 구조
 
 ```
-project-root/
+OverLang/
 ├── frontend/                # React 프론트엔드
 │   ├── src/
 │   │   ├── assets/         # 이미지, 폰트 등
@@ -72,7 +72,7 @@ project-root/
 │   └── vite.config.ts
 │
 ├── backend/                 # Spring Boot 백엔드
-│   ├── src/main/java/kr/ac/hansung/cse/overlang/
+│   ├── src/main/java/com/overlang/
 │   │   ├── api/
 │   │   │   ├── controller/ # REST 컨트롤러 (Dummy 포함)
 │   │   │   └── dto/        # Request/Response DTO
@@ -282,27 +282,26 @@ python main.py --help
 
 ### 브랜치 네이밍
 
-| 타입      | 형식          | 예시                   |
-| --------- | ------------- | ---------------------- |
-| 기능 개발 | `역할/기능명` | `fe/player`, `be/auth` |
-| 버그 수정 | `역할/기능명` | `fe/mypage`, `be/auth` |
-| 문서 작업 | `doc/내용`    | `doc/api-spec`         |
+| 타입           | 형식          | 예시                   |
+|--------------| ------------- | ---------------------- |
+| 기능 개발, 버그 수정 | `역할/기능명` | `fe/player`, `be/auth` |
+| 문서 작업        | `doc/내용`    | `doc/api-spec`         |
 
 ### 커밋 타입
 
-| 타입       | 설명                                                      |
-| ---------- | --------------------------------------------------------- |
-| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                      |
-| `fix`      | 버그 수정                                                 |
-| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)                  |
-| `doc`      | 문서 작업 (README 등)                                     |
-| `test`     | 테스트 코드 추가 또는 수정                                |
-| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등)        |
-| `perform`  | 성능 개선                                                 |
-| `clean`    | 불필요한 코드 제거, 정리                                  |
-| `design`   | UI/UX 스타일 작업 또는 개선                               |
-| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
-| `comment`  | 주석 수정, 추가                                           |
+| 타입       | 설명                                   |
+| ---------- |--------------------------------------|
+| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                |
+| `fix`      | 버그 수정                                |
+| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)             |
+| `doc`      | 문서 작업 (README 등)                     |
+| `test`     | 테스트 코드 추가 또는 수정                      |
+| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등) |
+| `perform`  | 성능 개선                                |
+| `clean`    | 불필요한 코드 및 파일 제거, 정리                  |
+| `design`   | UI/UX 스타일 작업 또는 개선                   |
+| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음  |
+| `comment`  | 주석 수정, 추가                            |
 
 ### 코드 스타일
 
@@ -340,6 +339,10 @@ ruff check .
 
 ## 🔌 API 명세
 
+서버 실행 후 브라우저에서 아래 주소로 접속하면 실시간으로 API를 테스트하고 명세를 확인할 수 있습니다.
+
+- **Swagger UI**: http://localhost:8080/swagger-ui/index.html
+
 ### 응답 형식
 
 모든 API는 다음 형식을 따릅니다:
@@ -372,18 +375,19 @@ ruff check .
 
 ### 주요 엔드포인트
 
-| 메서드 | 엔드포인트             | 설명                      |
-| ------ | ---------------------- | ------------------------- |
-| POST   | `/api/v1/auth/login`   | 로그인(더미)              |
-| GET    | `/api/v1/projects`     | 프로젝트 목록 조회 (더미) |
-| POST   | `/auth/register`       | 회원가입                  |
-| POST   | `/videos/upload`       | 영상 업로드               |
-| GET    | `/videos/:id`          | 영상 정보 조회            |
-| GET    | `/subtitles/:videoId`  | 자막 조회                 |
-| POST   | `/subtitles`           | 자막 생성                 |
-| PUT    | `/subtitles/:id`       | 자막 수정                 |
-| POST   | `/subtitles/translate` | 자막 번역 요청            |
-| GET    | `/api/v1/health/`      | 서버 및 DB 상태 체크      |
+| 메서드  | 엔드포인트                   | 설명                        |
+|------|-------------------------|---------------------------|
+| POST | `/api/v1/auth/firebase` | Firebase 토큰 검증 및 로그인/회원가입 |
+| GET  | `/api/v1/auth/me`       | 현재 로그인한 사용자 정보 조회         |
+| GET  | `/api/v1/projects`      | 프로젝트 목록 조회 (더미)           |
+| POST | `/auth/register`        | 회원가입                      |
+| POST | `/videos/upload`        | 영상 업로드                    |
+| GET  | `/videos/:id`           | 영상 정보 조회                  |
+| GET  | `/subtitles/:videoId`   | 자막 조회                     |
+| POST | `/subtitles`            | 자막 생성                     |
+| PUT  | `/subtitles/:id`        | 자막 수정                     |
+| POST | `/subtitles/translate`  | 자막 번역 요청                  |
+| GET  | `/api/v1/health/`       | 서버 및 DB 상태 체크             |
 
 자세한 API 문서는 노션 페이지를 참고하세요.
 
@@ -435,14 +439,6 @@ ai:
 ## 📞 문의
 
 - **노션**: [프로젝트 문서](https://notion.so/your-workspace)
-
----
-
-## 📖 API Interactive Document
-
-서버 실행 후 브라우저에서 아래 주소로 접속하면 실시간으로 API를 테스트하고 명세를 확인할 수 있습니다.
-
-- **Swagger UI**: http://localhost:8080/swagger-ui/index.html
 
 ---
 

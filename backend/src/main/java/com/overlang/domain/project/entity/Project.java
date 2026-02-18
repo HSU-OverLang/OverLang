@@ -23,7 +23,7 @@ public class Project extends BaseTimeEntity { // 생성/수정 시간 자동화
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "member_id", nullable = false)
-  private Member member;
+  private Member member; // 프로젝트 생성자
 
   @Column(nullable = false)
   private String title;
