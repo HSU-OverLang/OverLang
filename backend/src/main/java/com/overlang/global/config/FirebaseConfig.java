@@ -6,6 +6,8 @@ import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -44,17 +46,30 @@ public class FirebaseConfig {
   }
 
   private InputStream getServiceAccountStream(String path) throws Exception {
+    String trimmed = (path == null) ? "" : path.trim();
 
     // classpath:xxx.json
-    if (path.startsWith("classpath:")) {
-      String cp = path.substring("classpath:".length());
+    if (trimmed.startsWith("classpath:")) {
+      String cp = trimmed.substring("classpath:".length());
       return new ClassPathResource(cp).getInputStream();
     }
 
-    if (path.startsWith("file:")) {
-      return new FileInputStream(path.substring("file:".length()));
+    if (trimmed.startsWith("file:")) {
+      return new FileInputStream(trimmed.substring("file:".length()));
     }
 
-    return new FileInputStream(path);
+    // If it's an existing filesystem path, use it.
+    if (Files.exists(Path.of(trimmed))) {
+      return new FileInputStream(trimmed);
+    }
+
+    // Otherwise, try classpath resource with the raw name (e.g. "overlang-firebase-admin.json")
+    ClassPathResource cp = new ClassPathResource(trimmed);
+    if (cp.exists()) {
+      return cp.getInputStream();
+    }
+
+    // Last resort: treat it as a filesystem path (will throw FileNotFoundException)
+    return new FileInputStream(trimmed);
   }
 }
