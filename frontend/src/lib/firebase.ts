@@ -12,10 +12,3 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-/*
-// 개발용
-if (import.meta.env.DEV) {
-  // @ts-ignore
-  window.auth = auth;
-}
-*/
