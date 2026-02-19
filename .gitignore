@@ -203,14 +203,4 @@ backend/src/main/resources/overlang-firebase-admin.json
 
 # Java class files
 *.class
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
