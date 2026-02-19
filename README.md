@@ -175,13 +175,12 @@ docker-compose --profile gpu-only up -d
 ````bash
 # 로그 확인
 docker-compose logs -f
-
+````
 ### 3️⃣ AI 모듈 실행 (API Server)
-
 FastAPI 서버를 실행하여 외부 요청을 처리할 수 있습니다.
 
 **Local 실행 (개발용)**
-```bash
+````bash
 cd ai
 uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
 ````
@@ -206,12 +205,9 @@ docker-compose --profile gpu-only up -d --build
 
 기존 CLI 방식도 여전히 사용 가능합니다.
 
-````bash
-
-
 **Frontend 개발 서버**
 
-```bash
+````bash
 cd frontend
 npm install
 npm run dev
