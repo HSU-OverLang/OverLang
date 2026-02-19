@@ -172,15 +172,42 @@ docker-compose up -d
 docker-compose --profile gpu-only up -d
 ```
 
-```bash
+````bash
 # 로그 확인
 docker-compose logs -f
 
-# 서비스 중지
-docker-compose down
+### 3️⃣ AI 모듈 실행 (API Server)
+
+FastAPI 서버를 실행하여 외부 요청을 처리할 수 있습니다.
+
+**Local 실행 (개발용)**
+```bash
+cd ai
+uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
+````
+
+- API 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
+- 상태 조회: [http://localhost:8000/api/v1/health](http://localhost:8000/)
+
+**Celery Worker 실행 (비동기 작업용)**
+
+```bash
+# Windows (pool=solo 필수)
+celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
 ```
 
-#### 4️⃣ 로컬 개발 환경
+**Docker 실행**
+
+```bash
+docker-compose --profile gpu-only up -d --build
+```
+
+### 4️⃣ CLI 사용 (Legacy)
+
+기존 CLI 방식도 여전히 사용 가능합니다.
+
+````bash
+
 
 **Frontend 개발 서버**
 
@@ -189,7 +216,7 @@ cd frontend
 npm install
 npm run dev
 # http://localhost:5173
-```
+````
 
 **Backend 개발 서버**
 
@@ -250,6 +277,7 @@ python main.py --input sample.mp4 --no-align --batch-size 8 --warmup
 # 전체 옵션 확인
 python main.py --help
 ```
+
 ---
 
 ## 📝 개발 가이드
@@ -282,26 +310,26 @@ python main.py --help
 
 ### 브랜치 네이밍
 
-| 타입           | 형식          | 예시                   |
-|--------------| ------------- | ---------------------- |
+| 타입                 | 형식          | 예시                   |
+| -------------------- | ------------- | ---------------------- |
 | 기능 개발, 버그 수정 | `역할/기능명` | `fe/player`, `be/auth` |
-| 문서 작업        | `doc/내용`    | `doc/api-spec`         |
+| 문서 작업            | `doc/내용`    | `doc/api-spec`         |
 
 ### 커밋 타입
 
-| 타입       | 설명                                   |
-| ---------- |--------------------------------------|
-| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                |
-| `fix`      | 버그 수정                                |
-| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)             |
-| `doc`      | 문서 작업 (README 등)                     |
-| `test`     | 테스트 코드 추가 또는 수정                      |
-| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등) |
-| `perform`  | 성능 개선                                |
-| `clean`    | 불필요한 코드 및 파일 제거, 정리                  |
-| `design`   | UI/UX 스타일 작업 또는 개선                   |
-| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음  |
-| `comment`  | 주석 수정, 추가                            |
+| 타입       | 설명                                                      |
+| ---------- | --------------------------------------------------------- |
+| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                      |
+| `fix`      | 버그 수정                                                 |
+| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)                  |
+| `doc`      | 문서 작업 (README 등)                                     |
+| `test`     | 테스트 코드 추가 또는 수정                                |
+| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등)        |
+| `perform`  | 성능 개선                                                 |
+| `clean`    | 불필요한 코드 및 파일 제거, 정리                          |
+| `design`   | UI/UX 스타일 작업 또는 개선                               |
+| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
+| `comment`  | 주석 수정, 추가                                           |
 
 ### 코드 스타일
 
@@ -375,19 +403,19 @@ ruff check .
 
 ### 주요 엔드포인트
 
-| 메서드  | 엔드포인트                   | 설명                        |
-|------|-------------------------|---------------------------|
-| POST | `/api/v1/auth/firebase` | Firebase 토큰 검증 및 로그인/회원가입 |
-| GET  | `/api/v1/auth/me`       | 현재 로그인한 사용자 정보 조회         |
-| GET  | `/api/v1/projects`      | 프로젝트 목록 조회 (더미)           |
-| POST | `/auth/register`        | 회원가입                      |
-| POST | `/videos/upload`        | 영상 업로드                    |
-| GET  | `/videos/:id`           | 영상 정보 조회                  |
-| GET  | `/subtitles/:videoId`   | 자막 조회                     |
-| POST | `/subtitles`            | 자막 생성                     |
-| PUT  | `/subtitles/:id`        | 자막 수정                     |
-| POST | `/subtitles/translate`  | 자막 번역 요청                  |
-| GET  | `/api/v1/health/`       | 서버 및 DB 상태 체크             |
+| 메서드 | 엔드포인트              | 설명                                  |
+| ------ | ----------------------- | ------------------------------------- |
+| POST   | `/api/v1/auth/firebase` | Firebase 토큰 검증 및 로그인/회원가입 |
+| GET    | `/api/v1/auth/me`       | 현재 로그인한 사용자 정보 조회        |
+| GET    | `/api/v1/projects`      | 프로젝트 목록 조회 (더미)             |
+| POST   | `/auth/register`        | 회원가입                              |
+| POST   | `/videos/upload`        | 영상 업로드                           |
+| GET    | `/videos/:id`           | 영상 정보 조회                        |
+| GET    | `/subtitles/:videoId`   | 자막 조회                             |
+| POST   | `/subtitles`            | 자막 생성                             |
+| PUT    | `/subtitles/:id`        | 자막 수정                             |
+| POST   | `/subtitles/translate`  | 자막 번역 요청                        |
+| GET    | `/api/v1/health/`       | 서버 및 DB 상태 체크                  |
 
 자세한 API 문서는 노션 페이지를 참고하세요.
 

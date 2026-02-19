@@ -11,5 +11,10 @@ numpy
 pandas
 
 # Dev Tools
-black
-ruff
+
+# API & Worker
+fastapi
+uvicorn
+celery[redis]
+python-multipart
+python-dotenv
