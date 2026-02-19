@@ -450,3 +450,4 @@ ai:
 - **Tailwind CSS**: [Tailwind CSS 문서](https://tailwindcss.com/docs)
 - **Backend**: [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
 - **AI**: [WhisperX GitHub](https://github.com/m-bain/whisperX)
+
