@@ -175,6 +175,27 @@ docker-compose --profile gpu-only up -d
 ````bash
 # 로그 확인
 docker-compose logs -f
+````
+### 3️⃣ AI 모듈 실행 (API Server)
+FastAPI 서버를 실행하여 외부 요청을 처리할 수 있습니다.
+
+**Local 실행 (개발용)**
+````bash
+cd ai
+uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
+````
+
+- API 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
+- 상태 조회: [http://localhost:8000/api/v1/health](http://localhost:8000/)
+
+**Celery Worker 실행 (비동기 작업용)**
+
+```bash
+# Windows (pool=solo 필수)
+celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
+```
+
+**Docker 실행**
 
 ### 3️⃣ AI 모듈 실행 (Docker Only)
 
