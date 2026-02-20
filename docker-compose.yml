@@ -6,11 +6,13 @@ services:
       dockerfile: Dockerfile
     container_name: overlang_ai
     volumes:
-      - ./ai:/app
-      - ./ai/models:/app/models
+      - ./ai:/app/ai
     environment:
+      - PYTHONPATH=/app
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     deploy:
       resources:
         reservations:
@@ -22,7 +24,33 @@ services:
       - "8000:8000"
     command: uvicorn ai.api.app:app --host 0.0.0.0 --port 8000 --reload
 
-  # Database & Cache (Optional for now, but good to have)
+  ai-worker:
+    profiles: ["gpu-only"]
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    container_name: overlang_ai_worker
+    volumes:
+      - ./ai:/app/ai
+    environment:
+      - PYTHONPATH=/app
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      - redis
+      - ai
+    command: celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
+
+  # Database & Cache
   redis:
     image: redis:7-alpine
     ports:

@@ -196,3 +196,9 @@ backend/src/main/resources/overlang-firebase-admin.json
 
 # Java class files
 *.class
+
+# Test artifacts (AI)
+ai/test_audio*
+ai/test_audio*_result.json
+ai/test_audio*_16k.wav
+ai/benchmark.py
