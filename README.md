@@ -42,10 +42,10 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 
 ### AI
 
-- **Language**: Python 3.11
-- **AI Framework**: PyTorch 2.8.0 (CUDA 12.6)
-- **Speech Recognition**: WhisperX 3.7.6, Faster-Whisper 1.2.1
-- **NLP**: Transformers 4.57.6
+- **Language**: Python 3.10
+- **AI Framework**: PyTorch 2.1.2 (CUDA 12.1)
+- **Speech Recognition**: WhisperX 3.1.1, Faster-Whisper 1.0.3
+- **NLP**: Transformers 4.36.2
 
 ### Infrastructure
 
@@ -107,7 +107,7 @@ OverLang/
 
 - **Node.js**: 22.19.0
 - **Java**: 21 (LTS)
-- **Python**: 3.11
+- **Python**: 3.10
 - **Docker**: 최신 버전
 - **NVIDIA GPU**: CUDA 12.6 이상 (AI 용, VRAM 8GB 이상 권장)
 
@@ -176,72 +176,48 @@ docker-compose --profile gpu-only up -d
 # 로그 확인
 docker-compose logs -f
 
-### 3️⃣ AI 모듈 실행 (API Server)
+### 3️⃣ AI 모듈 실행 (Docker Only)
 
-FastAPI 서버를 실행하여 외부 요청을 처리할 수 있습니다.
+로컬 환경 설정 없이 Docker만으로 API 서버와 Worker를 모두 실행할 수 있습니다.
 
-**Local 실행 (개발용)**
-```bash
-cd ai
-uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
-````
-
-- API 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
-- 상태 조회: [http://localhost:8000/api/v1/health](http://localhost:8000/)
-
-**Celery Worker 실행 (비동기 작업용)**
-
-```bash
-# Windows (pool=solo 필수)
-celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
-```
-
-**Docker 실행**
-
+**1. 전체 스택 실행 (API + Worker + Redis)**
 ```bash
 docker-compose --profile gpu-only up -d --build
 ```
 
-### 4️⃣ CLI 사용 (Legacy)
-
-기존 CLI 방식도 여전히 사용 가능합니다.
-
-````bash
-
-
-**Frontend 개발 서버**
-
+**2. 로그 확인 (실시간)**
 ```bash
-cd frontend
-npm install
-npm run dev
-# http://localhost:5173
-````
+docker-compose logs -f ai ai-worker
+```
+- **API 서버**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Celery Worker**: 백그라운드에서 동작 (Redis 통해 작업 수신)
 
-**Backend 개발 서버**
+**3. 테스트 방법 (Powershell)**
+Docker 내부 경로(`/app/...`)를 사용하여 요청을 보냅니다.
 
-```bash
-cd backend
-./gradlew bootRun
-# http://localhost:8080
+```powershell
+$body = @{
+    file_path = "/app/ai/test_audio.mp3"
+    options   = @{
+        language   = "ko"        # ko, en, ja, etc.
+        model      = "large-v2"  # base, medium, large-v2, large-v3
+        batch_size = 16
+        no_align   = $true       # $true: 속도 우선, $false: 정밀 타임스탬프
+    }
+} | ConvertTo-Json -Depth 5
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/analyze" -ContentType "application/json" -Body $body
 ```
 
-**AI 실행**
+**4. 외부 접속 (Radmin VPN) 테스트**
+- 서버 설정은 이미 외부 접속(`0.0.0.0`)이 허용되어 있습니다.
+- Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
+- 예: `http://26.155.20.10:8000/docs`
+
+**5. 성능 벤치마크**
+여러 모델의 속도와 메모리 사용량을 비교하려면 벤치마크 스크립트를 실행하세요.
 
 ```bash
-cd ai
-
-# 가상환경 생성
-python -m venv venv
-
-# 활성화
-# Windows
-.\venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-
-# 의존성 설치
-pip install -r requirements.txt
+docker-compose exec ai python benchmark.py
 ```
 
 ---
@@ -415,7 +391,14 @@ ruff check .
 | POST   | `/subtitles`            | 자막 생성                             |
 | PUT    | `/subtitles/:id`        | 자막 수정                             |
 | POST   | `/subtitles/translate`  | 자막 번역 요청                        |
-| GET    | `/api/v1/health/`       | 서버 및 DB 상태 체크                  |
+| GET    | `/api/v1/health`        | 서비스 헬스 체크 (로드밸런서용)       |
+
+### 에러 코드
+| 코드 | 설명 | 예시 |
+| :--- | :--- | :--- |
+| `WORKER_001` | GPU Out of Memory | VRAM 부족 (모델/배치 크기 조절 필요) |
+| `WORKER_002` | File Not Supported | 파일이 없거나 지원하지 않는 형식 |
+| `WORKER_999` | Unknown Error | 서버 내부 에러 |
 
 자세한 API 문서는 노션 페이지를 참고하세요.
 
@@ -478,3 +461,4 @@ ai:
 - **Tailwind CSS**: [Tailwind CSS 문서](https://tailwindcss.com/docs)
 - **Backend**: [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
 - **AI**: [WhisperX GitHub](https://github.com/m-bain/whisperX)
+````
