@@ -213,13 +213,6 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/analyze" -Cont
 - Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
 - 예: `http://26.155.20.10:8000/docs`
 
-**5. 성능 벤치마크**
-여러 모델의 속도와 메모리 사용량을 비교하려면 벤치마크 스크립트를 실행하세요.
-
-```bash
-docker-compose exec ai python benchmark.py
-```
-
 ---
 
 ## 🧪 테스트
@@ -462,3 +455,4 @@ ai:
 - **Backend**: [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
 - **AI**: [WhisperX GitHub](https://github.com/m-bain/whisperX)
 ````
+
