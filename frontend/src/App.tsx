@@ -1,34 +1,46 @@
-import { useState } from 'react';
-import reactLogo from './assets/react.svg';
-import viteLogo from '/vite.svg';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/app/providers/AuthProvider';
 import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0);
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-slate-400">로딩 중...</p>
+      </div>
+    );
+  }
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
       <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <h1 className="text-3xl font-bold underline">Over Lang </h1>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
+        <h1 className="text-3xl font-bold underline">Over Lang</h1>
+        {user ? (
+          <div className="mt-4 space-y-2">
+            <p className="text-slate-600">
+              로그인됨: <span className="font-medium text-slate-900">{user.email}</span>
+            </p>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded bg-slate-200 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-300"
+            >
+              로그아웃
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <Link
+              to="/login"
+              className="inline-block rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500"
+            >
+              로그인
+            </Link>
+          </div>
+        )}
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
   );
 }
