@@ -269,6 +269,11 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/analyze" -Cont
 - Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
 - 예: `http://26.155.20.10:8000/docs`
 
+**4. 외부 접속 (Radmin VPN) 테스트**
+- 서버 설정은 이미 외부 접속(`0.0.0.0`)이 허용되어 있습니다.
+- Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
+- 예: `http://26.155.20.10:8000/docs`
+
 ---
 
 ## 🧪 테스트
