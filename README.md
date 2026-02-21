@@ -158,28 +158,43 @@ CUDA_VISIBLE_DEVICES=0
 
 > ⚠️ **보안 주의**: 실제 API 키와 비밀번호는 `.env.example` 파일을 참고하여 노션에서 확인하세요.
 
-#### 3️⃣ Docker로 전체 스택 실행
 
-**일반 실행 (AI 제외, FE/BE 개발자용)**
 
-```bash
-docker-compose up -d
-```
-
-**AI 포함 실행 (GPU 보유자용)**
-
-```bash
-docker-compose --profile gpu-only up -d
-```
-
-````bash
-# 로그 확인
-docker-compose logs -f
-````
-### 3️⃣ AI 모듈 실행 (API Server)
+##### 3️⃣ CLI 사용 (Legacy)
 FastAPI 서버를 실행하여 외부 요청을 처리할 수 있습니다.
 
-**Local 실행 (개발용)**
+**Frontend 개발 서버**
+
+```bash
+cd frontend
+npm install
+npm run dev
+# http://localhost:5173
+```
+
+**Backend 개발 서버**
+```bash
+cd backend
+./gradlew bootRun
+# http://localhost:8080
+```
+
+**AI 실행**
+```bash
+cd ai
+
+# 가상환경 생성
+python -m venv venv
+
+# 활성화
+# Windows
+.\venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
+
+# 의존성 설치
+pip install -r requirements.txt
+```
 ````bash
 cd ai
 uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
@@ -195,11 +210,31 @@ uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
 celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
 ```
 
+#### 4️⃣ Docker로 전체 스택 실행
+
 **Docker 실행**
+**일반 실행 (AI 제외, FE/BE 개발자용)**
 
-### 3️⃣ AI 모듈 실행 (Docker Only)
+```bash
+docker-compose up -d
+```
 
-로컬 환경 설정 없이 Docker만으로 API 서버와 Worker를 모두 실행할 수 있습니다.
+**AI 포함 실행 (GPU 보유자용)**
+
+```bash
+docker-compose --profile gpu-only up -d
+```
+
+````bash
+# 로그 확인
+docker-compose logs -f
+# 서비스 중지
+docker-compose down
+````
+
+
+
+**AI 모듈 실행 (Docker Only)**
 
 **1. 전체 스택 실행 (API + Worker + Redis)**
 ```bash
@@ -228,6 +263,11 @@ $body = @{
 } | ConvertTo-Json -Depth 5
 Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/analyze" -ContentType "application/json" -Body $body
 ```
+
+**4. 외부 접속 (Radmin VPN) 테스트**
+- 서버 설정은 이미 외부 접속(`0.0.0.0`)이 허용되어 있습니다.
+- Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
+- 예: `http://26.155.20.10:8000/docs`
 
 **4. 외부 접속 (Radmin VPN) 테스트**
 - 서버 설정은 이미 외부 접속(`0.0.0.0`)이 허용되어 있습니다.
@@ -405,7 +445,7 @@ ruff check .
 | POST   | `/subtitles`            | 자막 생성                             |
 | PUT    | `/subtitles/:id`        | 자막 수정                             |
 | POST   | `/subtitles/translate`  | 자막 번역 요청                        |
-| GET    | `/api/v1/health`        | 서비스 헬스 체크 (로드밸런서용)       |
+| GET    | `/api/v1/health`        | 서버 및 DB 상태 체크       |
 
 ### 에러 코드
 | 코드 | 설명 | 예시 |
