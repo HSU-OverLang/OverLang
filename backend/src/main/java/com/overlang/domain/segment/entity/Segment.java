@@ -15,31 +15,43 @@ public class Segment extends BaseTimeEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "job_id", nullable = false)
   private Job job;
 
-  @Column(nullable = false)
-  private Double startTime; // 시간 포맷(소수점 3자리)
+  @Column(name = "start_time", nullable = false)
+  private Double startTime;
+
+  @Column(name = "end_time", nullable = false)
+  private Double endTime;
 
   @Column(nullable = false)
-  private Double endTime; // 시간 포맷(소수점 3자리)
+  private Integer seq;
 
-  @Column(nullable = false)
-  private Integer seq; // 구간 순서
+  @Column(nullable = false, columnDefinition = "TEXT")
+  private String text;
 
-  @Column(columnDefinition = "TEXT", nullable = false)
-  private String text; // 자막 내용
+  @Column(name = "translated_text", columnDefinition = "TEXT")
+  private String translatedText;
 
-  public void setJob(Job job) {
-    this.job = job;
-  }
+  @Column(name = "language_code", length = 20)
+  private String languageCode;
 
-  public Segment(Job job, Double startTime, Double endTime, Integer seq, String text) {
+  public Segment(
+          Job job,
+          Double startTime,
+          Double endTime,
+          Integer seq,
+          String text,
+          String translatedText,
+          String languageCode
+  ) {
     this.job = job;
     this.startTime = startTime;
     this.endTime = endTime;
     this.seq = seq;
     this.text = text;
+    this.translatedText = translatedText;
+    this.languageCode = languageCode;
   }
 }

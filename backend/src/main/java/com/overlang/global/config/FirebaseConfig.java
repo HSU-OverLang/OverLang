@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
+
+// firebase 인증 사용을 위한 서버 초기화 설정
 @Slf4j
 @Configuration
 public class FirebaseConfig {
@@ -48,7 +50,6 @@ public class FirebaseConfig {
   private InputStream getServiceAccountStream(String path) throws Exception {
     String trimmed = (path == null) ? "" : path.trim();
 
-    // classpath:xxx.json
     if (trimmed.startsWith("classpath:")) {
       String cp = trimmed.substring("classpath:".length());
       return new ClassPathResource(cp).getInputStream();
@@ -58,18 +59,15 @@ public class FirebaseConfig {
       return new FileInputStream(trimmed.substring("file:".length()));
     }
 
-    // If it's an existing filesystem path, use it.
     if (Files.exists(Path.of(trimmed))) {
       return new FileInputStream(trimmed);
     }
 
-    // Otherwise, try classpath resource with the raw name (e.g. "overlang-firebase-admin.json")
     ClassPathResource cp = new ClassPathResource(trimmed);
     if (cp.exists()) {
       return cp.getInputStream();
     }
 
-    // Last resort: treat it as a filesystem path (will throw FileNotFoundException)
     return new FileInputStream(trimmed);
   }
 }
