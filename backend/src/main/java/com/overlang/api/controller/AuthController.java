@@ -33,12 +33,12 @@ public class AuthController {
     FirebaseUserInfo userInfo = firebaseTokenVerifier.verify(idToken);
 
     MemberWithStatus result =
-            memberService.findOrCreate(userInfo.firebaseUid(), userInfo.email(), userInfo.name());
+        memberService.findOrCreate(userInfo.firebaseUid(), userInfo.email(), userInfo.name());
     Member member = result.member();
 
     return ApiResponse.success(
-            new AuthFirebaseResponse(
-                    member.getId(), member.getFirebaseUid(), member.getEmail(), result.isNewMember()));
+        new AuthFirebaseResponse(
+            member.getId(), member.getFirebaseUid(), member.getEmail(), result.isNewMember()));
   }
 
   @Operation(summary = "사용자 정보 조회", description = "토큰을 통해 현재 로그인한 사용자의 정보를 가져옵니다.")
@@ -50,7 +50,13 @@ public class AuthController {
     Member member = memberService.getByFirebaseUid(userInfo.firebaseUid());
 
     return ApiResponse.success(
-            new AuthMeResponse(
-                    member.getId(), member.getFirebaseUid(), member.getEmail(), member.getName()));
+        new AuthMeResponse(
+            member.getId(), member.getFirebaseUid(), member.getEmail(), member.getName()));
   }
+
+  // DTO 레코드
+  public record AuthFirebaseResponse(
+      Long memberId, String firebaseUid, String email, boolean isNewMember) {}
+
+  public record AuthMeResponse(Long memberId, String firebaseUid, String email, String name) {}
 }

@@ -11,41 +11,36 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserApiKey extends BaseTimeEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", nullable = false)
-    private Member member;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "member_id", nullable = false)
+  private Member member;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
-    private ApiKeyProvider provider;
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 50)
+  private ApiKeyProvider provider;
 
-    @Column(name = "encrypted_key", nullable = false, columnDefinition = "TEXT")
-    private String encryptedKey;
+  @Column(name = "encrypted_key", nullable = false, columnDefinition = "TEXT")
+  private String encryptedKey;
 
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive;
+  @Column(name = "is_active", nullable = false)
+  private Boolean isActive;
 
-    public UserApiKey(
-            Member member,
-            ApiKeyProvider provider,
-            String encryptedKey,
-            Boolean isActive
-    ) {
-        this.member = member;
-        this.provider = provider;
-        this.encryptedKey = encryptedKey;
-        this.isActive = isActive != null ? isActive : true;
-    }
+  public UserApiKey(Member member, ApiKeyProvider provider, String encryptedKey, Boolean isActive) {
+    this.member = member;
+    this.provider = provider;
+    this.encryptedKey = encryptedKey;
+    this.isActive = isActive != null ? isActive : true;
+  }
 
-    public void updateEncryptedKey(String encryptedKey) {
-        this.encryptedKey = encryptedKey;
-    }
+  public void updateEncryptedKey(String encryptedKey) {
+    this.encryptedKey = encryptedKey;
+  }
 
-    public void updateIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
+  public void updateIsActive(Boolean isActive) {
+    this.isActive = isActive;
+  }
 }

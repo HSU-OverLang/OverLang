@@ -36,11 +36,8 @@ public class Project extends BaseTimeEntity {
   @Column(nullable = false, length = 50)
   private ProjectStatus status;
 
-  public Project(Member member,
-                 String title,
-                 SourceType sourceType,
-                 String sourceUrl,
-                 String fileUrl) {
+  public Project(
+      Member member, String title, SourceType sourceType, String sourceUrl, String fileUrl) {
     validateSource(sourceType, sourceUrl, fileUrl);
     this.member = member;
     this.title = title;
