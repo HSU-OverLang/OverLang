@@ -53,10 +53,4 @@ public class AuthController {
         new AuthMeResponse(
             member.getId(), member.getFirebaseUid(), member.getEmail(), member.getName()));
   }
-
-  // DTO 레코드
-  public record AuthFirebaseResponse(
-      Long memberId, String firebaseUid, String email, boolean isNewMember) {}
-
-  public record AuthMeResponse(Long memberId, String firebaseUid, String email, String name) {}
 }
