@@ -28,7 +28,6 @@ public class Member extends BaseTimeEntity {
   @Column(name = "profile_image_url", length = 1024)
   private String profileImageUrl;
 
-
   // 생성자
   public Member(String email, String name, String firebaseUid) {
     this.email = email;

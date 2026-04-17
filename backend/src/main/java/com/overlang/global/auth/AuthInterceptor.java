@@ -12,24 +12,22 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @RequiredArgsConstructor
 public class AuthInterceptor implements HandlerInterceptor {
 
-    public static final String AUTH_MEMBER_ID = "AUTH_MEMBER_ID";
+  public static final String AUTH_MEMBER_ID = "AUTH_MEMBER_ID";
 
-    private final BearerTokenResolver bearerTokenResolver;
-    private final FirebaseTokenVerifier firebaseTokenVerifier;
-    private final MemberService memberService;
+  private final BearerTokenResolver bearerTokenResolver;
+  private final FirebaseTokenVerifier firebaseTokenVerifier;
+  private final MemberService memberService;
 
-    @Override
-    public boolean preHandle(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Object handler) {
+  @Override
+  public boolean preHandle(
+      HttpServletRequest request, HttpServletResponse response, Object handler) {
 
-        String token = bearerTokenResolver.resolve(request);
-        FirebaseUserInfo userInfo = firebaseTokenVerifier.verify(token);
+    String token = bearerTokenResolver.resolve(request);
+    FirebaseUserInfo userInfo = firebaseTokenVerifier.verify(token);
 
-        Member member = memberService.getByFirebaseUid(userInfo.firebaseUid());
+    Member member = memberService.getByFirebaseUid(userInfo.firebaseUid());
 
-        request.setAttribute(AUTH_MEMBER_ID, member.getId());
-        return true;
-    }
+    request.setAttribute(AUTH_MEMBER_ID, member.getId());
+    return true;
+  }
 }

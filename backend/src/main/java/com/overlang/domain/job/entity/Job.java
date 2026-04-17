@@ -15,7 +15,6 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "project_id", nullable = false)
   private Project project;
@@ -55,13 +54,12 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   private String errorMessage;
 
   public Job(
-          Project project,
-          JobType jobType,
-          String sourceLanguage,
-          String targetLanguage,
-          TranslationProvider translationProvider,
-          Boolean useUserApiKey
-  ) {
+      Project project,
+      JobType jobType,
+      String sourceLanguage,
+      String targetLanguage,
+      TranslationProvider translationProvider,
+      Boolean useUserApiKey) {
     this.project = project;
     this.jobType = jobType;
     this.status = JobStatus.PENDING;
@@ -70,7 +68,7 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
     this.sourceLanguage = sourceLanguage;
     this.targetLanguage = targetLanguage;
     this.translationProvider =
-            translationProvider == null ? TranslationProvider.DEFAULT : translationProvider;
+        translationProvider == null ? TranslationProvider.DEFAULT : translationProvider;
     this.useUserApiKey = useUserApiKey != null && useUserApiKey;
   }
 

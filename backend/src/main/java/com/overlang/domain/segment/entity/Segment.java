@@ -38,14 +38,13 @@ public class Segment extends BaseTimeEntity {
   private String languageCode;
 
   public Segment(
-          Job job,
-          Double startTime,
-          Double endTime,
-          Integer seq,
-          String text,
-          String translatedText,
-          String languageCode
-  ) {
+      Job job,
+      Double startTime,
+      Double endTime,
+      Integer seq,
+      String text,
+      String translatedText,
+      String languageCode) {
     this.job = job;
     this.startTime = startTime;
     this.endTime = endTime;
