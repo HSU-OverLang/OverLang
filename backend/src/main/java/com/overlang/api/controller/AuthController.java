@@ -1,5 +1,7 @@
 package com.overlang.api.controller;
 
+import com.overlang.api.dto.auth.AuthFirebaseResponse;
+import com.overlang.api.dto.auth.AuthMeResponse;
 import com.overlang.domain.member.entity.Member;
 import com.overlang.domain.member.service.MemberService;
 import com.overlang.domain.member.service.MemberService.MemberWithStatus;

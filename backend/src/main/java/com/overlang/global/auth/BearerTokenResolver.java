@@ -3,6 +3,7 @@ package com.overlang.global.auth;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
+// 토큰 추출
 @Component
 public class BearerTokenResolver {
 
