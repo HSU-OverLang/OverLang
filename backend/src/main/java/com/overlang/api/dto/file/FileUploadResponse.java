@@ -1,3 +1,3 @@
 package com.overlang.api.dto.file;
 
-public record FileUploadResponse(String fileName, String s3Key, String fileUrl) {}
+public record FileUploadResponse(String fileName, String fileKey, String fileUrl) {}
