@@ -11,43 +11,42 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LearningContent extends BaseTimeEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "job_id", nullable = false)
-    private Job job;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "job_id", nullable = false)
+  private Job job;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "content_type", nullable = false, length = 50)
-    private LearningContentType contentType;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "content_type", nullable = false, length = 50)
+  private LearningContentType contentType;
 
-    @Column(length = 255)
-    private String title;
+  @Column(length = 255)
+  private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
+  @Column(nullable = false, columnDefinition = "TEXT")
+  private String content;
 
-    @Column(name = "start_time")
-    private Double startTime;
+  @Column(name = "start_time")
+  private Double startTime;
 
-    @Column(name = "end_time")
-    private Double endTime;
+  @Column(name = "end_time")
+  private Double endTime;
 
-    public LearningContent(
-            Job job,
-            LearningContentType contentType,
-            String title,
-            String content,
-            Double startTime,
-            Double endTime
-    ) {
-        this.job = job;
-        this.contentType = contentType;
-        this.title = title;
-        this.content = content;
-        this.startTime = startTime;
-        this.endTime = endTime;
-    }
+  public LearningContent(
+      Job job,
+      LearningContentType contentType,
+      String title,
+      String content,
+      Double startTime,
+      Double endTime) {
+    this.job = job;
+    this.contentType = contentType;
+    this.title = title;
+    this.content = content;
+    this.startTime = startTime;
+    this.endTime = endTime;
+  }
 }

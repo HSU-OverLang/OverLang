@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
-
 // firebase 인증 사용을 위한 서버 초기화 설정
 @Slf4j
 @Configuration
