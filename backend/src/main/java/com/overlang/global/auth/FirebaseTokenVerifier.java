@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class FirebaseTokenVerifier {
 
+  // 토큰 유효성 검사, 사용자 정보 추출
   public FirebaseUserInfo verify(String idToken) {
     try {
       FirebaseToken decoded = FirebaseAuth.getInstance().verifyIdToken(idToken);

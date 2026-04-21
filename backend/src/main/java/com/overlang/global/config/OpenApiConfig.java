@@ -8,6 +8,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+// swagger에서 인증 사용할 수 있게
 @Configuration
 public class OpenApiConfig {
 

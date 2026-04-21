@@ -18,5 +18,7 @@ public abstract class BaseTimeEntity {
   @Column(updatable = false)
   private Instant createdAt; // ISO 8601 / UTC
 
-  @LastModifiedDate private Instant updatedAt; // ISO 8601 / UTC
+  @LastModifiedDate
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt; // ISO 8601 / UTC
 }

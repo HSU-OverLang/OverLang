@@ -1,15 +1,21 @@
-# Core AI
-torch>=2.0.0
-torchaudio>=2.0.0
-whisperx
-faster-whisper
-transformers
+# Core AI (Dockerfile에서 설치하므로 중복 방지를 위해 주석 처리하거나 버전을 맞춤)
+# torch==2.1.2+cu121
+# torchaudio==2.1.2+cu121
+
+pyannote.audio==3.1.1
+transformers==4.36.2
 
 # Utilities
+numpy<2.0
+pandas>=1.5,<3.0
 ffmpeg-python
-numpy
-pandas
 
-# Dev Tools
-black
-ruff
+# API
+fastapi>=0.110
+uvicorn>=0.25
+python-multipart
+python-dotenv
+
+# Worker
+celery[redis]>=5.3
+redis>=5.0
