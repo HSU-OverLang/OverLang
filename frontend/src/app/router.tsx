@@ -6,6 +6,8 @@ import { RegisterPage } from '@/app/pages/RegisterPage';
 import { MyPage } from '@/app/pages/MyPage';
 import { HomePage } from '@/app/pages/HomePage';
 import { UploadPage } from '@/app/pages/UploadPage';
+import { TranslatePage } from '@/app/pages/TranslatePage';
+import { StudyPage } from '@/app/pages/StudyPage';
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +46,15 @@ export const router = createBrowserRouter([
         <MyPage />
       </Layout>
     )
+  },
+  
+  {
+    path: '/translate',
+    element: <TranslatePage />,
+  },
+  {
+    path: '/study',
+    element: <StudyPage />,
   },
 
   {

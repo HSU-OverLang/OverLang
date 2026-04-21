@@ -1,67 +1,27 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { useScrollReveal } from '@/hooks/useScrollReveal';
+import { Header } from '@/components/layout/Header';
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+
+  const heroRef = useScrollReveal();
+  const sttRef = useScrollReveal();
+  const dragRef = useScrollReveal();
+  const idiomRef = useScrollReveal();
+  const featRef = useScrollReveal();
+  const ctaRef = useScrollReveal();
 
   return (
     <div className="min-h-screen bg-white text-slate-800">
 
       {/* ── 헤더 ── */}
-      <header className="sticky top-0 z-50 bg-white border-b border-slate-100">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          {/* 로고 */}
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
-              <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-              </svg>
-            </div>
-            <span className="text-lg font-bold text-slate-800">OverLang</span>
-          </div>
-
-          {/* 네비 */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-            <a href="#features" className="hover:text-slate-900 transition-colors">기능</a>
-            <a href="#pricing" className="hover:text-slate-900 transition-colors">가격</a>
-            <a href="#download" className="hover:text-slate-900 transition-colors">다운로드</a>
-            <a href="#discuss" className="hover:text-slate-900 transition-colors">토론</a>
-          </nav>
-
-          {/* 우측 버튼 */}
-          <div className="flex items-center gap-3">
-            {user ? (
-              <>
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-                >
-                  대시보드
-                </button>
-                <button
-                  onClick={async () => { await logout(); navigate('/'); }}
-                  className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-                >
-                  로그아웃
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => navigate('/login')}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors"
-                >
-                  무료로 시작 →
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* ── Hero ── */}
-      <section className="flex flex-col items-center justify-center px-6 py-24 text-center">
+      <section ref = { heroRef } className="flex flex-col items-center justify-center px-6 py-24 text-center">
         <h1 className="text-5xl font-extrabold leading-tight text-slate-900 md:text-6xl">
           영상 속 모든 언어를<br />이해하고 학습하세요
         </h1>
@@ -70,19 +30,11 @@ export function HomePage() {
           AI가 통합 번역하여 완벽한 이해를 돕습니다.
         </p>
         <button
-          onClick={() => navigate('/upload')}
+          onClick={() => navigate(user ? '/upload' : '/login')}
           className="mt-10 rounded-xl bg-emerald-600 px-8 py-4 text-base font-semibold text-white hover:bg-emerald-500 transition-colors"
         >
-          무료로 시작하기 →
+          {user ? '지금 시작하기 →' : '무료로 시작하기 →'}
         </button>
-        <div className="mt-6 flex items-center gap-3 text-sm text-slate-400">
-          <div className="flex -space-x-2">
-            <div className="h-7 w-7 rounded-full bg-emerald-400 border-2 border-white" />
-            <div className="h-7 w-7 rounded-full bg-emerald-500 border-2 border-white" />
-            <div className="h-7 w-7 rounded-full bg-emerald-700 border-2 border-white" />
-          </div>
-          이미 많은 학습자들이 사용하고 있습니다
-        </div>
 
         {/* 데모 영상 영역 */}
         <div className="mt-14 w-full max-w-4xl rounded-2xl bg-slate-800 aspect-video flex items-center justify-center">
@@ -95,7 +47,7 @@ export function HomePage() {
       </section>
 
       {/* ── STT + OCR 섹션 ── */}
-      <section id="features" className="bg-slate-50 py-24 px-6">
+      <section ref = { sttRef } id="features" className="bg-slate-50 py-24 px-6">
         <div className="mx-auto max-w-6xl flex flex-col md:flex-row items-center gap-16">
           {/* 카드 */}
           <div className="w-full md:w-1/2">
@@ -130,7 +82,7 @@ export function HomePage() {
       </section>
 
       {/* ── 단어 드래그 섹션 ── */}
-      <section className="py-24 px-6">
+      <section ref = { dragRef } className="py-24 px-6">
         <div className="mx-auto max-w-6xl flex flex-col md:flex-row-reverse items-center gap-16">
           {/* 카드 */}
           <div className="w-full md:w-1/2">
@@ -167,7 +119,7 @@ export function HomePage() {
       </section>
 
       {/* ── 관용 표현 섹션 ── */}
-      <section className="bg-slate-50 py-24 px-6">
+      <section ref = { idiomRef } className="bg-slate-50 py-24 px-6">
         <div className="mx-auto max-w-6xl flex flex-col md:flex-row items-center gap-16">
           {/* 카드 */}
           <div className="w-full md:w-1/2">
@@ -203,7 +155,7 @@ export function HomePage() {
       </section>
 
       {/* ── 기능 6개 그리드 ── */}
-      <section className="py-24 px-6">
+      <section ref = { featRef } className="py-24 px-6">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-4xl font-extrabold text-center text-slate-900">영상 시청이 곧 학습이 됩니다</h2>
           <p className="mt-4 text-center text-slate-500">
@@ -267,7 +219,7 @@ export function HomePage() {
       </section>
 
       {/* ── CTA 섹션 ── */}
-      <section className="bg-emerald-700 py-24 px-6 text-center text-white">
+      <section ref = { ctaRef } className="bg-emerald-700 py-24 px-6 text-center text-white">
         <h2 className="text-4xl font-extrabold leading-tight">
           영상 속 모든 언어,<br />지금 바로 이해하세요
         </h2>
@@ -275,10 +227,10 @@ export function HomePage() {
           무료로 시작하고 영상 시청과 동시에 자연스럽게 언어를 학습하세요
         </p>
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => navigate(user ? '/upload' : '/login')}
           className="mt-10 rounded-xl bg-white px-8 py-4 text-base font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors"
         >
-          무료로 시작하기 →
+          { user ? '지금 시작하기 →' : '무료로 시작하기 →' }
         </button>
       </section>
 

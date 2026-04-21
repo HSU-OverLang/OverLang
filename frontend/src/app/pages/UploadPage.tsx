@@ -55,9 +55,8 @@ export function UploadPage() {
       setUploadProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          // Navigate to processing page after upload
           setTimeout(() => {
-            navigate("/processing/new");
+            navigate('/translate');
           }, 500);
           return 100;
         }

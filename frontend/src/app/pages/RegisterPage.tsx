@@ -41,7 +41,7 @@ export function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await signUpWithEmail(email, password);
+      await signUpWithEmail(email, password, name);
     } catch {
       // error is set in AuthProvider
     } finally {
