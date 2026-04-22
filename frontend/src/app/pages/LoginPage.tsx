@@ -57,8 +57,8 @@ export function LoginPage() {
 
         {/* 에러 */}
         {error && (
-          <div role="alert" className="rounded-lg bg-red-50 border border-red-200 text-red-600 px-3 py-2 text-sm">
-            {error}
+          <div role="alert" className="rounded-lg text-center bg-red-50 border border-red-200 text-red-600 px-3 py-2 text-sm">
+            { "아이디 또는 비밀번호가 잘못 되었습니다." }
           </div>
         )}
 
