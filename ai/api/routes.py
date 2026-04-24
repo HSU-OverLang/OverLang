@@ -1,6 +1,4 @@
 import json
-
-from celery.result import AsyncResult
 from fastapi import APIRouter
 
 from ai.api.schemas import (
@@ -18,13 +16,9 @@ router = APIRouter()
 
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_audio(request: AnalysisRequest):
-    options = dict(request.options or {})
-    if request.source_language:
-        options["language"] = request.source_language
-
     task = celery_app.send_task(
-        "ai.worker.tasks.process_audio_task",
-        args=[request.resolve_local_input_path(), options],
+        "ai.worker.tasks.process_job_task",
+        args=[request.model_dump(by_alias=True)],
     )
 
     return AnalysisResponse(
@@ -36,7 +30,7 @@ async def analyze_audio(request: AnalysisRequest):
 
 @router.get("/status/{job_id}", response_model=TaskStatusResponse)
 async def get_task_status(job_id: str):
-    task_result = AsyncResult(job_id)
+    task_result = celery_app.AsyncResult(job_id)
     task_info = task_result.info if isinstance(task_result.info, dict) else {}
 
     response = TaskStatusResponse(
@@ -55,7 +49,7 @@ async def get_task_status(job_id: str):
         response.status = JobStatus.RUNNING
         return response
 
-    if task_result.state == JobStatus.COMPLETED.value:
+    if task_result.state in {JobStatus.COMPLETED.value, "SUCCESS"}:
         response.status = JobStatus.COMPLETED
         response.progress = 100.0
         response.current_stage = (
