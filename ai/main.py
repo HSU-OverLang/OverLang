@@ -1,14 +1,14 @@
-import argparse
-import logging
-import json
-import os
-import time
-import torch
-import warnings
-from typing import List, Dict, Any
-from stt_service import STTService
+from __future__ import annotations
 
-# 로깅 설정
+import argparse
+import json
+import logging
+import time
+from pathlib import Path
+
+from ai.api.schemas import AnalysisRequest, JobType, SourceType, TranslationProvider
+from ai.pipeline.run_pipeline import run_pipeline
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -16,117 +16,91 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-warnings.filterwarnings("ignore", category=UserWarning)
 
-# PyTorch Patch (for Safe Globals)
-if hasattr(torch.serialization, "add_safe_globals"):
-    original_load = torch.serialization.load
-
-    def patched_load(*args, **kwargs):
-        kwargs["weights_only"] = False
-        return original_load(*args, **kwargs)
-
-    torch.load = patched_load
-    torch.serialization.load = patched_load
-
-
-def save_to_json(data: List[Dict[str, Any]], output_path: str):
-    try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved results to: {output_path}")
-    except Exception as e:
-        logger.error(f"Failed to save JSON: {e}")
-
-
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="OverLang AI CLI")
-
-    # Input/Output
+    parser.add_argument("--input", type=str, required=True, help="Input media file path")
+    parser.add_argument("--output", type=str, default="result.json", help="Output JSON path")
     parser.add_argument(
-        "--input", type=str, required=True, help="Input audio file path"
-    )
-    parser.add_argument(
-        "--output", type=str, default="result.json", help="Output JSON path"
-    )
-
-    # Model Config
-    parser.add_argument(
-        "--model",
+        "--job-type",
         type=str,
-        default="large-v2",
-        help="Whisper model size (default: large-v2)",
+        default=JobType.FULL_ANALYSIS.value,
+        choices=[job_type.value for job_type in JobType],
+        help="Pipeline job type",
     )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda",
-        choices=["cuda", "cpu"],
-        help="Execution device",
-    )
+    parser.add_argument("--model", type=str, default="large-v3-turbo", help="Whisper model size")
     parser.add_argument(
         "--compute-type",
         type=str,
         default="float16",
-        help="Compute type (float16, int8)",
-    )
-
-    # Runtime Config
-    parser.add_argument(
-        "--batch-size", type=int, default=16, help="Batch size for transcription"
+        help="Compute type (float16, int8_float16, int8)",
     )
     parser.add_argument(
-        "--language", type=str, default=None, help="Language code (ko, en...)"
+        "--batch-size",
+        type=int,
+        default=16,
+        help="Batch size for transcription",
     )
     parser.add_argument(
-        "--no-align", action="store_true", help="Skip alignment step for speed"
+        "--language",
+        type=str,
+        default=None,
+        help="Source language code (ko, en, ja...)",
     )
     parser.add_argument(
-        "--warmup", action="store_true", help="Load model immediately on start"
+        "--target-language",
+        type=str,
+        default=None,
+        help="Target language code",
+    )
+    parser.add_argument(
+        "--translation-provider",
+        type=str,
+        default=TranslationProvider.DEFAULT.value,
+        choices=[provider.value for provider in TranslationProvider],
+        help="Translation provider identifier",
+    )
+    parser.add_argument(
+        "--no-align",
+        action="store_true",
+        help="Skip alignment step for speed",
     )
 
     args = parser.parse_args()
+    input_path = Path(args.input)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    # 0. File Check
-    if not os.path.exists(args.input):
-        logger.error(f"Input file not found: {args.input}")
-        return
+    request = AnalysisRequest(
+        source_type=SourceType.UPLOAD,
+        file_url=str(input_path.resolve()),
+        job_type=JobType(args.job_type),
+        source_language=args.language,
+        target_language=args.target_language,
+        translation_provider=TranslationProvider(args.translation_provider),
+        use_user_api_key=False,
+        options={
+            "model": args.model,
+            "compute_type": args.compute_type,
+            "batch_size": args.batch_size,
+            "no_align": args.no_align,
+        },
+    )
 
-    # 1. Initialize Service
-    try:
-        service = STTService(
-            device=args.device, model_name=args.model, compute_type=args.compute_type
-        )
+    def progress_callback(current_stage, progress, extra=None) -> None:
+        logger.info("Stage=%s Progress=%.1f", current_stage.value, progress)
 
-        # 2. Warmup (Optional)
-        if args.warmup:
-            logger.info("Warming up model...")
-            service.load_model()
+    start_time = time.time()
+    result = run_pipeline(request, progress_callback=progress_callback)
+    elapsed = time.time() - start_time
 
-        # 3. Process
-        start_time = time.time()
-        results = service.transcribe(
-            audio_path=args.input,
-            batch_size=args.batch_size,
-            language=args.language,
-            align=not args.no_align,  # CLI flag is 'no-align', so invert
-        )
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(result.model_dump(by_alias=True), file, ensure_ascii=False, indent=2)
 
-        elapsed = time.time() - start_time
-        logger.info(f"Total processed in {elapsed:.2f}s")
-
-        # 4. Save
-        if results:
-            save_to_json(results, args.output)
-
-        # 5. Cleanup (CLI only - Server might keep it)
-        service.unload_model()
-
-    except Exception as e:
-        logger.error(f"Critical Error: {e}")
-        import traceback
-
-        traceback.print_exc()
+    logger.info("Saved results to: %s", output_path)
+    logger.info("Total processed in %.2fs", elapsed)
 
 
 if __name__ == "__main__":
