@@ -10,6 +10,7 @@ from ai.api.schemas import (
     CurrentStage,
     JobType,
     SubtitleSegment,
+    WordTiming,
     WorkerJobPayload,
 )
 from ai.pipeline.audio_service import extract_audio_to_wav
@@ -44,7 +45,8 @@ def run_pipeline(
         if not source_path.exists():
             raise FileNotFoundError(f"Input source not found: {source_path}")
 
-        if normalized_job.job_type in {JobType.OCR_ONLY, JobType.TRANSLATION_ONLY}:
+        job_type = _enum_value(normalized_job.job_type)
+        if job_type in {JobType.OCR_ONLY.value, JobType.TRANSLATION_ONLY.value}:
             raise NotImplementedError(
                 f"{_enum_value(normalized_job.job_type)} is not wired into run_pipeline yet."
             )
@@ -62,7 +64,7 @@ def run_pipeline(
         )
 
         _report_progress(progress_callback, CurrentStage.STT_TRANSCRIPTION, 20.0)
-        subtitles = _run_stt_stage(normalized_job, audio_path)
+        subtitles = _run_stt_stage(normalized_job, audio_path, progress_callback)
         save_intermediate(
             resolved_job_id,
             "stt_subtitles",
@@ -70,7 +72,7 @@ def run_pipeline(
         )
 
         pipeline_steps = ["STT"]
-        if normalized_job.job_type == JobType.FULL_ANALYSIS:
+        if job_type == JobType.FULL_ANALYSIS.value:
             _report_progress(progress_callback, CurrentStage.OCR_FRAME_EXTRACTION, 40.0)
             save_intermediate(
                 resolved_job_id,
@@ -85,7 +87,10 @@ def run_pipeline(
             metadata=AnalysisMetadata(
                 job_id=resolved_job_id,
                 source_type=normalized_job.source_type,
-                source_language=normalized_job.source_language,
+                source_language=_resolve_source_language(
+                    normalized_job.source_language,
+                    subtitles,
+                ),
                 target_language=normalized_job.target_language,
                 pipeline=pipeline_steps,
                 fallback_used=False,
@@ -137,6 +142,7 @@ def _resolve_job_id(
 def _run_stt_stage(
     job: AnalysisRequest | WorkerJobPayload,
     source_path: Path,
+    progress_callback: ProgressCallback | None = None,
 ) -> list[SubtitleSegment]:
     runtime_options = _extract_runtime_options(job)
     stt_service = STTService(
@@ -150,25 +156,104 @@ def _run_stt_stage(
             language=job.source_language,
             align=runtime_options["align"],
             model_name=runtime_options["model"],
+            alignment_callback=lambda: _report_progress(
+                progress_callback,
+                CurrentStage.WHISPER_ALIGNMENT,
+                30.0,
+            ),
         )
     finally:
         stt_service.unload_model()
 
+    return _postprocess_subtitles(_build_subtitles(raw_segments, job.source_language))
+
+
+def _build_subtitles(
+    raw_segments: list[dict[str, Any]],
+    source_language: str | None,
+) -> list[SubtitleSegment]:
     subtitles = []
     for index, segment in enumerate(raw_segments, start=1):
         subtitles.append(
             SubtitleSegment(
                 seq=index,
-                start_time=float(segment["startTime"]),
-                end_time=float(segment["endTime"]),
-                text=segment["text"],
+                start_time=_round_time(segment["startTime"]),
+                end_time=_round_time(segment["endTime"]),
+                text=str(segment["text"]).strip(),
                 translated_text=None,
-                language_code=job.source_language,
-                words=[],
+                language_code=segment.get("languageCode") or source_language,
+                words=_build_word_timings(segment.get("words", [])),
             )
         )
 
     return subtitles
+
+
+def _build_word_timings(words: list[dict[str, Any]]) -> list[WordTiming]:
+    word_timings = []
+    for word in words:
+        text = str(word.get("word", "")).strip()
+        if not text:
+            continue
+
+        word_timings.append(
+            WordTiming(
+                word=text,
+                start_time=_optional_round_time(word.get("startTime")),
+                end_time=_optional_round_time(word.get("endTime")),
+                confidence=word.get("confidence"),
+            )
+        )
+
+    return word_timings
+
+
+def _postprocess_subtitles(
+    subtitles: list[SubtitleSegment],
+    min_duration_seconds: float = 0.2,
+) -> list[SubtitleSegment]:
+    cleaned_subtitles = [
+        subtitle
+        for subtitle in subtitles
+        if subtitle.text and subtitle.end_time > subtitle.start_time
+    ]
+    merged_subtitles: list[SubtitleSegment] = []
+
+    for subtitle in cleaned_subtitles:
+        duration = subtitle.end_time - subtitle.start_time
+        if (
+            merged_subtitles
+            and duration <= min_duration_seconds
+            and subtitle.language_code == merged_subtitles[-1].language_code
+        ):
+            previous = merged_subtitles[-1]
+            previous.end_time = _round_time(max(previous.end_time, subtitle.end_time))
+            previous.text = f"{previous.text} {subtitle.text}".strip()
+            previous.words.extend(subtitle.words)
+            continue
+
+        subtitle.start_time = _round_time(subtitle.start_time)
+        subtitle.end_time = _round_time(subtitle.end_time)
+        merged_subtitles.append(subtitle)
+
+    for index, subtitle in enumerate(merged_subtitles, start=1):
+        subtitle.seq = index
+
+    return merged_subtitles
+
+
+def _resolve_source_language(
+    requested_language: str | None,
+    subtitles: list[SubtitleSegment],
+) -> str | None:
+    if requested_language:
+        return requested_language
+
+    for subtitle in subtitles:
+        if subtitle.language_code:
+            return subtitle.language_code
+
+    return None
 
 
 def _serialize_model(
@@ -194,6 +279,17 @@ def _extract_runtime_options(
 
 def _enum_value(value: Any) -> Any:
     return getattr(value, "value", value)
+
+
+def _round_time(value: Any) -> float:
+    return round(float(value), 3)
+
+
+def _optional_round_time(value: Any) -> float | None:
+    if value is None:
+        return None
+
+    return _round_time(value)
 
 
 def _report_progress(

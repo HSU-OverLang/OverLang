@@ -63,9 +63,14 @@ async def get_task_status(job_id: str):
         response.status = JobStatus.FAILED
         response.current_stage = (
             parse_current_stage(task_info.get("current_stage"))
-            or CurrentStage.FINALIZING
+            or CurrentStage.QUEUED
         )
         response.progress = float(task_info.get("progress", 0.0))
+
+        if task_info.get("error_code") or task_info.get("error_message"):
+            response.error_code = task_info.get("error_code")
+            response.error_message = task_info.get("error_message")
+            return response
 
         error_str = str(task_result.info)
         try:
