@@ -87,7 +87,10 @@ def run_pipeline(
             metadata=AnalysisMetadata(
                 job_id=resolved_job_id,
                 source_type=normalized_job.source_type,
-                source_language=normalized_job.source_language,
+                source_language=_resolve_source_language(
+                    normalized_job.source_language,
+                    subtitles,
+                ),
                 target_language=normalized_job.target_language,
                 pipeline=pipeline_steps,
                 fallback_used=False,
@@ -237,6 +240,20 @@ def _postprocess_subtitles(
         subtitle.seq = index
 
     return merged_subtitles
+
+
+def _resolve_source_language(
+    requested_language: str | None,
+    subtitles: list[SubtitleSegment],
+) -> str | None:
+    if requested_language:
+        return requested_language
+
+    for subtitle in subtitles:
+        if subtitle.language_code:
+            return subtitle.language_code
+
+    return None
 
 
 def _serialize_model(

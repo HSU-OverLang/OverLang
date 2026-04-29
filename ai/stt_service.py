@@ -249,6 +249,7 @@ class STTService:
             result = self.model.transcribe(
                 audio, batch_size=batch_size, language=language
             )
+            detected_language = result.get("language")
 
             # 3. 정렬 수행
             if align:
@@ -263,7 +264,7 @@ class STTService:
                     "startTime": round(segment["start"], 3),
                     "endTime": round(segment["end"], 3),
                     "text": segment["text"].strip(),
-                    "languageCode": result.get("language"),
+                    "languageCode": detected_language,
                     "words": self._format_words(segment.get("words", [])),
                 }
                 formatted_results.append(item)
