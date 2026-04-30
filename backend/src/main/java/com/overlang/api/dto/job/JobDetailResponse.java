@@ -9,37 +9,36 @@ import com.overlang.domain.job.entity.TranslationProvider;
 import java.time.Instant;
 
 public record JobDetailResponse(
-        Long jobId,
-        Long projectId,
-        JobType jobType,
-        JobStatus status,
-        Integer progress,
-        CurrentStage currentStage,
-        LanguageCode sourceLanguage,
-        LanguageCode targetLanguage,
-        TranslationProvider translationProvider,
-        Boolean useUserApiKey,
-        String errorCode,
-        String errorMessage,
-        Instant createdAt,
-        Instant updatedAt
-) {
+    Long jobId,
+    Long projectId,
+    JobType jobType,
+    JobStatus status,
+    Integer progress,
+    CurrentStage currentStage,
+    LanguageCode sourceLanguage,
+    LanguageCode targetLanguage,
+    TranslationProvider translationProvider,
+    Boolean useUserApiKey,
+    String errorCode,
+    String errorMessage,
+    Instant createdAt,
+    Instant updatedAt) {
 
-    public static JobDetailResponse from(Job job) {
-        return new JobDetailResponse(
-                job.getId(),
-                job.getProject().getId(),
-                job.getJobType(),
-                job.getStatus(),
-                job.getProgress(),
-                job.getCurrentStage(),
-                job.getSourceLanguage(),
-                job.getTargetLanguage(),
-                job.getTranslationProvider(),
-                job.getUseUserApiKey(),
-                job.getErrorCode(),
-                job.getErrorMessage(),
-                job.getCreatedAt(),
-                job.getUpdatedAt());
-    }
+  public static JobDetailResponse from(Job job) {
+    return new JobDetailResponse(
+        job.getId(),
+        job.getProject().getId(),
+        job.getJobType(),
+        job.getStatus(),
+        job.getProgress(),
+        job.getCurrentStage(),
+        job.getSourceLanguage(),
+        job.getTargetLanguage(),
+        job.getTranslationProvider(),
+        job.getUseUserApiKey(),
+        job.getErrorCode(),
+        job.getErrorMessage(),
+        job.getCreatedAt(),
+        job.getUpdatedAt());
+  }
 }
