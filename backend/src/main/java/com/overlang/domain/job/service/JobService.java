@@ -2,6 +2,8 @@ package com.overlang.domain.job.service;
 
 import com.overlang.api.dto.job.JobCreateRequest;
 import com.overlang.api.dto.job.JobCreateResponse;
+import com.overlang.api.dto.job.JobDetailResponse;
+import com.overlang.api.dto.job.JobResponse;
 import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.queue.JobQueuePayload;
@@ -11,6 +13,7 @@ import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,5 +109,27 @@ public class JobService {
               job.getTranslationProvider(),
               job.getUseUserApiKey());
     };
+  }
+
+  @Transactional(readOnly = true)
+  public List<JobResponse> getJobsByProject(Long projectId, Long memberId) {
+    Project project =
+        projectRepository
+            .findByIdAndMemberId(projectId, memberId)
+            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+
+    return jobRepository.findByProjectIdOrderByCreatedAtDesc(project.getId()).stream()
+        .map(JobResponse::from)
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public JobDetailResponse getJobDetail(Long jobId, Long memberId) {
+    Job job =
+        jobRepository
+            .findByIdAndProjectMemberId(jobId, memberId)
+            .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+
+    return JobDetailResponse.from(job);
   }
 }
