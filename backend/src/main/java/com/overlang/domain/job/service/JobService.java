@@ -84,6 +84,7 @@ public class JobService {
         yield new JobQueuePayload(
             job.getId(),
             project.getId(),
+            project.getMember().getId(),
             sourceType,
             null,
             project.getFileKey(),
@@ -99,6 +100,7 @@ public class JobService {
           new JobQueuePayload(
               job.getId(),
               project.getId(),
+              project.getMember().getId(),
               sourceType,
               project.getSourceUrl(),
               null,

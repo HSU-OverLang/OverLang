@@ -8,6 +8,7 @@ import com.overlang.domain.project.entity.SourceType;
 public record JobQueuePayload(
     Long jobId,
     Long projectId,
+    Long memberId,
     SourceType sourceType,
     String sourceUrl,
     String fileKey,
