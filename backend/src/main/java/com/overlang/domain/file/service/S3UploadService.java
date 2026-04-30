@@ -2,6 +2,7 @@ package com.overlang.domain.file.service;
 
 import com.overlang.api.dto.file.FileUploadResponse;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,7 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 @Service
 public class S3UploadService {
@@ -20,12 +24,15 @@ public class S3UploadService {
   private final S3Client s3Client;
   private final String bucket;
   private final String region;
+  private final S3Presigner s3Presigner;
 
   public S3UploadService(
       S3Client s3Client,
+      S3Presigner s3Presigner,
       @Value("${cloud.aws.s3.bucket}") String bucket,
       @Value("${cloud.aws.region.static}") String region) {
     this.s3Client = s3Client;
+    this.s3Presigner = s3Presigner;
     this.bucket = bucket;
     this.region = region;
   }
@@ -76,5 +83,22 @@ public class S3UploadService {
 
   private String buildFileUrl(String s3Key) {
     return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + s3Key;
+  }
+
+  public String generatePresignedGetUrl(String fileKey) {
+    if (fileKey == null || fileKey.isBlank()) {
+      throw new IllegalArgumentException("fileKey가 필요합니다.");
+    }
+
+    GetObjectRequest getObjectRequest =
+        GetObjectRequest.builder().bucket(bucket).key(fileKey).build();
+
+    GetObjectPresignRequest presignRequest =
+        GetObjectPresignRequest.builder()
+            .signatureDuration(Duration.ofMinutes(30))
+            .getObjectRequest(getObjectRequest)
+            .build();
+
+    return s3Presigner.presignGetObject(presignRequest).url().toString();
   }
 }
