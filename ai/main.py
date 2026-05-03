@@ -65,6 +65,17 @@ def main() -> None:
         action="store_true",
         help="Skip alignment step for speed",
     )
+    parser.add_argument(
+        "--frame-interval",
+        type=float,
+        default=1.0,
+        help="Frame extraction interval for OCR jobs",
+    )
+    parser.add_argument(
+        "--ocr-cpu",
+        action="store_true",
+        help="Run OCR on CPU instead of GPU",
+    )
 
     args = parser.parse_args()
     input_path = Path(args.input)
@@ -84,6 +95,8 @@ def main() -> None:
             "compute_type": args.compute_type,
             "batch_size": args.batch_size,
             "no_align": args.no_align,
+            "frame_interval": args.frame_interval,
+            "ocr_gpu": not args.ocr_cpu,
         },
     )
 
