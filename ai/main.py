@@ -76,6 +76,41 @@ def main() -> None:
         action="store_true",
         help="Run OCR on CPU instead of GPU",
     )
+    parser.add_argument(
+        "--ocr-change-threshold",
+        type=float,
+        default=0.015,
+        help="Minimum frame difference score required to run OCR",
+    )
+    parser.add_argument(
+        "--disable-ocr-frame-skip",
+        action="store_true",
+        help="Run OCR on every extracted frame",
+    )
+    parser.add_argument(
+        "--ocr-min-confidence",
+        type=float,
+        default=0.3,
+        help="Minimum OCR confidence to keep a detected text item",
+    )
+    parser.add_argument(
+        "--ocr-min-text-length",
+        type=int,
+        default=2,
+        help="Minimum non-space text length to keep a detected text item",
+    )
+    parser.add_argument(
+        "--ocr-max-special-char-ratio",
+        type=float,
+        default=0.6,
+        help="Maximum special character ratio allowed for OCR text",
+    )
+    parser.add_argument(
+        "--ocr-edge-margin",
+        type=float,
+        default=0.0,
+        help="Edge margin for filtering tiny OCR noise near image borders",
+    )
 
     args = parser.parse_args()
     input_path = Path(args.input)
@@ -97,6 +132,12 @@ def main() -> None:
             "no_align": args.no_align,
             "frame_interval": args.frame_interval,
             "ocr_gpu": not args.ocr_cpu,
+            "ocr_change_threshold": args.ocr_change_threshold,
+            "ocr_skip_unchanged_frames": not args.disable_ocr_frame_skip,
+            "ocr_min_confidence": args.ocr_min_confidence,
+            "ocr_min_text_length": args.ocr_min_text_length,
+            "ocr_max_special_char_ratio": args.ocr_max_special_char_ratio,
+            "ocr_edge_margin": args.ocr_edge_margin,
         },
     )
 
