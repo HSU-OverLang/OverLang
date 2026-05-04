@@ -9,6 +9,9 @@ transformers==4.36.2
 numpy<2.0
 pandas>=1.5,<3.0
 ffmpeg-python
+easyocr
+opencv-python-headless
+Pillow
 
 # API
 fastapi>=0.110

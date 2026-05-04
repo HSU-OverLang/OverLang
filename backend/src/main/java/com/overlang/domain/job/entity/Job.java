@@ -1,6 +1,7 @@
 package com.overlang.domain.job.entity;
 
 import com.overlang.domain.common.BaseTimeEntity;
+import com.overlang.domain.common.LanguageCode;
 import com.overlang.domain.project.entity.Project;
 import jakarta.persistence.*;
 import lombok.*;
@@ -14,7 +15,6 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
-
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "project_id", nullable = false)
@@ -35,11 +35,13 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   @Column(name = "current_stage", nullable = false)
   private CurrentStage currentStage;
 
-  @Column(name = "source_language", length = 20)
-  private String sourceLanguage;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "source_language", nullable = false, length = 20)
+  private LanguageCode sourceLanguage;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "target_language", nullable = false, length = 20)
-  private String targetLanguage;
+  private LanguageCode targetLanguage;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "translation_provider", length = 50)
@@ -55,13 +57,12 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   private String errorMessage;
 
   public Job(
-          Project project,
-          JobType jobType,
-          String sourceLanguage,
-          String targetLanguage,
-          TranslationProvider translationProvider,
-          Boolean useUserApiKey
-  ) {
+      Project project,
+      JobType jobType,
+      LanguageCode sourceLanguage,
+      LanguageCode targetLanguage,
+      TranslationProvider translationProvider,
+      Boolean useUserApiKey) {
     this.project = project;
     this.jobType = jobType;
     this.status = JobStatus.PENDING;
@@ -70,7 +71,7 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
     this.sourceLanguage = sourceLanguage;
     this.targetLanguage = targetLanguage;
     this.translationProvider =
-            translationProvider == null ? TranslationProvider.DEFAULT : translationProvider;
+        translationProvider == null ? TranslationProvider.DEFAULT : translationProvider;
     this.useUserApiKey = useUserApiKey != null && useUserApiKey;
   }
 
@@ -91,6 +92,7 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   }
 
   public void markFailed(String errorCode, String errorMessage) {
+    this.currentStage = CurrentStage.FINALIZING;
     this.status = JobStatus.FAILED;
     this.errorCode = errorCode;
     this.errorMessage = errorMessage;

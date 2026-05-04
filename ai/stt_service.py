@@ -7,7 +7,7 @@ import functools
 import pyannote.audio.core.inference
 import os
 import ffmpeg
-from typing import List, Dict, Any, Optional
+from typing import Callable, List, Dict, Any, Optional
 
 # PyTorch 2.6+ 보안 로드 이슈 해결 (UnpicklingError 방지용)
 try:
@@ -131,7 +131,7 @@ class STTService:
                 self.model = whisperx.load_model(
                     self.model_name,
                     self.device,
-                    compute_type="int8_float16",  # 메모리 최적화를 위해 int8_float16 사용
+                    compute_type=self.compute_type,
                 )
                 logger.info("Model loaded successfully.")
             except Exception as e:
@@ -221,6 +221,7 @@ class STTService:
         language: Optional[str] = None,
         align: bool = True,
         model_name: str = "base",
+        alignment_callback: Callable[[], None] | None = None,
     ) -> List[Dict[str, Any]]:
         """
         전체 음성 인식 파이프라인을 실행.
@@ -248,9 +249,12 @@ class STTService:
             result = self.model.transcribe(
                 audio, batch_size=batch_size, language=language
             )
+            detected_language = result.get("language")
 
             # 3. 정렬 수행
             if align:
+                if alignment_callback is not None:
+                    alignment_callback()
                 result = self.align(result, audio, result["language"])
 
             # 4. 결과 포맷팅
@@ -260,6 +264,8 @@ class STTService:
                     "startTime": round(segment["start"], 3),
                     "endTime": round(segment["end"], 3),
                     "text": segment["text"].strip(),
+                    "languageCode": detected_language,
+                    "words": self._format_words(segment.get("words", [])),
                 }
                 formatted_results.append(item)
             return formatted_results
@@ -272,3 +278,28 @@ class STTService:
                         logger.info(f"Removed temporary file: {processed_path}")
                     except Exception as e:
                         logger.warning(f"Failed to remove temporary file: {e}")
+
+    def _format_words(self, words: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        formatted_words = []
+        for word in words:
+            text = str(word.get("word", "")).strip()
+            if not text:
+                continue
+
+            formatted_words.append(
+                {
+                    "word": text,
+                    "startTime": _round_time(word.get("start")),
+                    "endTime": _round_time(word.get("end")),
+                    "confidence": word.get("score"),
+                }
+            )
+
+        return formatted_words
+
+
+def _round_time(value: Any) -> float | None:
+    if value is None:
+        return None
+
+    return round(float(value), 3)

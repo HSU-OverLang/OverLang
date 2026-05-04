@@ -20,13 +20,13 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body(ApiResponse.error("COMMON_400", e.getMessage()));
+        .body(ApiResponse.error("COMMON_400", e.getMessage()));
   }
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException e) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body(ApiResponse.error("COMMON_400", "잘못된 요청 형식입니다."));
+        .body(ApiResponse.error("COMMON_400", "잘못된 요청 형식입니다."));
   }
 
   @ExceptionHandler(Exception.class)

@@ -210,3 +210,4 @@ ai/test_audio*
 ai/test_audio*_result.json
 ai/test_audio*_16k.wav
 ai/benchmark.py
+ai/samples/

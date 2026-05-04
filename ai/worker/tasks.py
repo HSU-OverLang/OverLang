@@ -1,111 +1,164 @@
-from ai.worker.celery_app import celery_app
-from ai.stt_service import STTService
+import json
 import logging
 import warnings
-import json
-import os
+
 import torch
-from ai.api.schemas import ErrorCode
+
+from ai.api.schemas import (
+    AnalysisRequest,
+    CallbackPayload,
+    CurrentStage,
+    ErrorCode,
+    JobStatus,
+    JobType,
+    SourceType,
+)
+from ai.pipeline.callback_client import send_callback
+from ai.pipeline.run_pipeline import run_pipeline
+from ai.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-# UserWarning 경고 무시 (WhisperX 내부 경고 등)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# 전역 변수로 STT 서비스 인스턴스를 유지
-# Worker 프로세스가 시작될 때 한 번만 초기화되며, 이후 요청에서는 재사용
-current_stt_service = STTService(model_name="large-v3-turbo")
+
+def _build_task_meta(
+    progress: float,
+    current_stage: CurrentStage,
+    error_code: ErrorCode | None = None,
+    error_message: str | None = None,
+) -> dict[str, object]:
+    return {
+        "progress": float(progress),
+        "current_stage": current_stage.value,
+        "error_code": error_code.value if isinstance(error_code, ErrorCode) else error_code,
+        "error_message": error_message,
+    }
+
+
+def _execute_job_task(self, job_payload: dict):
+    task_progress = {
+        "progress": 0.0,
+        "current_stage": CurrentStage.QUEUED,
+    }
+    input_reference = (
+        job_payload.get("fileUrl")
+        or job_payload.get("presignedUrl")
+        or job_payload.get("sourceUrl")
+        or "unknown-input"
+    )
+
+    try:
+        logger.info("Task started: %s", self.request.id)
+
+        def progress_callback(
+            current_stage: CurrentStage,
+            progress: float,
+            extra: dict | None = None,
+        ) -> None:
+            task_progress["progress"] = float(progress)
+            task_progress["current_stage"] = current_stage
+            self.update_state(
+                state=JobStatus.RUNNING.value,
+                meta=_build_task_meta(progress, current_stage),
+            )
+            send_callback(
+                CallbackPayload(
+                    job_id=self.request.id,
+                    status=JobStatus.RUNNING,
+                    progress=float(progress),
+                    current_stage=current_stage,
+                    segments=[],
+                    ocr_items=[],
+                    learning_data=None,
+                    error_code=None,
+                    error_message=None,
+                )
+            )
+
+        result = run_pipeline(
+            job_payload,
+            progress_callback=progress_callback,
+            job_id=self.request.id,
+            keep_intermediate_files=True,
+        )
+
+        send_callback(
+            CallbackPayload(
+                job_id=self.request.id,
+                status=JobStatus.COMPLETED,
+                progress=100.0,
+                current_stage=CurrentStage.FINALIZING,
+                segments=result.subtitles,
+                ocr_items=result.ocr_items,
+                learning_data=result.learning_data,
+                error_code=None,
+                error_message=None,
+            )
+        )
+        return result.model_dump(by_alias=True)
+    except Exception as error:
+        error_code = ErrorCode.UNKNOWN_ERROR
+        error_message = str(error)
+
+        if "out of memory" in error_message.lower() or isinstance(
+            error,
+            torch.cuda.OutOfMemoryError,
+        ):
+            error_code = ErrorCode.GPU_OOM
+            error_message = (
+                "GPU Out of Memory. Please try a smaller model or batch size."
+            )
+        elif isinstance(error, FileNotFoundError):
+            error_code = ErrorCode.INVALID_OPTIONS
+            error_message = f"Input source not found: {input_reference}"
+        elif isinstance(error, NotImplementedError):
+            error_code = ErrorCode.INVALID_OPTIONS
+        elif isinstance(error, ValueError):
+            error_code = ErrorCode.INVALID_OPTIONS
+        elif "ffmpeg" in error_message.lower():
+            error_code = ErrorCode.FFMPEG_ERROR
+
+        logger.exception("Task failed: [%s] %s", error_code.value, error_message)
+        self.update_state(
+            state=JobStatus.FAILED.value,
+            meta=_build_task_meta(
+                float(task_progress["progress"]),
+                task_progress["current_stage"],
+                error_code=error_code,
+                error_message=error_message,
+            ),
+        )
+        send_callback(
+            CallbackPayload(
+                job_id=self.request.id,
+                status=JobStatus.FAILED,
+                progress=float(task_progress["progress"]),
+                current_stage=task_progress["current_stage"],
+                segments=[],
+                ocr_items=[],
+                learning_data=None,
+                error_code=error_code.value,
+                error_message=error_message,
+            )
+        )
+        raise Exception(
+            json.dumps({"code": error_code.value, "message": error_message})
+        )
 
 
 @celery_app.task(bind=True)
-def process_audio_task(self, file_path: str, options: dict = None):
-    """
-    비동기 음성 인식 작업 (Celery Task)
+def process_job_task(self, job_payload: dict):
+    return _execute_job_task(self, job_payload)
 
-    Args:
-        self: Task 인스턴스 (상태 업데이트용)
-        file_path (str): 분석할 오디오 파일의 절대 경로 (/app/ai/...)
-        options (dict): 분석 옵션 (model, batch_size, language, no_align 등)
 
-    Returns:
-        dict: 분석 결과 (Segments 리스트)
-    """
-    global current_stt_service
-
-    try:
-        logger.info(f"Task started: {file_path}")
-        # 상태 업데이트: 0%
-        self.update_state(state="PROCESSING", meta={"progress": 0})
-
-        if options is None:
-            options = {}
-
-        # 1. 옵션 파싱 - 요청된 모델 확인 (기본값은 현재 로드된 모델 사용)
-        target_model = options.get("model", current_stt_service.model_name)
-        batch_size = options.get("batch_size", 16)
-        no_align = options.get("no_align", False)
-        language = options.get("language", "ko")
-
-        # 2. 모델 교체 로직 (VRAM 보호 및 최적화)
-        # 요청된 모델이 현재 로드된 모델과 다르면 교체 작업을 수행
-        if current_stt_service.model_name != target_model:
-            logger.info(
-                f"Switching Model: {current_stt_service.model_name} -> {target_model}"
-            )
-
-            # 기존 모델 메모리 해제 (VRAM 확보)
-            current_stt_service.unload_model()
-
-            # 새 모델로 인스턴스화 및 로드
-            current_stt_service = STTService(model_name=target_model)
-            current_stt_service.load_model()
-
-        self.update_state(state="PROCESSING", meta={"progress": 20})
-
-        # 3. 분석 실행
-        logger.info(f"Calling transcribe... Model: {target_model}, Lang: {language}")
-
-        result = current_stt_service.transcribe(
-            audio_path=file_path,
-            batch_size=batch_size,
-            align=not no_align,  # no_align이 True면 align은 False
-            language=language,
-        )
-
-        logger.info("Transcribe completed.")
-        self.update_state(state="PROCESSING", meta={"progress": 90})
-
-        # 4. 결과 파일 저장 - 원본 파일명 뒤에 _result.json을 붙여서 저장
-        output_json_path = f"{os.path.splitext(file_path)[0]}_result.json"
-        with open(output_json_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"Result saved to: {output_json_path}")
-
-        # 작업 성공 완료 처리
-        self.update_state(state="SUCCESS")
-        return result
-
-    except Exception as e:
-        # 에러 핸들링 및 상태 보고
-        error_code = ErrorCode.UNKNOWN_ERROR
-        error_msg = str(e)
-
-        # 1. GPU 메모리 부족 (OOM) 처리
-        if "out of memory" in error_msg.lower() or isinstance(
-            e, torch.cuda.OutOfMemoryError
-        ):
-            error_code = ErrorCode.GPU_OOM
-            error_msg = "GPU Out of Memory. Please try a smaller model or batch size."
-            # 다음 작업을 위해 모델 언로드 (Recovery)
-            current_stt_service.unload_model()
-
-        # 2. 파일 없음 / 형식 오류 처리
-        elif isinstance(e, FileNotFoundError):
-            error_code = ErrorCode.FILE_NOT_SUPPORTED
-            error_msg = f"Audio file not found: {file_path}"
-
-        logger.exception(f"Task failed: [{error_code}] {error_msg}")
-
-        # API 서버가 파싱할 수 있도록 JSON 형태의 에러 메시지를 담아 예외 발생
-        raise Exception(json.dumps({"code": error_code, "message": error_msg}))
+@celery_app.task(bind=True)
+def process_audio_task(self, file_path: str, options: dict | None = None):
+    job = AnalysisRequest(
+        source_type=SourceType.UPLOAD,
+        file_url=file_path,
+        job_type=JobType.FULL_ANALYSIS,
+        source_language=(options or {}).get("language"),
+        options=options or {},
+    )
+    return _execute_job_task(self, job.model_dump(by_alias=True))
