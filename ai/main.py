@@ -88,6 +88,12 @@ def main() -> None:
         help="Run OCR on every extracted frame",
     )
     parser.add_argument(
+        "--ocr-max-skip-frames",
+        type=int,
+        default=1,
+        help="Maximum consecutive unchanged frames to skip before forcing OCR",
+    )
+    parser.add_argument(
         "--ocr-min-confidence",
         type=float,
         default=0.3,
@@ -134,6 +140,7 @@ def main() -> None:
             "ocr_gpu": not args.ocr_cpu,
             "ocr_change_threshold": args.ocr_change_threshold,
             "ocr_skip_unchanged_frames": not args.disable_ocr_frame_skip,
+            "ocr_max_skip_frames": args.ocr_max_skip_frames,
             "ocr_min_confidence": args.ocr_min_confidence,
             "ocr_min_text_length": args.ocr_min_text_length,
             "ocr_max_special_char_ratio": args.ocr_max_special_char_ratio,

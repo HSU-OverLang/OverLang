@@ -205,17 +205,23 @@ def _run_ocr_stage(
 
     raw_items = []
     latest_detected_items: list[dict[str, Any]] = []
+    consecutive_skipped_frames = 0
     for frame in frames:
-        if (
+        should_skip_frame = (
             runtime_options["ocr_skip_unchanged_frames"]
             and not bool(frame.get("hasVisualChange", True))
-        ):
+            and consecutive_skipped_frames
+            < int(runtime_options["ocr_max_skip_frames"])
+        )
+
+        if should_skip_frame:
             raw_items.extend(
                 _carry_forward_ocr_items(
                     latest_detected_items,
                     frame,
                 )
             )
+            consecutive_skipped_frames += 1
             continue
 
         detected_items = ocr_service.extract_frame_text(
@@ -225,6 +231,7 @@ def _run_ocr_stage(
         )
         raw_items.extend(detected_items)
         latest_detected_items = detected_items
+        consecutive_skipped_frames = 0
 
     return build_ocr_items(
         raw_items,
@@ -363,6 +370,7 @@ def _extract_runtime_options(
         "ocr_skip_unchanged_frames": bool(
             options.get("ocr_skip_unchanged_frames", True)
         ),
+        "ocr_max_skip_frames": int(options.get("ocr_max_skip_frames", 1)),
         "ocr_min_confidence": float(options.get("ocr_min_confidence", 0.3)),
         "ocr_min_text_length": int(options.get("ocr_min_text_length", 2)),
         "ocr_max_special_char_ratio": float(
