@@ -10,10 +10,23 @@ def build_ocr_items(
     frame_interval_seconds: float,
     text_similarity_threshold: float = 0.9,
     bbox_tolerance: float = 0.04,
+    min_confidence: float = 0.3,
+    min_text_length: int = 2,
+    max_special_char_ratio: float = 0.6,
+    edge_margin: float = 0.0,
 ) -> list[OcrItem]:
     tracks: list[dict[str, Any]] = []
 
     for raw_item in sorted(raw_items, key=lambda item: item["timestamp"]):
+        if not _is_valid_raw_item(
+            raw_item,
+            min_confidence,
+            min_text_length,
+            max_special_char_ratio,
+            edge_margin,
+        ):
+            continue
+
         matched_track = _find_matching_track(
             tracks,
             raw_item,
@@ -40,6 +53,7 @@ def _create_track(
         "boundingBox": raw_item["boundingBox"],
         "confidenceValues": [raw_item.get("confidence")],
         "lastTimestamp": float(raw_item["timestamp"]),
+        "carriedFrameCount": 1 if raw_item.get("carriedForward") else 0,
     }
 
 
@@ -52,6 +66,59 @@ def _extend_track(
     track["lastTimestamp"] = float(raw_item["timestamp"])
     track["confidenceValues"].append(raw_item.get("confidence"))
     track["boundingBox"] = _average_bbox(track["boundingBox"], raw_item["boundingBox"])
+    if raw_item.get("carriedForward"):
+        track["carriedFrameCount"] += 1
+
+
+def _is_valid_raw_item(
+    raw_item: dict[str, Any],
+    min_confidence: float,
+    min_text_length: int,
+    max_special_char_ratio: float,
+    edge_margin: float,
+) -> bool:
+    text = str(raw_item.get("originText", "")).strip()
+    if len(text.replace(" ", "")) < min_text_length:
+        return False
+
+    confidence = raw_item.get("confidence")
+    if confidence is not None and float(confidence) < min_confidence:
+        return False
+
+    if _special_char_ratio(text) > max_special_char_ratio:
+        return False
+
+    if _is_edge_noise(raw_item["boundingBox"], edge_margin):
+        return False
+
+    return True
+
+
+def _special_char_ratio(text: str) -> float:
+    visible_chars = [char for char in text if not char.isspace()]
+    if not visible_chars:
+        return 1.0
+
+    special_chars = [char for char in visible_chars if not char.isalnum()]
+    return len(special_chars) / len(visible_chars)
+
+
+def _is_edge_noise(
+    bounding_box: BoundingBox,
+    edge_margin: float,
+) -> bool:
+    if edge_margin <= 0:
+        return False
+
+    area = bounding_box.w * bounding_box.h
+    touches_edge = (
+        bounding_box.x <= edge_margin
+        or bounding_box.y <= edge_margin
+        or bounding_box.x + bounding_box.w >= 1 - edge_margin
+        or bounding_box.y + bounding_box.h >= 1 - edge_margin
+    )
+
+    return touches_edge and area <= 0.01
 
 
 def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:

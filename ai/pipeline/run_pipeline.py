@@ -14,6 +14,7 @@ from ai.api.schemas import (
     WordTiming,
     WorkerJobPayload,
 )
+from ai.ocr.frame_change import annotate_frame_changes
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
 from ai.ocr.postprocess import build_ocr_items
 from ai.pipeline.audio_service import extract_audio_to_wav
@@ -88,6 +89,10 @@ def run_pipeline(
                 source_path,
                 directories["frames"],
                 interval_seconds=float(runtime_options["frame_interval"]),
+            )
+            frames = annotate_frame_changes(
+                frames,
+                change_threshold=float(runtime_options["ocr_change_threshold"]),
             )
             save_intermediate(resolved_job_id, "frame_extraction", frames)
 
@@ -199,16 +204,51 @@ def _run_ocr_stage(
     ocr_service = EasyOcrService(languages=languages, gpu=bool(runtime_options["ocr_gpu"]))
 
     raw_items = []
+    latest_detected_items: list[dict[str, Any]] = []
     for frame in frames:
-        raw_items.extend(
-            ocr_service.extract_frame_text(
-                frame_path=str(frame["path"]),
-                frame_index=int(frame["frameIndex"]),
-                timestamp=float(frame["timestamp"]),
+        if (
+            runtime_options["ocr_skip_unchanged_frames"]
+            and not bool(frame.get("hasVisualChange", True))
+        ):
+            raw_items.extend(
+                _carry_forward_ocr_items(
+                    latest_detected_items,
+                    frame,
+                )
             )
-        )
+            continue
 
-    return build_ocr_items(raw_items, frame_interval_seconds=frame_interval)
+        detected_items = ocr_service.extract_frame_text(
+            frame_path=str(frame["path"]),
+            frame_index=int(frame["frameIndex"]),
+            timestamp=float(frame["timestamp"]),
+        )
+        raw_items.extend(detected_items)
+        latest_detected_items = detected_items
+
+    return build_ocr_items(
+        raw_items,
+        frame_interval_seconds=frame_interval,
+        min_confidence=float(runtime_options["ocr_min_confidence"]),
+        min_text_length=int(runtime_options["ocr_min_text_length"]),
+        max_special_char_ratio=float(runtime_options["ocr_max_special_char_ratio"]),
+        edge_margin=float(runtime_options["ocr_edge_margin"]),
+    )
+
+
+def _carry_forward_ocr_items(
+    latest_items: list[dict[str, Any]],
+    frame: dict[str, object],
+) -> list[dict[str, Any]]:
+    carried_items = []
+    for item in latest_items:
+        carried_item = dict(item)
+        carried_item["frameIndex"] = int(frame["frameIndex"])
+        carried_item["timestamp"] = round(float(frame["timestamp"]), 3)
+        carried_item["carriedForward"] = True
+        carried_items.append(carried_item)
+
+    return carried_items
 
 
 def _build_subtitles(
@@ -319,6 +359,16 @@ def _extract_runtime_options(
         "align": not bool(options.get("no_align", False)),
         "frame_interval": float(options.get("frame_interval", 1.0)),
         "ocr_gpu": bool(options.get("ocr_gpu", True)),
+        "ocr_change_threshold": float(options.get("ocr_change_threshold", 0.015)),
+        "ocr_skip_unchanged_frames": bool(
+            options.get("ocr_skip_unchanged_frames", True)
+        ),
+        "ocr_min_confidence": float(options.get("ocr_min_confidence", 0.3)),
+        "ocr_min_text_length": int(options.get("ocr_min_text_length", 2)),
+        "ocr_max_special_char_ratio": float(
+            options.get("ocr_max_special_char_ratio", 0.6)
+        ),
+        "ocr_edge_margin": float(options.get("ocr_edge_margin", 0.0)),
     }
 
 
