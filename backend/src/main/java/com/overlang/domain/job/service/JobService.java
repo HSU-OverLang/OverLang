@@ -190,10 +190,16 @@ public class JobService {
     job.complete(
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
+    deletePreviousResults(job.getId());
     saveSegments(job, request);
     saveOcrItems(job, request);
 
     job.getProject().markCompleted();
+  }
+
+  private void deletePreviousResults(Long jobId) {
+    segmentRepository.deleteByJobId(jobId);
+    ocrItemRepository.deleteByJobId(jobId);
   }
 
   private void handleFailedCallback(Job job, JobCallbackRequest request) {
