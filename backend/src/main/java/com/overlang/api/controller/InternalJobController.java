@@ -5,6 +5,8 @@ import com.overlang.api.dto.job.JobCallbackResponse;
 import com.overlang.domain.job.service.JobService;
 import com.overlang.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,7 +24,52 @@ public class InternalJobController {
   public ApiResponse<JobCallbackResponse> handleCallback(
       @PathVariable Long jobId,
       @RequestHeader("X-Worker-Secret") String requestWorkerSecret,
-      @RequestBody JobCallbackRequest request) {
+      @io.swagger.v3.oas.annotations.parameters.RequestBody(
+              content =
+                  @Content(
+                      mediaType = "application/json",
+                      examples =
+                          @ExampleObject(
+                              name = "콜백 예시",
+                              value =
+                                  """
+                {
+                  "jobId": 2,
+                  "status": "COMPLETED",
+                  "progress": 100,
+                  "currentStage": "FINALIZING",
+                  "segments": [
+                    {
+                      "seq": 1,
+                      "startTime": 0.0,
+                      "endTime": 2.0,
+                      "text": "Hello",
+                      "translatedText": "안녕",
+                      "languageCode": "en"
+                    }
+                  ],
+                  "ocrItems": [
+                    {
+                      "startTime": 1.0,
+                      "endTime": 2.0,
+                      "originText": "EXIT",
+                      "translatedText": "출구",
+                      "boundingBox": {
+                        "x": 0.1,
+                        "y": 0.2,
+                        "w": 0.3,
+                        "h": 0.4
+                      },
+                      "confidence": 0.95
+                    }
+                  ],
+                  "learningData": null,
+                  "errorCode": null,
+                  "errorMessage": null
+                }
+                """)))
+          @org.springframework.web.bind.annotation.RequestBody
+          JobCallbackRequest request) {
 
     JobCallbackResponse response = jobService.handleCallback(jobId, requestWorkerSecret, request);
 

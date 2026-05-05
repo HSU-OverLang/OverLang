@@ -11,10 +11,14 @@ import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.queue.JobQueuePayload;
 import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
+import com.overlang.domain.ocr.entity.OcrItem;
+import com.overlang.domain.ocr.repository.OcrItemRepository;
 import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
+import com.overlang.domain.segment.entity.Segment;
+import com.overlang.domain.segment.repository.SegmentRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +33,8 @@ public class JobService {
   private final JobRepository jobRepository;
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
+  private final SegmentRepository segmentRepository;
+  private final OcrItemRepository ocrItemRepository;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -184,6 +190,9 @@ public class JobService {
     job.complete(
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
+    saveSegments(job, request);
+    saveOcrItems(job, request);
+
     job.getProject().markCompleted();
   }
 
@@ -192,5 +201,48 @@ public class JobService {
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
     job.getProject().markFailed();
+  }
+
+  private void saveSegments(Job job, JobCallbackRequest request) {
+    if (request.segments() == null) return;
+
+    List<Segment> segments =
+        request.segments().stream()
+            .map(
+                s ->
+                    new Segment(
+                        job,
+                        s.startTime(),
+                        s.endTime(),
+                        s.seq(),
+                        s.text(),
+                        s.translatedText(),
+                        s.languageCode()))
+            .toList();
+
+    segmentRepository.saveAll(segments);
+  }
+
+  private void saveOcrItems(Job job, JobCallbackRequest request) {
+    if (request.ocrItems() == null) return;
+
+    List<OcrItem> ocrItems =
+        request.ocrItems().stream()
+            .map(
+                o ->
+                    new OcrItem(
+                        job,
+                        o.startTime(),
+                        o.endTime(),
+                        o.originText(),
+                        o.translatedText(),
+                        o.boundingBox().x(),
+                        o.boundingBox().y(),
+                        o.boundingBox().w(),
+                        o.boundingBox().h(),
+                        o.confidence()))
+            .toList();
+
+    ocrItemRepository.saveAll(ocrItems);
   }
 }

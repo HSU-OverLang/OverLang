@@ -5,4 +5,5 @@ public record CallbackOcrItemRequest(
     Double endTime,
     String originText,
     String translatedText,
-    BoundingBoxRequest boundingBox) {}
+    BoundingBoxRequest boundingBox,
+    Double confidence) {}
