@@ -1,5 +1,7 @@
 package com.overlang.domain.job.service;
 
+import com.overlang.api.dto.job.JobCallbackRequest;
+import com.overlang.api.dto.job.JobCallbackResponse;
 import com.overlang.api.dto.job.JobCreateRequest;
 import com.overlang.api.dto.job.JobCreateResponse;
 import com.overlang.api.dto.job.JobDetailResponse;
@@ -57,20 +59,18 @@ public class JobService {
   }
 
   private void validateJobCreateRequest(JobCreateRequest request) {
-    if (request.jobType() == null) {
-      throw new IllegalArgumentException("jobType은 필수입니다.");
-    }
-
-    if (request.sourceLanguage() == null) {
-      throw new IllegalArgumentException("sourceLanguage는 필수입니다.");
-    }
-
-    if (request.targetLanguage() == null) {
-      throw new IllegalArgumentException("targetLanguage는 필수입니다.");
-    }
+    requireNonNull(request.jobType(), "jobType");
+    requireNonNull(request.sourceLanguage(), "sourceLanguage");
+    requireNonNull(request.targetLanguage(), "targetLanguage");
 
     if (request.sourceLanguage() == request.targetLanguage()) {
       throw new IllegalArgumentException("sourceLanguage와 targetLanguage는 같을 수 없습니다.");
+    }
+  }
+
+  private void requireNonNull(Object value, String fieldName) {
+    if (value == null) {
+      throw new IllegalArgumentException(fieldName + "은(는) 필수입니다.");
     }
   }
 
@@ -133,5 +133,52 @@ public class JobService {
             .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
 
     return JobDetailResponse.from(job);
+  }
+
+  @Transactional
+  public JobCallbackResponse handleCallback(Long pathJobId, JobCallbackRequest request) {
+    validateCallbackJobId(pathJobId, request.jobId());
+
+    Job job = findJobById(pathJobId);
+
+    switch (request.status()) {
+      case RUNNING -> handleRunningCallback(job, request);
+      case COMPLETED -> handleCompletedCallback(job, request);
+      case FAILED -> handleFailedCallback(job, request);
+      default -> throw new IllegalArgumentException("지원하지 않는 작업 상태입니다.");
+    }
+
+    return new JobCallbackResponse(job.getId(), true);
+  }
+
+  private void validateCallbackJobId(Long pathJobId, Long bodyJobId) {
+    if (!pathJobId.equals(bodyJobId)) {
+      throw new IllegalArgumentException("URI jobId와 Body jobId가 일치하지 않습니다.");
+    }
+  }
+
+  private Job findJobById(Long jobId) {
+    return jobRepository
+        .findById(jobId)
+        .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+  }
+
+  private void handleRunningCallback(Job job, JobCallbackRequest request) {
+    job.updateRunning(request.progress(), request.currentStage());
+    job.getProject().markProcessing();
+  }
+
+  private void handleCompletedCallback(Job job, JobCallbackRequest request) {
+    job.complete(
+        request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
+
+    job.getProject().markCompleted();
+  }
+
+  private void handleFailedCallback(Job job, JobCallbackRequest request) {
+    job.fail(
+        request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
+
+    job.getProject().markFailed();
   }
 }
