@@ -189,6 +189,19 @@ WORKER_SECRET=replace_with_strong_worker_secret
 CALLBACK_STRICT=false
 CALLBACK_RETRY_COUNT=3
 CALLBACK_RETRY_DELAY_SECONDS=1.0
+
+# Backend Redis queue consumer
+BACKEND_JOB_QUEUE_KEY=job-queue
+BACKEND_JOB_QUEUE_BLOCK_TIMEOUT_SECONDS=5
+BACKEND_JOB_QUEUE_RETRY_DELAY_SECONDS=3.0
+
+# Default runtime options for backend-created worker jobs
+AI_DEFAULT_MODEL=small
+AI_DEFAULT_BATCH_SIZE=2
+AI_DEFAULT_COMPUTE_TYPE=int8_float16
+AI_DEFAULT_NO_ALIGN=true
+AI_DEFAULT_FRAME_INTERVAL=3.0
+AI_DEFAULT_OCR_GPU=true
 ```
 
 > ⚠️ **보안 주의**: 실제 API 키, Firebase 설정, DB 비밀번호, worker secret은 `.env`에만 저장하고 `.env.example`이나 README에는 커밋하지 않습니다.
@@ -239,6 +252,15 @@ uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
 ```bash
 # Windows에서는 pool=solo 옵션을 사용합니다.
 celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
+```
+
+**Backend Job Queue Consumer 실행**
+
+Backend는 Redis list `job-queue`에 AI 작업 payload를 저장합니다.
+AI가 Backend 작업을 자동으로 처리하려면 Celery worker와 별도로 queue consumer를 실행해야 합니다.
+
+```bash
+python -m ai.worker.job_queue_consumer
 ```
 
 #### 4️⃣ Docker 실행
