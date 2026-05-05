@@ -75,25 +75,28 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
     this.useUserApiKey = useUserApiKey != null && useUserApiKey;
   }
 
-  public void markRunning(CurrentStage stage, int progress) {
+  public void updateRunning(Integer progress, CurrentStage currentStage) {
     this.status = JobStatus.RUNNING;
-    this.currentStage = stage;
     this.progress = progress;
+    this.currentStage = currentStage;
     this.errorCode = null;
     this.errorMessage = null;
   }
 
-  public void markCompleted() {
+  public void complete(
+      Integer progress, CurrentStage currentStage, String errorCode, String errorMessage) {
     this.status = JobStatus.COMPLETED;
-    this.currentStage = CurrentStage.FINALIZING;
-    this.progress = 100;
-    this.errorCode = null;
-    this.errorMessage = null;
+    this.progress = progress;
+    this.currentStage = currentStage;
+    this.errorCode = errorCode;
+    this.errorMessage = errorMessage;
   }
 
-  public void markFailed(String errorCode, String errorMessage) {
-    this.currentStage = CurrentStage.FINALIZING;
+  public void fail(
+      Integer progress, CurrentStage currentStage, String errorCode, String errorMessage) {
     this.status = JobStatus.FAILED;
+    this.progress = progress;
+    this.currentStage = currentStage;
     this.errorCode = errorCode;
     this.errorMessage = errorMessage;
   }

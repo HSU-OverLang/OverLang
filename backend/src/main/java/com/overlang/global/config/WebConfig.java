@@ -30,6 +30,10 @@ public class WebConfig implements WebMvcConfigurer {
         .addInterceptor(authInterceptor)
         .addPathPatterns("/api/v1/**")
         .excludePathPatterns(
-            "/api/v1/auth/firebase", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**");
+            "/api/v1/auth/firebase",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/swagger-resources/**",
+            "/api/v1/internal/**");
   }
 }
