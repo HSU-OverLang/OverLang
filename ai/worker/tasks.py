@@ -36,6 +36,10 @@ def _build_task_meta(
     }
 
 
+def _to_callback_progress(progress: float) -> int:
+    return max(0, min(100, int(round(float(progress)))))
+
+
 def _execute_job_task(self, job_payload: dict):
     callback_job_id = _resolve_callback_job_id(job_payload, self.request.id)
     task_progress = {
@@ -71,7 +75,7 @@ def _execute_job_task(self, job_payload: dict):
                 CallbackPayload(
                     job_id=callback_job_id,
                     status=JobStatus.RUNNING,
-                    progress=float(progress),
+                    progress=_to_callback_progress(progress),
                     current_stage=current_stage,
                     segments=[],
                     ocr_items=[],
@@ -92,7 +96,7 @@ def _execute_job_task(self, job_payload: dict):
             CallbackPayload(
                 job_id=callback_job_id,
                 status=JobStatus.COMPLETED,
-                progress=100.0,
+                progress=100,
                 current_stage=CurrentStage.FINALIZING,
                 segments=result.subtitles,
                 ocr_items=result.ocr_items,
@@ -138,7 +142,7 @@ def _execute_job_task(self, job_payload: dict):
             CallbackPayload(
                 job_id=callback_job_id,
                 status=JobStatus.FAILED,
-                progress=float(task_progress["progress"]),
+                progress=_to_callback_progress(float(task_progress["progress"])),
                 current_stage=task_progress["current_stage"],
                 segments=[],
                 ocr_items=[],
