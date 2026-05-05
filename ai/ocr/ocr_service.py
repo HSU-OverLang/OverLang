@@ -60,6 +60,9 @@ class EasyOcrService:
 
 
 def language_to_easyocr_languages(language_code: str | None) -> list[str]:
+    if language_code == "zh":
+        return ["ch_sim", "en"]
+
     if language_code == "ja":
         return ["ja", "en"]
 
@@ -68,6 +71,9 @@ def language_to_easyocr_languages(language_code: str | None) -> list[str]:
 
     if language_code == "en":
         return ["en"]
+
+    if language_code in {"es", "fr"}:
+        return [language_code, "en"]
 
     return ["en"]
 

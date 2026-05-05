@@ -3,7 +3,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ai.language_codes import normalize_optional_language_code
 
 
 class SourceType(str, Enum):
@@ -81,6 +83,11 @@ class AnalysisRequest(CamelModel):
     use_user_api_key: bool = False
     options: dict[str, Any] | None = None
 
+    @field_validator("source_language", "target_language")
+    @classmethod
+    def normalize_language_fields(cls, value: str | None) -> str | None:
+        return normalize_optional_language_code(value)
+
     @model_validator(mode="after")
     def validate_source_fields(self) -> "AnalysisRequest":
         if self.source_type == SourceType.UPLOAD and not self.file_url:
@@ -115,6 +122,11 @@ class WorkerJobPayload(CamelModel):
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
     use_user_api_key: bool = False
+
+    @field_validator("source_language", "target_language")
+    @classmethod
+    def normalize_language_fields(cls, value: str | None) -> str | None:
+        return normalize_optional_language_code(value)
 
     @model_validator(mode="after")
     def validate_worker_payload(self) -> "WorkerJobPayload":

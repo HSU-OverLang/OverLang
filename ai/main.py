@@ -45,13 +45,13 @@ def main() -> None:
         "--language",
         type=str,
         default=None,
-        help="Source language code (ko, en, ja...)",
+        help="Source language code (KO, EN, ZH, JA, ES, FR)",
     )
     parser.add_argument(
         "--target-language",
         type=str,
         default=None,
-        help="Target language code",
+        help="Target language code (KO, EN, ZH, JA, ES, FR)",
     )
     parser.add_argument(
         "--translation-provider",
