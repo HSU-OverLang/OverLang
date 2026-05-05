@@ -37,6 +37,7 @@ def _build_task_meta(
 
 
 def _execute_job_task(self, job_payload: dict):
+    callback_job_id = _resolve_callback_job_id(job_payload, self.request.id)
     task_progress = {
         "progress": 0.0,
         "current_stage": CurrentStage.QUEUED,
@@ -49,7 +50,11 @@ def _execute_job_task(self, job_payload: dict):
     )
 
     try:
-        logger.info("Task started: %s", self.request.id)
+        logger.info(
+            "Task started: celeryTaskId=%s callbackJobId=%s",
+            self.request.id,
+            callback_job_id,
+        )
 
         def progress_callback(
             current_stage: CurrentStage,
@@ -64,7 +69,7 @@ def _execute_job_task(self, job_payload: dict):
             )
             send_callback(
                 CallbackPayload(
-                    job_id=self.request.id,
+                    job_id=callback_job_id,
                     status=JobStatus.RUNNING,
                     progress=float(progress),
                     current_stage=current_stage,
@@ -79,13 +84,13 @@ def _execute_job_task(self, job_payload: dict):
         result = run_pipeline(
             job_payload,
             progress_callback=progress_callback,
-            job_id=self.request.id,
+            job_id=callback_job_id,
             keep_intermediate_files=True,
         )
 
         send_callback(
             CallbackPayload(
-                job_id=self.request.id,
+                job_id=callback_job_id,
                 status=JobStatus.COMPLETED,
                 progress=100.0,
                 current_stage=CurrentStage.FINALIZING,
@@ -131,7 +136,7 @@ def _execute_job_task(self, job_payload: dict):
         )
         send_callback(
             CallbackPayload(
-                job_id=self.request.id,
+                job_id=callback_job_id,
                 status=JobStatus.FAILED,
                 progress=float(task_progress["progress"]),
                 current_stage=task_progress["current_stage"],
@@ -145,6 +150,13 @@ def _execute_job_task(self, job_payload: dict):
         raise Exception(
             json.dumps({"code": error_code.value, "message": error_message})
         )
+
+
+def _resolve_callback_job_id(
+    job_payload: dict,
+    celery_task_id: str,
+) -> str | int:
+    return job_payload.get("jobId") or job_payload.get("job_id") or celery_task_id
 
 
 @celery_app.task(bind=True)
