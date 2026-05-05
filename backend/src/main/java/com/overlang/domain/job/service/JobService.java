@@ -17,6 +17,7 @@ import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,9 @@ public class JobService {
   private final JobRepository jobRepository;
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
+
+  @Value("${worker.secret}")
+  private String workerSecret;
 
   @Transactional
   public JobCreateResponse createJob(Long projectId, Long memberId, JobCreateRequest request) {
@@ -135,8 +139,16 @@ public class JobService {
     return JobDetailResponse.from(job);
   }
 
+  private void validateWorkerSecret(String requestWorkerSecret) {
+    if (requestWorkerSecret == null || !workerSecret.equals(requestWorkerSecret)) {
+      throw new IllegalArgumentException("Worker Secret이 일치하지 않습니다.");
+    }
+  }
+
   @Transactional
-  public JobCallbackResponse handleCallback(Long pathJobId, JobCallbackRequest request) {
+  public JobCallbackResponse handleCallback(
+      Long pathJobId, String requestWorkerSecret, JobCallbackRequest request) {
+    validateWorkerSecret(requestWorkerSecret);
     validateCallbackJobId(pathJobId, request.jobId());
 
     Job job = findJobById(pathJobId);
