@@ -9,10 +9,14 @@ from ai.api.schemas import (
     AnalysisResult,
     CurrentStage,
     JobType,
+    OcrItem,
     SubtitleSegment,
     WordTiming,
     WorkerJobPayload,
 )
+from ai.ocr.frame_change import annotate_frame_changes
+from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
+from ai.ocr.postprocess import build_ocr_items
 from ai.pipeline.audio_service import extract_audio_to_wav
 from ai.pipeline.frame_service import extract_frames
 from ai.pipeline.input_service import resolve_input_source
@@ -36,6 +40,7 @@ def run_pipeline(
     normalized_job = _normalize_job(job)
     resolved_job_id = _resolve_job_id(normalized_job, job_id)
     directories = ensure_job_dirs(resolved_job_id)
+    runtime_options = _extract_runtime_options(normalized_job)
 
     try:
         _report_progress(progress_callback, CurrentStage.QUEUED, 0.0)
@@ -46,44 +51,65 @@ def run_pipeline(
             raise FileNotFoundError(f"Input source not found: {source_path}")
 
         job_type = _enum_value(normalized_job.job_type)
-        if job_type in {JobType.OCR_ONLY.value, JobType.TRANSLATION_ONLY.value}:
+        if job_type == JobType.TRANSLATION_ONLY.value:
             raise NotImplementedError(
                 f"{_enum_value(normalized_job.job_type)} is not wired into run_pipeline yet."
             )
 
-        _report_progress(progress_callback, CurrentStage.AUDIO_EXTRACTION, 10.0)
-        audio_path = extract_audio_to_wav(source_path, directories["audio"])
-        save_intermediate(
-            resolved_job_id,
-            "audio_extraction",
-            {
-                "jobId": resolved_job_id,
-                "sourcePath": str(source_path),
-                "audioPath": str(audio_path),
-            },
-        )
+        subtitles: list[SubtitleSegment] = []
+        ocr_items: list[OcrItem] = []
+        pipeline_steps: list[str] = []
+        audio_path: Path | None = None
 
-        _report_progress(progress_callback, CurrentStage.STT_TRANSCRIPTION, 20.0)
-        subtitles = _run_stt_stage(normalized_job, audio_path, progress_callback)
-        save_intermediate(
-            resolved_job_id,
-            "stt_subtitles",
-            [subtitle.model_dump(by_alias=True) for subtitle in subtitles],
-        )
-
-        pipeline_steps = ["STT"]
-        if job_type == JobType.FULL_ANALYSIS.value:
-            _report_progress(progress_callback, CurrentStage.OCR_FRAME_EXTRACTION, 40.0)
+        if job_type in {JobType.FULL_ANALYSIS.value, JobType.STT_ONLY.value}:
+            _report_progress(progress_callback, CurrentStage.AUDIO_EXTRACTION, 10.0)
+            audio_path = extract_audio_to_wav(source_path, directories["audio"])
             save_intermediate(
                 resolved_job_id,
-                "frame_extraction",
-                extract_frames(source_path, directories["frames"]),
+                "audio_extraction",
+                {
+                    "jobId": resolved_job_id,
+                    "sourcePath": str(source_path),
+                    "audioPath": str(audio_path),
+                },
+            )
+
+            _report_progress(progress_callback, CurrentStage.STT_TRANSCRIPTION, 20.0)
+            subtitles = _run_stt_stage(normalized_job, audio_path, progress_callback)
+            save_intermediate(
+                resolved_job_id,
+                "stt_subtitles",
+                [subtitle.model_dump(by_alias=True) for subtitle in subtitles],
+            )
+            pipeline_steps.append("STT")
+
+        if job_type in {JobType.FULL_ANALYSIS.value, JobType.OCR_ONLY.value}:
+            _report_progress(progress_callback, CurrentStage.OCR_FRAME_EXTRACTION, 45.0)
+            frames = extract_frames(
+                source_path,
+                directories["frames"],
+                interval_seconds=float(runtime_options["frame_interval"]),
+            )
+            frames = annotate_frame_changes(
+                frames,
+                change_threshold=float(runtime_options["ocr_change_threshold"]),
+            )
+            save_intermediate(resolved_job_id, "frame_extraction", frames)
+
+            _report_progress(progress_callback, CurrentStage.OCR_TEXT_DETECTION, 55.0)
+            ocr_items = _run_ocr_stage(normalized_job, frames)
+            save_intermediate(
+                resolved_job_id,
+                "ocr_items",
+                [ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items],
             )
             pipeline_steps.append("OCR_FRAME_EXTRACTION")
+            pipeline_steps.append("OCR_TEXT_DETECTION")
 
         _report_progress(progress_callback, CurrentStage.FINALIZING, 90.0)
         result = AnalysisResult(
             subtitles=subtitles,
+            ocr_items=ocr_items,
             metadata=AnalysisMetadata(
                 job_id=resolved_job_id,
                 source_type=normalized_job.source_type,
@@ -103,7 +129,7 @@ def run_pipeline(
             {
                 "jobId": resolved_job_id,
                 "inputPath": str(source_path),
-                "audioPath": str(audio_path),
+                "audioPath": str(audio_path) if audio_path else None,
                 "jobType": _enum_value(normalized_job.job_type),
                 "workingDirectory": str(directories["root"]),
             },
@@ -166,6 +192,70 @@ def _run_stt_stage(
         stt_service.unload_model()
 
     return _postprocess_subtitles(_build_subtitles(raw_segments, job.source_language))
+
+
+def _run_ocr_stage(
+    job: AnalysisRequest | WorkerJobPayload,
+    frames: list[dict[str, object]],
+) -> list[OcrItem]:
+    runtime_options = _extract_runtime_options(job)
+    frame_interval = float(runtime_options["frame_interval"])
+    languages = language_to_easyocr_languages(job.source_language)
+    ocr_service = EasyOcrService(languages=languages, gpu=bool(runtime_options["ocr_gpu"]))
+
+    raw_items = []
+    latest_detected_items: list[dict[str, Any]] = []
+    consecutive_skipped_frames = 0
+    for frame in frames:
+        should_skip_frame = (
+            runtime_options["ocr_skip_unchanged_frames"]
+            and not bool(frame.get("hasVisualChange", True))
+            and consecutive_skipped_frames
+            < int(runtime_options["ocr_max_skip_frames"])
+        )
+
+        if should_skip_frame:
+            raw_items.extend(
+                _carry_forward_ocr_items(
+                    latest_detected_items,
+                    frame,
+                )
+            )
+            consecutive_skipped_frames += 1
+            continue
+
+        detected_items = ocr_service.extract_frame_text(
+            frame_path=str(frame["path"]),
+            frame_index=int(frame["frameIndex"]),
+            timestamp=float(frame["timestamp"]),
+        )
+        raw_items.extend(detected_items)
+        latest_detected_items = detected_items
+        consecutive_skipped_frames = 0
+
+    return build_ocr_items(
+        raw_items,
+        frame_interval_seconds=frame_interval,
+        min_confidence=float(runtime_options["ocr_min_confidence"]),
+        min_text_length=int(runtime_options["ocr_min_text_length"]),
+        max_special_char_ratio=float(runtime_options["ocr_max_special_char_ratio"]),
+        edge_margin=float(runtime_options["ocr_edge_margin"]),
+    )
+
+
+def _carry_forward_ocr_items(
+    latest_items: list[dict[str, Any]],
+    frame: dict[str, object],
+) -> list[dict[str, Any]]:
+    carried_items = []
+    for item in latest_items:
+        carried_item = dict(item)
+        carried_item["frameIndex"] = int(frame["frameIndex"])
+        carried_item["timestamp"] = round(float(frame["timestamp"]), 3)
+        carried_item["carriedForward"] = True
+        carried_items.append(carried_item)
+
+    return carried_items
 
 
 def _build_subtitles(
@@ -274,6 +364,19 @@ def _extract_runtime_options(
         "batch_size": int(options.get("batch_size", 16)),
         "compute_type": options.get("compute_type", "float16"),
         "align": not bool(options.get("no_align", False)),
+        "frame_interval": float(options.get("frame_interval", 1.0)),
+        "ocr_gpu": bool(options.get("ocr_gpu", True)),
+        "ocr_change_threshold": float(options.get("ocr_change_threshold", 0.015)),
+        "ocr_skip_unchanged_frames": bool(
+            options.get("ocr_skip_unchanged_frames", True)
+        ),
+        "ocr_max_skip_frames": int(options.get("ocr_max_skip_frames", 1)),
+        "ocr_min_confidence": float(options.get("ocr_min_confidence", 0.3)),
+        "ocr_min_text_length": int(options.get("ocr_min_text_length", 2)),
+        "ocr_max_special_char_ratio": float(
+            options.get("ocr_max_special_char_ratio", 0.6)
+        ),
+        "ocr_edge_margin": float(options.get("ocr_edge_margin", 0.0)),
     }
 
 
