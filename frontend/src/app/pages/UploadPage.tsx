@@ -1,68 +1,144 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Upload, Video, ArrowLeft, FileVideo, CheckCircle, Link as LinkIcon } from "lucide-react";
+import {
+  Upload,
+  Video,
+  ArrowLeft,
+  FileVideo,
+  CheckCircle,
+  Link as LinkIcon,
+  Globe,
+  Loader2,
+} from "lucide-react";
+import { uploadVideoFile, createProject, createJob } from "@/api/video";
+
+const LANGUAGES = [
+  { code: "KO", label: "한국어" },
+  { code: "EN", label: "영어" },
+  { code: "ZH", label: "중국어" },
+  { code: "JA", label: "일본어" },
+  { code: "ES", label: "스페인어" },
+  { code: "FR", label: "프랑스어" },
+] as const;
+
+type LanguageCode = (typeof LANGUAGES)[number]["code"];
 
 export function UploadPage() {
   const navigate = useNavigate();
+
+  // 입력 상태
+  const [title, setTitle] = useState("");
   const [uploadMethod, setUploadMethod] = useState<"file" | "link">("file");
   const [videoLink, setVideoLink] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+  const [sourceLanguage, setSourceLanguage] = useState<LanguageCode>("EN");
+  const [targetLanguage, setTargetLanguage] = useState<LanguageCode>("KO");
 
+  // 업로드 진행 상태
+  const [uploadPhase, setUploadPhase] = useState<"idle" | "uploading" | "error">("idle");
+  const [uploadStep, setUploadStep] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // ── 파일 선택 핸들러 ────────────────────────────────────
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
   };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
+  const handleDragLeave = () => setIsDragging(false);
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
+    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]);
   };
-
   const handleFileSelect = (file: File) => {
-    if (file.type.startsWith("video/")) {
-      setUploadedFile(file);
-    } else {
+    if (!file.type.startsWith("video/")) {
       alert("동영상 파일만 업로드 가능합니다.");
+      return;
+    }
+    setUploadedFile(file);
+    // 제목이 비어있으면 파일명(확장자 제외)으로 자동 채움
+    if (!title.trim()) {
+      setTitle(file.name.replace(/\.[^/.]+$/, ""));
     }
   };
-
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileSelect(files[0]);
+    if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+  };
+
+  // ── 제출 가능 여부 ──────────────────────────────────────
+  const canSubmit =
+    title.trim().length > 0 &&
+    (uploadMethod === "file" ? uploadedFile !== null : videoLink.trim().length > 0);
+
+  const isDisabled = uploadPhase === "uploading";
+
+  // ── 업로드 → 프로젝트 생성 → Job 생성 ──────────────────
+  const handleUpload = async () => {
+    if (!canSubmit) return;
+
+    setUploadPhase("uploading");
+    setUploadError(null);
+
+    try {
+      if (uploadMethod === "file" && uploadedFile) {
+        // 1단계: S3 파일 업로드
+        setUploadStep("영상을 서버에 업로드하는 중... (1/3)");
+        const fileResult = await uploadVideoFile(uploadedFile);
+
+        // 2단계: 프로젝트 생성
+        setUploadStep("프로젝트를 생성하는 중... (2/3)");
+        const project = await createProject({
+          title: title.trim(),
+          sourceType: "UPLOAD",
+          fileUrl: fileResult.fileUrl,
+          fileKey: fileResult.fileKey,
+        });
+
+        // 3단계: AI Job 등록
+        setUploadStep("AI 분석 작업을 등록하는 중... (3/3)");
+        const job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+
+        navigate("/processing", {
+          state: {
+            jobId: job.jobId,
+            videoSrc: fileResult.fileUrl,
+            targetLanguage,
+          },
+        });
+      } else {
+        // 1단계: 프로젝트 생성 (YouTube)
+        setUploadStep("프로젝트를 생성하는 중... (1/2)");
+        const project = await createProject({
+          title: title.trim(),
+          sourceType: "YOUTUBE",
+          sourceUrl: videoLink.trim(),
+        });
+
+        // 2단계: AI Job 등록
+        setUploadStep("AI 분석 작업을 등록하는 중... (2/2)");
+        const job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+
+        navigate("/processing", {
+          state: {
+            jobId: job.jobId,
+            videoSrc: videoLink.trim(),
+            targetLanguage,
+          },
+        });
+      }
+    } catch (err) {
+      setUploadPhase("error");
+      setUploadError(
+        err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다."
+      );
     }
   };
 
-  const handleUpload = () => {
-    if (!uploadedFile && !videoLink) return;
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            navigate('/translate');
-          }, 500);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+  const handleRetry = () => {
+    setUploadPhase("idle");
+    setUploadError(null);
+    setUploadStep("");
   };
 
   const formatFileSize = (bytes: number) => {
@@ -70,17 +146,17 @@ export function UploadPage() {
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* 헤더 */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/")}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-6 h-6 text-gray-700" />
@@ -95,7 +171,7 @@ export function UploadPage() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* 본문 */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <div className="mb-8 text-center">
@@ -103,12 +179,29 @@ export function UploadPage() {
             <p className="text-gray-600">AI가 자동으로 자막을 생성해드립니다</p>
           </div>
 
+          {/* 프로젝트 제목 */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              프로젝트 제목 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="영상의 제목을 입력하세요"
+              disabled={isDisabled}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </div>
+
+          {/* 업로드 방식 탭 */}
           <div className="flex justify-center gap-2 mb-6">
             <button
               onClick={() => setUploadMethod("file")}
-              className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors ${
-                uploadMethod === "file" 
-                  ? "bg-emerald-600 text-white shadow-md" 
+              disabled={isDisabled}
+              className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                uploadMethod === "file"
+                  ? "bg-emerald-600 text-white shadow-md"
                   : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -117,9 +210,10 @@ export function UploadPage() {
             </button>
             <button
               onClick={() => setUploadMethod("link")}
-              className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors ${
-                uploadMethod === "link" 
-                  ? "bg-emerald-600 text-white shadow-md" 
+              disabled={isDisabled}
+              className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                uploadMethod === "link"
+                  ? "bg-emerald-600 text-white shadow-md"
                   : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -128,6 +222,7 @@ export function UploadPage() {
             </button>
           </div>
 
+          {/* 파일 / 링크 영역 */}
           {uploadMethod === "file" ? (
             !uploadedFile ? (
               <div
@@ -163,122 +258,153 @@ export function UploadPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* File Info */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <FileVideo className="w-6 h-6 text-emerald-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-gray-900 mb-1 truncate">
-                        {uploadedFile.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {formatFileSize(uploadedFile.size)} • {uploadedFile.type}
-                      </p>
-                    </div>
-                    {uploadProgress === 100 && (
-                      <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
-                    )}
-                  </div>
-
-                  {/* Upload Progress */}
-                  {isUploading && (
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-600">업로드 중...</span>
-                        <span className="text-sm font-medium text-emerald-600">{uploadProgress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setUploadedFile(null)}
-                    disabled={isUploading}
-                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    다른 파일 선택
-                  </button>
-                  <button
-                    onClick={handleUpload}
-                    disabled={isUploading}
-                    className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isUploading ? "업로드 중..." : "자막 생성 시작"}
-                  </button>
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="space-y-6">
-              {/* Link Input */}
               <div className="bg-gray-50 rounded-xl p-6">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <LinkIcon className="w-6 h-6 text-emerald-600" />
+                    <FileVideo className="w-6 h-6 text-emerald-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={videoLink}
-                      onChange={(e) => setVideoLink(e.target.value)}
-                      placeholder="동영상 링크를 입력하세요"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-600"
-                    />
+                    <h3 className="font-medium text-gray-900 mb-1 truncate">
+                      {uploadedFile.name}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {formatFileSize(uploadedFile.size)} • {uploadedFile.type}
+                    </p>
                   </div>
-                  {uploadProgress === 100 && (
-                    <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
-                  )}
+                  <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0" />
                 </div>
-
-                {/* Upload Progress */}
-                {isUploading && (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">업로드 중...</span>
-                      <span className="text-sm font-medium text-emerald-600">{uploadProgress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => setUploadedFile(null)}
+                  disabled={isDisabled}
+                  className="mt-4 text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  다른 파일 선택
+                </button>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setVideoLink("")}
-                  disabled={isUploading}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  다른 링크 입력
-                </button>
-                <button
-                  onClick={handleUpload}
-                  disabled={isUploading}
-                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isUploading ? "업로드 중..." : "자막 생성 시작"}
-                </button>
+            )
+          ) : (
+            <div className="bg-gray-50 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <LinkIcon className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={videoLink}
+                    onChange={(e) => setVideoLink(e.target.value)}
+                    placeholder="YouTube 링크를 입력하세요 (예: https://youtube.com/watch?v=...)"
+                    disabled={isDisabled}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
             </div>
           )}
 
-          {/* Info */}
+          {/* 언어 선택 */}
+          <div className="mt-8 pt-8 border-t border-gray-200 space-y-6">
+            {/* 영상 언어 */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Globe className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-medium text-gray-900">영상 언어 <span className="text-sm text-gray-400">(원본)</span></h3>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => setSourceLanguage(lang.code)}
+                    disabled={isDisabled}
+                    className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      sourceLanguage === lang.code
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 번역 언어 */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Globe className="w-5 h-5 text-violet-500" />
+                <h3 className="font-medium text-gray-900">번역 언어 <span className="text-sm text-gray-400">(출력)</span></h3>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => setTargetLanguage(lang.code)}
+                    disabled={isDisabled}
+                    className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      targetLanguage === lang.code
+                        ? "bg-violet-600 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 업로드 액션 영역 */}
+          <div className="mt-8">
+            {uploadPhase === "idle" && (
+              <button
+                onClick={handleUpload}
+                disabled={!canSubmit}
+                className="w-full px-6 py-4 bg-emerald-600 text-white rounded-xl font-semibold text-base hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                자막 생성 시작
+              </button>
+            )}
+
+            {uploadPhase === "uploading" && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5 flex items-center gap-4">
+                <Loader2 className="w-6 h-6 text-emerald-600 animate-spin shrink-0" />
+                <div>
+                  <p className="font-medium text-emerald-800">{uploadStep}</p>
+                  <p className="text-sm text-emerald-600 mt-0.5">잠시만 기다려주세요...</p>
+                </div>
+              </div>
+            )}
+
+            {uploadPhase === "error" && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-5">
+                <div className="flex items-start gap-3 mb-5">
+                  <div className="w-6 h-6 rounded-full bg-red-200 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-red-600 text-xs font-bold">!</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-red-800">업로드 실패</p>
+                    <p className="text-sm text-red-600 mt-0.5">{uploadError}</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleUpload}
+                    className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                  >
+                    재시도
+                  </button>
+                  <button
+                    onClick={handleRetry}
+                    className="flex-1 px-4 py-2.5 border border-red-300 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
+                  >
+                    처음부터
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 안내 */}
           <div className="mt-8 pt-8 border-t border-gray-200">
             <h3 className="font-medium text-gray-900 mb-3">업로드 후 진행 과정</h3>
             <ol className="space-y-2 text-sm text-gray-600">
@@ -288,11 +414,11 @@ export function UploadPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-medium text-emerald-600">2.</span>
-                AI가 음성을 분석하여 자막을 생성합니다
+                AI가 음성 인식(STT)과 화면 텍스트(OCR)를 분석합니다
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-medium text-emerald-600">3.</span>
-                자막 편집 화면으로 이동하여 자막을 수정할 수 있습니다
+                분석이 완료되면 자막 편집 화면으로 자동 이동합니다
               </li>
             </ol>
           </div>
