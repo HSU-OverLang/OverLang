@@ -15,6 +15,10 @@ from ai.api.schemas import (
 )
 from ai.pipeline.callback_client import send_callback
 from ai.pipeline.run_pipeline import run_pipeline
+from ai.pipeline.youtube_service import (
+    YoutubeDownloadError,
+    YoutubeVideoTooLongError,
+)
 from ai.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -125,6 +129,10 @@ def _execute_job_task(self, job_payload: dict):
             error_code = ErrorCode.INVALID_OPTIONS
         elif isinstance(error, ValueError):
             error_code = ErrorCode.INVALID_OPTIONS
+        elif isinstance(error, YoutubeVideoTooLongError):
+            error_code = ErrorCode.VIDEO_TOO_LONG
+        elif isinstance(error, YoutubeDownloadError):
+            error_code = ErrorCode.DOWNLOAD_FAILED
         elif "ffmpeg" in error_message.lower():
             error_code = ErrorCode.FFMPEG_ERROR
 
