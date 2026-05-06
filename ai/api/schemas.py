@@ -205,7 +205,7 @@ class TaskStatusResponse(CamelModel):
 class CallbackPayload(CamelModel):
     job_id: int | str
     status: JobStatus
-    progress: float
+    progress: int
     current_stage: CurrentStage
     segments: list[SubtitleSegment] = Field(default_factory=list)
     ocr_items: list[OcrItem] = Field(default_factory=list)

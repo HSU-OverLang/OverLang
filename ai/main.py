@@ -19,7 +19,14 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="OverLang AI CLI")
-    parser.add_argument("--input", type=str, required=True, help="Input media file path")
+    parser.add_argument("--input", type=str, required=True, help="Input media path or URL")
+    parser.add_argument(
+        "--source-type",
+        type=str,
+        default=SourceType.UPLOAD.value,
+        choices=[source_type.value for source_type in SourceType],
+        help="Input source type",
+    )
     parser.add_argument("--output", type=str, default="result.json", help="Output JSON path")
     parser.add_argument(
         "--job-type",
@@ -119,13 +126,22 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    input_path = Path(args.input)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input file not found: {input_path}")
+    source_type = SourceType(args.source_type)
+    file_url = None
+    source_url = None
+
+    if source_type == SourceType.UPLOAD:
+        input_path = Path(args.input)
+        if not input_path.exists():
+            raise FileNotFoundError(f"Input file not found: {input_path}")
+        file_url = str(input_path.resolve())
+    elif source_type == SourceType.YOUTUBE:
+        source_url = args.input
 
     request = AnalysisRequest(
-        source_type=SourceType.UPLOAD,
-        file_url=str(input_path.resolve()),
+        source_type=source_type,
+        file_url=file_url,
+        source_url=source_url,
         job_type=JobType(args.job_type),
         source_language=args.language,
         target_language=args.target_language,

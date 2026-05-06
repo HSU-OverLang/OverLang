@@ -12,6 +12,7 @@ ffmpeg-python
 easyocr
 opencv-python-headless
 Pillow
+yt-dlp>=2025.1.15
 
 # API
 fastapi>=0.110

@@ -23,7 +23,7 @@ def main() -> None:
         choices=[stage.value for stage in CurrentStage],
         help="Callback current stage",
     )
-    parser.add_argument("--progress", type=float, default=55.0, help="Progress percent")
+    parser.add_argument("--progress", type=int, default=55, help="Progress percent")
 
     args = parser.parse_args()
     send_callback(

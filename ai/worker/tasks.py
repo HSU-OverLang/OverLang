@@ -15,6 +15,10 @@ from ai.api.schemas import (
 )
 from ai.pipeline.callback_client import send_callback
 from ai.pipeline.run_pipeline import run_pipeline
+from ai.pipeline.youtube_service import (
+    YoutubeDownloadError,
+    YoutubeVideoTooLongError,
+)
 from ai.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,10 @@ def _build_task_meta(
         "error_code": error_code.value if isinstance(error_code, ErrorCode) else error_code,
         "error_message": error_message,
     }
+
+
+def _to_callback_progress(progress: float) -> int:
+    return max(0, min(100, int(round(float(progress)))))
 
 
 def _execute_job_task(self, job_payload: dict):
@@ -71,7 +79,7 @@ def _execute_job_task(self, job_payload: dict):
                 CallbackPayload(
                     job_id=callback_job_id,
                     status=JobStatus.RUNNING,
-                    progress=float(progress),
+                    progress=_to_callback_progress(progress),
                     current_stage=current_stage,
                     segments=[],
                     ocr_items=[],
@@ -92,7 +100,7 @@ def _execute_job_task(self, job_payload: dict):
             CallbackPayload(
                 job_id=callback_job_id,
                 status=JobStatus.COMPLETED,
-                progress=100.0,
+                progress=100,
                 current_stage=CurrentStage.FINALIZING,
                 segments=result.subtitles,
                 ocr_items=result.ocr_items,
@@ -121,6 +129,10 @@ def _execute_job_task(self, job_payload: dict):
             error_code = ErrorCode.INVALID_OPTIONS
         elif isinstance(error, ValueError):
             error_code = ErrorCode.INVALID_OPTIONS
+        elif isinstance(error, YoutubeVideoTooLongError):
+            error_code = ErrorCode.VIDEO_TOO_LONG
+        elif isinstance(error, YoutubeDownloadError):
+            error_code = ErrorCode.DOWNLOAD_FAILED
         elif "ffmpeg" in error_message.lower():
             error_code = ErrorCode.FFMPEG_ERROR
 
@@ -138,7 +150,7 @@ def _execute_job_task(self, job_payload: dict):
             CallbackPayload(
                 job_id=callback_job_id,
                 status=JobStatus.FAILED,
-                progress=float(task_progress["progress"]),
+                progress=_to_callback_progress(float(task_progress["progress"])),
                 current_stage=task_progress["current_stage"],
                 segments=[],
                 ocr_items=[],
