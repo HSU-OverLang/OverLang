@@ -1,5 +1,27 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+// ── 유튜브 URL 파싱 ────────────────────────────────────
+function extractYoutubeId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    // https://www.youtube.com/watch?v=VIDEO_ID
+    if (parsed.hostname.includes('youtube.com')) {
+      const id = parsed.searchParams.get('v');
+      if (id) return id;
+      // https://www.youtube.com/shorts/VIDEO_ID
+      const shorts = parsed.pathname.match(/\/shorts\/([^/?&]+)/);
+      if (shorts) return shorts[1];
+    }
+    // https://youtu.be/VIDEO_ID
+    if (parsed.hostname === 'youtu.be') {
+      return parsed.pathname.slice(1).split('?')[0] || null;
+    }
+  } catch {
+    // URL 파싱 실패 → YouTube 아님
+  }
+  return null;
+}
 
 // ── 목 데이터 ──────────────────────────────────────────
 const DEMO_VIDEO = 'https://www.w3schools.com/html/mov_bbb.mp4';
@@ -31,6 +53,11 @@ interface SavedWord {
 // ── 컴포넌트 ───────────────────────────────────────────
 export function TranslatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { videoSrc } = (location.state as { videoSrc?: string; targetLanguage?: string }) ?? {};
+  const activeVideo = videoSrc ?? DEMO_VIDEO;
+  const youtubeId = extractYoutubeId(activeVideo);
+
   const [showOcr, setShowOcr] = useState(true);
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
@@ -200,11 +227,20 @@ export function TranslatePage() {
         <div className="flex flex-col w-[55%] border-r border-slate-200 overflow-y-auto">
           {/* 영상 플레이어 */}
           <div className="relative bg-black">
-            <video
-              className="w-full aspect-video"
-              controls
-              src={DEMO_VIDEO}
-            />
+            {youtubeId ? (
+              <iframe
+                className="w-full aspect-video"
+                src={`https://www.youtube.com/embed/${youtubeId}`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <video
+                className="w-full aspect-video"
+                controls
+                src={activeVideo}
+              />
+            )}
 
             {/* OCR 오버레이 */}
             {showOcr && MOCK_OCR.map(ocr => (
