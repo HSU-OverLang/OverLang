@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -360,12 +361,26 @@ def _extract_runtime_options(
         options = dict(job.options)
 
     return {
-        "model": options.get("model", "large-v3-turbo"),
-        "batch_size": int(options.get("batch_size", 16)),
-        "compute_type": options.get("compute_type", "float16"),
-        "align": not bool(options.get("no_align", False)),
-        "frame_interval": float(options.get("frame_interval", 1.0)),
-        "ocr_gpu": bool(options.get("ocr_gpu", True)),
+        "model": options.get(
+            "model",
+            os.getenv("AI_DEFAULT_MODEL", "large-v3-turbo"),
+        ),
+        "batch_size": int(
+            options.get("batch_size", os.getenv("AI_DEFAULT_BATCH_SIZE", "16"))
+        ),
+        "compute_type": options.get(
+            "compute_type",
+            os.getenv("AI_DEFAULT_COMPUTE_TYPE", "float16"),
+        ),
+        "align": not _to_bool(
+            options.get("no_align", os.getenv("AI_DEFAULT_NO_ALIGN", "false"))
+        ),
+        "frame_interval": float(
+            options.get("frame_interval", os.getenv("AI_DEFAULT_FRAME_INTERVAL", "1.0"))
+        ),
+        "ocr_gpu": _to_bool(
+            options.get("ocr_gpu", os.getenv("AI_DEFAULT_OCR_GPU", "true"))
+        ),
         "ocr_change_threshold": float(options.get("ocr_change_threshold", 0.015)),
         "ocr_skip_unchanged_frames": bool(
             options.get("ocr_skip_unchanged_frames", True)
@@ -393,6 +408,13 @@ def _optional_round_time(value: Any) -> float | None:
         return None
 
     return _round_time(value)
+
+
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _report_progress(
