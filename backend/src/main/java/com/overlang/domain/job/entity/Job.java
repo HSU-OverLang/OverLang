@@ -47,9 +47,6 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
   @Column(name = "translation_provider", length = 50)
   private TranslationProvider translationProvider;
 
-  @Column(name = "use_user_api_key", nullable = false)
-  private Boolean useUserApiKey;
-
   @Column(name = "error_code", length = 100)
   private String errorCode;
 
@@ -61,8 +58,7 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
       JobType jobType,
       LanguageCode sourceLanguage,
       LanguageCode targetLanguage,
-      TranslationProvider translationProvider,
-      Boolean useUserApiKey) {
+      TranslationProvider translationProvider) {
     this.project = project;
     this.jobType = jobType;
     this.status = JobStatus.PENDING;
@@ -72,7 +68,6 @@ public class Job extends BaseTimeEntity { // 시간 자동 기록
     this.targetLanguage = targetLanguage;
     this.translationProvider =
         translationProvider == null ? TranslationProvider.DEFAULT : translationProvider;
-    this.useUserApiKey = useUserApiKey != null && useUserApiKey;
   }
 
   public void updateRunning(Integer progress, CurrentStage currentStage) {
