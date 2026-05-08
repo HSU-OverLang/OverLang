@@ -8,6 +8,8 @@ import { HomePage } from '@/app/pages/HomePage';
 import { UploadPage } from '@/app/pages/UploadPage';
 import { TranslatePage } from '@/app/pages/TranslatePage';
 import { StudyPage } from '@/app/pages/StudyPage';
+import { ProcessingPage } from '@/app/pages/ProcessingPage';
+import { DashboardPage } from '@/app/pages/DashboardPage';
 
 export const router = createBrowserRouter([
   {
@@ -18,6 +20,11 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+
+  {
+    path: '/dashboard',
+    element: <DashboardPage />,
   },
 
   {
@@ -48,6 +55,11 @@ export const router = createBrowserRouter([
     )
   },
   
+  {
+    path: '/processing',
+    element: <ProcessingPage />,
+  },
+
   {
     path: '/translate',
     element: <TranslatePage />,

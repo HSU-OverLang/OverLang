@@ -1,5 +1,6 @@
 package com.overlang.api.controller;
 
+import com.overlang.api.dto.file.PresignedUrlResponse;
 import com.overlang.api.dto.project.ProjectCreateRequest;
 import com.overlang.api.dto.project.ProjectCreateResponse;
 import com.overlang.api.dto.project.ProjectDetailResponse;
@@ -13,8 +14,6 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequiredArgsConstructor
@@ -52,5 +51,16 @@ public class ProjectController {
 
     ProjectDetailResponse response = projectService.getProject(memberId, projectId);
     return ApiResponse.success(response);
+  }
+
+  @Operation(summary = "프로젝트 영상 재생용 Presigned URL 발급")
+  @GetMapping("/{projectId}/video-url")
+  public ApiResponse<PresignedUrlResponse> getVideoUrl(
+      @PathVariable Long projectId, HttpServletRequest httpServletRequest) {
+    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+
+    String presignedUrl = projectService.getVideoPresignedUrl(memberId, projectId);
+
+    return ApiResponse.success(new PresignedUrlResponse(presignedUrl));
   }
 }

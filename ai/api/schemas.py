@@ -83,7 +83,7 @@ class AnalysisRequest(CamelModel):
     use_user_api_key: bool = False
     options: dict[str, Any] | None = None
 
-    @field_validator("source_language", "target_language")
+    @field_validator("source_language", "target_language", mode="before")
     @classmethod
     def normalize_language_fields(cls, value: str | None) -> str | None:
         return normalize_optional_language_code(value)
@@ -123,7 +123,7 @@ class WorkerJobPayload(CamelModel):
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
     use_user_api_key: bool = False
 
-    @field_validator("source_language", "target_language")
+    @field_validator("source_language", "target_language", mode="before")
     @classmethod
     def normalize_language_fields(cls, value: str | None) -> str | None:
         return normalize_optional_language_code(value)
@@ -217,7 +217,7 @@ class TaskStatusResponse(CamelModel):
 class CallbackPayload(CamelModel):
     job_id: int | str
     status: JobStatus
-    progress: float
+    progress: int
     current_stage: CurrentStage
     segments: list[SubtitleSegment] = Field(default_factory=list)
     ocr_items: list[OcrItem] = Field(default_factory=list)

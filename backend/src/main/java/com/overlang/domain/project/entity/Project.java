@@ -97,4 +97,16 @@ public class Project extends BaseTimeEntity {
   public void updateTitle(String title) {
     this.title = title;
   } // 프로젝트 제목 수정
+
+  public void markProcessing() {
+    this.status = ProjectStatus.PROCESSING;
+  }
+
+  public void markCompleted() {
+    this.status = ProjectStatus.COMPLETED;
+  }
+
+  public void markFailed() {
+    this.status = ProjectStatus.FAILED;
+  }
 }

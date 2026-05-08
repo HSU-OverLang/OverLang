@@ -15,6 +15,10 @@ from ai.api.schemas import (
 )
 from ai.pipeline.callback_client import send_callback
 from ai.pipeline.run_pipeline import run_pipeline
+from ai.pipeline.youtube_service import (
+    YoutubeDownloadError,
+    YoutubeVideoTooLongError,
+)
 from ai.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -36,7 +40,12 @@ def _build_task_meta(
     }
 
 
+def _to_callback_progress(progress: float) -> int:
+    return max(0, min(100, int(round(float(progress)))))
+
+
 def _execute_job_task(self, job_payload: dict):
+    callback_job_id = _resolve_callback_job_id(job_payload, self.request.id)
     task_progress = {
         "progress": 0.0,
         "current_stage": CurrentStage.QUEUED,
@@ -49,7 +58,11 @@ def _execute_job_task(self, job_payload: dict):
     )
 
     try:
-        logger.info("Task started: %s", self.request.id)
+        logger.info(
+            "Task started: celeryTaskId=%s callbackJobId=%s",
+            self.request.id,
+            callback_job_id,
+        )
 
         def progress_callback(
             current_stage: CurrentStage,
@@ -64,9 +77,9 @@ def _execute_job_task(self, job_payload: dict):
             )
             send_callback(
                 CallbackPayload(
-                    job_id=self.request.id,
+                    job_id=callback_job_id,
                     status=JobStatus.RUNNING,
-                    progress=float(progress),
+                    progress=_to_callback_progress(progress),
                     current_stage=current_stage,
                     segments=[],
                     ocr_items=[],
@@ -79,15 +92,15 @@ def _execute_job_task(self, job_payload: dict):
         result = run_pipeline(
             job_payload,
             progress_callback=progress_callback,
-            job_id=self.request.id,
+            job_id=callback_job_id,
             keep_intermediate_files=True,
         )
 
         send_callback(
             CallbackPayload(
-                job_id=self.request.id,
+                job_id=callback_job_id,
                 status=JobStatus.COMPLETED,
-                progress=100.0,
+                progress=100,
                 current_stage=CurrentStage.FINALIZING,
                 segments=result.subtitles,
                 ocr_items=result.ocr_items,
@@ -116,6 +129,10 @@ def _execute_job_task(self, job_payload: dict):
             error_code = ErrorCode.INVALID_OPTIONS
         elif isinstance(error, ValueError):
             error_code = ErrorCode.INVALID_OPTIONS
+        elif isinstance(error, YoutubeVideoTooLongError):
+            error_code = ErrorCode.VIDEO_TOO_LONG
+        elif isinstance(error, YoutubeDownloadError):
+            error_code = ErrorCode.DOWNLOAD_FAILED
         elif "ffmpeg" in error_message.lower():
             error_code = ErrorCode.FFMPEG_ERROR
 
@@ -131,9 +148,9 @@ def _execute_job_task(self, job_payload: dict):
         )
         send_callback(
             CallbackPayload(
-                job_id=self.request.id,
+                job_id=callback_job_id,
                 status=JobStatus.FAILED,
-                progress=float(task_progress["progress"]),
+                progress=_to_callback_progress(float(task_progress["progress"])),
                 current_stage=task_progress["current_stage"],
                 segments=[],
                 ocr_items=[],
@@ -145,6 +162,13 @@ def _execute_job_task(self, job_payload: dict):
         raise Exception(
             json.dumps({"code": error_code.value, "message": error_message})
         )
+
+
+def _resolve_callback_job_id(
+    job_payload: dict,
+    celery_task_id: str,
+) -> str | int:
+    return job_payload.get("jobId") or job_payload.get("job_id") or celery_task_id
 
 
 @celery_app.task(bind=True)

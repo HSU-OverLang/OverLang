@@ -35,4 +35,8 @@ def normalize_optional_language_code(language_code: str | None) -> str | None:
     if language_code is None:
         return None
 
-    return normalize_language_code(language_code)
+    normalized_code = language_code.strip()
+    if not normalized_code:
+        return None
+
+    return normalize_language_code(normalized_code)
