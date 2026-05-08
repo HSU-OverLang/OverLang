@@ -29,6 +29,9 @@ public class Project extends BaseTimeEntity {
   @Column(name = "source_url", length = 1024) // 유튜브 URL
   private String sourceUrl;
 
+  @Column(name = "youtube_video_id", length = 50)
+  private String youtubeVideoId;
+
   @Column(name = "file_url", length = 1024) // S3 URL
   private String fileUrl;
 
@@ -44,6 +47,7 @@ public class Project extends BaseTimeEntity {
       String title,
       SourceType sourceType,
       String sourceUrl,
+      String youtubeVideoId,
       String fileUrl,
       String fileKey) {
     validateSource(sourceType, sourceUrl, fileUrl, fileKey);
@@ -51,6 +55,7 @@ public class Project extends BaseTimeEntity {
     this.title = title;
     this.sourceType = sourceType;
     this.sourceUrl = sourceUrl;
+    this.youtubeVideoId = youtubeVideoId;
     this.fileUrl = fileUrl;
     this.fileKey = fileKey;
     this.status = ProjectStatus.CREATED;

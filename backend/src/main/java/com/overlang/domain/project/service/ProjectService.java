@@ -8,7 +8,9 @@ import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.member.entity.Member;
 import com.overlang.domain.member.repository.MemberRepository;
 import com.overlang.domain.project.entity.Project;
+import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
+import com.overlang.global.util.YoutubeUrlUtils;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,12 +31,19 @@ public class ProjectService {
             .findById(memberId)
             .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
+    String youtubeVideoId = null;
+
+    if (request.sourceType() == SourceType.YOUTUBE) {
+      youtubeVideoId = YoutubeUrlUtils.extractVideoId(request.sourceUrl());
+    }
+
     Project project =
         new Project(
             member,
             request.title(),
             request.sourceType(),
             request.sourceUrl(),
+            youtubeVideoId,
             request.fileUrl(),
             request.fileKey());
 

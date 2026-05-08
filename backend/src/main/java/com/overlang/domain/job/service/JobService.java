@@ -6,7 +6,10 @@ import com.overlang.api.dto.job.JobCreateRequest;
 import com.overlang.api.dto.job.JobCreateResponse;
 import com.overlang.api.dto.job.JobDetailResponse;
 import com.overlang.api.dto.job.JobResponse;
+import com.overlang.domain.cache.service.ResultCacheService;
+import com.overlang.domain.cache.service.ResultCopyService;
 import com.overlang.domain.file.service.S3UploadService;
+import com.overlang.domain.job.entity.CurrentStage;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.queue.JobQueuePayload;
 import com.overlang.domain.job.queue.JobQueueProducer;
@@ -35,6 +38,8 @@ public class JobService {
   private final JobQueueProducer jobQueueProducer;
   private final SegmentRepository segmentRepository;
   private final OcrItemRepository ocrItemRepository;
+  private final ResultCacheService resultCacheService;
+  private final ResultCopyService resultCopyService;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -59,13 +64,22 @@ public class JobService {
 
     Job savedJob = jobRepository.save(job);
 
+    var reusableJob = resultCacheService.findReusableJob(project, request);
+
+    if (reusableJob.isPresent()) {
+      resultCopyService.copyResults(reusableJob.get(), savedJob);
+      savedJob.complete(100, CurrentStage.FINALIZING, null, null);
+      project.markCompleted();
+
+      return JobCreateResponse.from(savedJob, true);
+    }
+
     project.updateStatus(ProjectStatus.PROCESSING);
 
     JobQueuePayload payload = createQueuePayload(project, savedJob);
-
     jobQueueProducer.enqueue(payload);
 
-    return JobCreateResponse.from(savedJob);
+    return JobCreateResponse.from(savedJob, false);
   }
 
   private void validateJobCreateRequest(JobCreateRequest request) {
