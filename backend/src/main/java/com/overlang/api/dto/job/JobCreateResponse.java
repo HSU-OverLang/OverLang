@@ -19,11 +19,16 @@ public record JobCreateResponse(
     LanguageCode targetLanguage,
     TranslationProvider translationProvider,
     Boolean useUserApiKey,
+    Boolean cached,
     String errorCode,
     String errorMessage,
     Instant createdAt) {
 
   public static JobCreateResponse from(Job job) {
+    return from(job, false);
+  }
+
+  public static JobCreateResponse from(Job job, boolean cached) {
     return new JobCreateResponse(
         job.getId(),
         job.getProject().getId(),
@@ -35,6 +40,7 @@ public record JobCreateResponse(
         job.getTargetLanguage(),
         job.getTranslationProvider(),
         job.getUseUserApiKey(),
+        cached,
         job.getErrorCode(),
         job.getErrorMessage(),
         job.getCreatedAt());
