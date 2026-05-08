@@ -59,8 +59,7 @@ public class JobService {
             request.jobType(),
             request.sourceLanguage(),
             request.targetLanguage(),
-            request.translationProvider(),
-            request.useUserApiKey());
+            request.translationProvider());
 
     Job savedJob = jobRepository.save(job);
 
@@ -116,8 +115,7 @@ public class JobService {
             job.getJobType(),
             job.getSourceLanguage(),
             job.getTargetLanguage(),
-            job.getTranslationProvider(),
-            job.getUseUserApiKey());
+            job.getTranslationProvider());
       }
 
       case YOUTUBE ->
@@ -132,8 +130,7 @@ public class JobService {
               job.getJobType(),
               job.getSourceLanguage(),
               job.getTargetLanguage(),
-              job.getTranslationProvider(),
-              job.getUseUserApiKey());
+              job.getTranslationProvider());
     };
   }
 

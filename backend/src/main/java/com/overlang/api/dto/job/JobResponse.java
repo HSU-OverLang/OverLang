@@ -18,7 +18,6 @@ public record JobResponse(
     LanguageCode sourceLanguage,
     LanguageCode targetLanguage,
     TranslationProvider translationProvider,
-    Boolean useUserApiKey,
     String errorCode,
     String errorMessage,
     Instant createdAt) {
@@ -34,7 +33,6 @@ public record JobResponse(
         job.getSourceLanguage(),
         job.getTargetLanguage(),
         job.getTranslationProvider(),
-        job.getUseUserApiKey(),
         job.getErrorCode(),
         job.getErrorMessage(),
         job.getCreatedAt());

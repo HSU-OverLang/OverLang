@@ -8,5 +8,4 @@ public record JobCreateRequest(
     JobType jobType,
     LanguageCode sourceLanguage,
     LanguageCode targetLanguage,
-    TranslationProvider translationProvider,
-    Boolean useUserApiKey) {}
+    TranslationProvider translationProvider) {}
