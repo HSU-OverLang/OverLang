@@ -12,6 +12,7 @@ from ai.api.schemas import (
     JobType,
     OcrItem,
     SubtitleSegment,
+    TranslationProvider,
     WordTiming,
     WorkerJobPayload,
 )
@@ -28,6 +29,7 @@ from ai.pipeline.result_store import (
     save_result,
 )
 from ai.stt_service import STTService
+from ai.translation import create_translation_service
 
 ProgressCallback = Callable[[CurrentStage, float, dict[str, Any] | None], None]
 
@@ -60,6 +62,7 @@ def run_pipeline(
         subtitles: list[SubtitleSegment] = []
         ocr_items: list[OcrItem] = []
         pipeline_steps: list[str] = []
+        warnings: list[str] = []
         audio_path: Path | None = None
 
         if job_type in {JobType.FULL_ANALYSIS.value, JobType.STT_ONLY.value}:
@@ -107,6 +110,34 @@ def run_pipeline(
             pipeline_steps.append("OCR_FRAME_EXTRACTION")
             pipeline_steps.append("OCR_TEXT_DETECTION")
 
+        resolved_source_language = _resolve_source_language(
+            normalized_job.source_language,
+            subtitles,
+        )
+        if _should_run_translation(normalized_job, resolved_source_language):
+            _report_progress(progress_callback, CurrentStage.TRANSLATION, 80.0)
+            warnings.extend(
+                _run_translation_stage(
+                    normalized_job,
+                    subtitles,
+                    ocr_items,
+                    resolved_source_language,
+                )
+            )
+            save_intermediate(
+                resolved_job_id,
+                "translation",
+                {
+                    "subtitles": [
+                        subtitle.model_dump(by_alias=True) for subtitle in subtitles
+                    ],
+                    "ocrItems": [
+                        ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items
+                    ],
+                },
+            )
+            pipeline_steps.append("TRANSLATION")
+
         _report_progress(progress_callback, CurrentStage.FINALIZING, 90.0)
         result = AnalysisResult(
             subtitles=subtitles,
@@ -114,14 +145,12 @@ def run_pipeline(
             metadata=AnalysisMetadata(
                 job_id=resolved_job_id,
                 source_type=normalized_job.source_type,
-                source_language=_resolve_source_language(
-                    normalized_job.source_language,
-                    subtitles,
-                ),
+                source_language=resolved_source_language,
                 target_language=normalized_job.target_language,
                 pipeline=pipeline_steps,
                 fallback_used=False,
             ),
+            warnings=warnings,
         )
         save_result(resolved_job_id, result.model_dump(by_alias=True))
         save_intermediate(
@@ -257,6 +286,59 @@ def _carry_forward_ocr_items(
         carried_items.append(carried_item)
 
     return carried_items
+
+
+def _should_run_translation(
+    job: AnalysisRequest | WorkerJobPayload,
+    source_language: str | None,
+) -> bool:
+    if not job.target_language:
+        return False
+
+    if source_language and source_language == job.target_language:
+        return False
+
+    return True
+
+
+def _run_translation_stage(
+    job: AnalysisRequest | WorkerJobPayload,
+    subtitles: list[SubtitleSegment],
+    ocr_items: list[OcrItem],
+    source_language: str | None,
+) -> list[str]:
+    target_language = job.target_language
+    if target_language is None:
+        return []
+
+    translation_service = create_translation_service(job.translation_provider)
+    subtitle_texts = [subtitle.text for subtitle in subtitles]
+    ocr_texts = [ocr_item.origin_text for ocr_item in ocr_items]
+
+    subtitle_translations = translation_service.translate_batch(
+        subtitle_texts,
+        source_language,
+        target_language,
+    )
+    ocr_translations = translation_service.translate_batch(
+        ocr_texts,
+        source_language,
+        target_language,
+    )
+
+    for subtitle, translated_text in zip(subtitles, subtitle_translations):
+        subtitle.translated_text = translated_text
+
+    for ocr_item, translated_text in zip(ocr_items, ocr_translations):
+        ocr_item.translated_text = translated_text
+
+    if _enum_value(job.translation_provider) == TranslationProvider.DEFAULT.value:
+        return [
+            "DEFAULT translation provider uses development placeholder output. "
+            "Configure a production provider before serving user-facing translations."
+        ]
+
+    return []
 
 
 def _build_subtitles(

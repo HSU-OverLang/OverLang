@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ai.language_codes import normalize_language_code
+from ai.language_codes import normalize_optional_language_code
 
 
 class SourceType(str, Enum):
@@ -85,8 +85,8 @@ class AnalysisRequest(CamelModel):
 
     @field_validator("source_language", "target_language", mode="before")
     @classmethod
-    def normalize_languages(cls, value: str | None) -> str | None:
-        return normalize_language_code(value)
+    def normalize_language_fields(cls, value: str | None) -> str | None:
+        return normalize_optional_language_code(value)
 
     @model_validator(mode="after")
     def validate_source_fields(self) -> "AnalysisRequest":
@@ -125,8 +125,8 @@ class WorkerJobPayload(CamelModel):
 
     @field_validator("source_language", "target_language", mode="before")
     @classmethod
-    def normalize_languages(cls, value: str | None) -> str | None:
-        return normalize_language_code(value)
+    def normalize_language_fields(cls, value: str | None) -> str | None:
+        return normalize_optional_language_code(value)
 
     @model_validator(mode="after")
     def validate_worker_payload(self) -> "WorkerJobPayload":

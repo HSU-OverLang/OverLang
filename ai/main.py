@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    _load_env_file()
+
     parser = argparse.ArgumentParser(description="OverLang AI CLI")
     parser.add_argument("--input", type=str, required=True, help="Input media path or URL")
     parser.add_argument(
@@ -52,13 +54,13 @@ def main() -> None:
         "--language",
         type=str,
         default=None,
-        help="Source language code (ko, en, ja...)",
+        help="Source language code (KO, EN, ZH, JA, ES, FR)",
     )
     parser.add_argument(
         "--target-language",
         type=str,
         default=None,
-        help="Target language code",
+        help="Target language code (KO, EN, ZH, JA, ES, FR)",
     )
     parser.add_argument(
         "--translation-provider",
@@ -178,6 +180,16 @@ def main() -> None:
 
     logger.info("Saved results to: %s", output_path)
     logger.info("Total processed in %.2fs", elapsed)
+
+
+def _load_env_file() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
+        logger.debug("python-dotenv is not installed; skipping .env loading.")
+        return
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 if __name__ == "__main__":
