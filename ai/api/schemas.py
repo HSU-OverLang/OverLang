@@ -47,6 +47,12 @@ class TranslationProvider(str, Enum):
     OPENAI = "OPENAI"
 
 
+class LearningContentType(str, Enum):
+    KEYWORD = "KEYWORD"
+    SUMMARY = "SUMMARY"
+    EXPRESSION = "EXPRESSION"
+
+
 class ErrorCode(str, Enum):
     GPU_OOM = "WORKER_001"
     FFMPEG_ERROR = "WORKER_002"
@@ -171,10 +177,16 @@ class OcrItem(CamelModel):
     confidence: float | None = None
 
 
+class LearningContent(CamelModel):
+    content_type: LearningContentType
+    title: str
+    content: str
+    start_time: float | None = None
+    end_time: float | None = None
+
+
 class LearningData(CamelModel):
-    keywords: list[str] = Field(default_factory=list)
-    summary: str | None = None
-    expression_notes: list[str] = Field(default_factory=list)
+    contents: list[LearningContent] = Field(default_factory=list)
 
 
 class AnalysisMetadata(CamelModel):
