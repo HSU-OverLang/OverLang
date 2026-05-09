@@ -80,7 +80,6 @@ class AnalysisRequest(CamelModel):
     source_language: str | None = None
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
-    use_user_api_key: bool = False
     options: dict[str, Any] | None = None
 
     @field_validator("source_language", "target_language", mode="before")
@@ -113,6 +112,7 @@ class AnalysisRequest(CamelModel):
 class WorkerJobPayload(CamelModel):
     job_id: int | str
     project_id: int | str
+    member_id: int | str
     source_type: SourceType
     source_url: str | None = None
     file_key: str | None = None
@@ -121,7 +121,6 @@ class WorkerJobPayload(CamelModel):
     source_language: str | None = None
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
-    use_user_api_key: bool = False
 
     @field_validator("source_language", "target_language", mode="before")
     @classmethod
