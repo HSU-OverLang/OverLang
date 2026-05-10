@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -9,11 +10,15 @@ from ai.api.schemas import (
     AnalysisResult,
     CurrentStage,
     JobType,
+    LearningData,
     OcrItem,
     SubtitleSegment,
+    TranslationProvider,
     WordTiming,
     WorkerJobPayload,
 )
+from ai.learning import generate_learning_data
+from ai.ocr.frame_change import annotate_frame_changes
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
 from ai.ocr.postprocess import build_ocr_items
 from ai.pipeline.audio_service import extract_audio_to_wav
@@ -26,6 +31,7 @@ from ai.pipeline.result_store import (
     save_result,
 )
 from ai.stt_service import STTService
+from ai.translation import create_translation_service
 
 ProgressCallback = Callable[[CurrentStage, float, dict[str, Any] | None], None]
 
@@ -57,7 +63,9 @@ def run_pipeline(
 
         subtitles: list[SubtitleSegment] = []
         ocr_items: list[OcrItem] = []
+        learning_data: LearningData | None = None
         pipeline_steps: list[str] = []
+        warnings: list[str] = []
         audio_path: Path | None = None
 
         if job_type in {JobType.FULL_ANALYSIS.value, JobType.STT_ONLY.value}:
@@ -89,6 +97,10 @@ def run_pipeline(
                 directories["frames"],
                 interval_seconds=float(runtime_options["frame_interval"]),
             )
+            frames = annotate_frame_changes(
+                frames,
+                change_threshold=float(runtime_options["ocr_change_threshold"]),
+            )
             save_intermediate(resolved_job_id, "frame_extraction", frames)
 
             _report_progress(progress_callback, CurrentStage.OCR_TEXT_DETECTION, 55.0)
@@ -101,21 +113,66 @@ def run_pipeline(
             pipeline_steps.append("OCR_FRAME_EXTRACTION")
             pipeline_steps.append("OCR_TEXT_DETECTION")
 
+        resolved_source_language = _resolve_source_language(
+            normalized_job.source_language,
+            subtitles,
+        )
+        if _should_run_translation(normalized_job, resolved_source_language):
+            _report_progress(progress_callback, CurrentStage.TRANSLATION, 80.0)
+            warnings.extend(
+                _run_translation_stage(
+                    normalized_job,
+                    subtitles,
+                    ocr_items,
+                    resolved_source_language,
+                )
+            )
+            save_intermediate(
+                resolved_job_id,
+                "translation",
+                {
+                    "subtitles": [
+                        subtitle.model_dump(by_alias=True) for subtitle in subtitles
+                    ],
+                    "ocrItems": [
+                        ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items
+                    ],
+                },
+            )
+            pipeline_steps.append("TRANSLATION")
+
+        if _should_run_learning_analysis(normalized_job, subtitles):
+            _report_progress(progress_callback, CurrentStage.LLM_ANALYSIS, 85.0)
+            try:
+                learning_data = generate_learning_data(
+                    subtitles,
+                    source_language=resolved_source_language,
+                    target_language=normalized_job.target_language,
+                )
+                if learning_data is not None:
+                    save_intermediate(
+                        resolved_job_id,
+                        "learning_data",
+                        learning_data.model_dump(by_alias=True),
+                    )
+                    pipeline_steps.append("LLM_ANALYSIS")
+            except Exception as error:
+                warnings.append(f"Learning data generation failed: {error}")
+
         _report_progress(progress_callback, CurrentStage.FINALIZING, 90.0)
         result = AnalysisResult(
             subtitles=subtitles,
             ocr_items=ocr_items,
+            learning_data=learning_data,
             metadata=AnalysisMetadata(
                 job_id=resolved_job_id,
                 source_type=normalized_job.source_type,
-                source_language=_resolve_source_language(
-                    normalized_job.source_language,
-                    subtitles,
-                ),
+                source_language=resolved_source_language,
                 target_language=normalized_job.target_language,
                 pipeline=pipeline_steps,
                 fallback_used=False,
             ),
+            warnings=warnings,
         )
         save_result(resolved_job_id, result.model_dump(by_alias=True))
         save_intermediate(
@@ -199,16 +256,121 @@ def _run_ocr_stage(
     ocr_service = EasyOcrService(languages=languages, gpu=bool(runtime_options["ocr_gpu"]))
 
     raw_items = []
+    latest_detected_items: list[dict[str, Any]] = []
+    consecutive_skipped_frames = 0
     for frame in frames:
-        raw_items.extend(
-            ocr_service.extract_frame_text(
-                frame_path=str(frame["path"]),
-                frame_index=int(frame["frameIndex"]),
-                timestamp=float(frame["timestamp"]),
-            )
+        should_skip_frame = (
+            runtime_options["ocr_skip_unchanged_frames"]
+            and not bool(frame.get("hasVisualChange", True))
+            and consecutive_skipped_frames
+            < int(runtime_options["ocr_max_skip_frames"])
         )
 
-    return build_ocr_items(raw_items, frame_interval_seconds=frame_interval)
+        if should_skip_frame:
+            raw_items.extend(
+                _carry_forward_ocr_items(
+                    latest_detected_items,
+                    frame,
+                )
+            )
+            consecutive_skipped_frames += 1
+            continue
+
+        detected_items = ocr_service.extract_frame_text(
+            frame_path=str(frame["path"]),
+            frame_index=int(frame["frameIndex"]),
+            timestamp=float(frame["timestamp"]),
+        )
+        raw_items.extend(detected_items)
+        latest_detected_items = detected_items
+        consecutive_skipped_frames = 0
+
+    return build_ocr_items(
+        raw_items,
+        frame_interval_seconds=frame_interval,
+        min_confidence=float(runtime_options["ocr_min_confidence"]),
+        min_text_length=int(runtime_options["ocr_min_text_length"]),
+        max_special_char_ratio=float(runtime_options["ocr_max_special_char_ratio"]),
+        edge_margin=float(runtime_options["ocr_edge_margin"]),
+    )
+
+
+def _carry_forward_ocr_items(
+    latest_items: list[dict[str, Any]],
+    frame: dict[str, object],
+) -> list[dict[str, Any]]:
+    carried_items = []
+    for item in latest_items:
+        carried_item = dict(item)
+        carried_item["frameIndex"] = int(frame["frameIndex"])
+        carried_item["timestamp"] = round(float(frame["timestamp"]), 3)
+        carried_item["carriedForward"] = True
+        carried_items.append(carried_item)
+
+    return carried_items
+
+
+def _should_run_translation(
+    job: AnalysisRequest | WorkerJobPayload,
+    source_language: str | None,
+) -> bool:
+    if not job.target_language:
+        return False
+
+    if source_language and source_language == job.target_language:
+        return False
+
+    return True
+
+
+def _should_run_learning_analysis(
+    job: AnalysisRequest | WorkerJobPayload,
+    subtitles: list[SubtitleSegment],
+) -> bool:
+    if _enum_value(job.job_type) != JobType.FULL_ANALYSIS.value:
+        return False
+
+    return bool(subtitles)
+
+
+def _run_translation_stage(
+    job: AnalysisRequest | WorkerJobPayload,
+    subtitles: list[SubtitleSegment],
+    ocr_items: list[OcrItem],
+    source_language: str | None,
+) -> list[str]:
+    target_language = job.target_language
+    if target_language is None:
+        return []
+
+    translation_service = create_translation_service(job.translation_provider)
+    subtitle_texts = [subtitle.text for subtitle in subtitles]
+    ocr_texts = [ocr_item.origin_text for ocr_item in ocr_items]
+
+    subtitle_translations = translation_service.translate_batch(
+        subtitle_texts,
+        source_language,
+        target_language,
+    )
+    ocr_translations = translation_service.translate_batch(
+        ocr_texts,
+        source_language,
+        target_language,
+    )
+
+    for subtitle, translated_text in zip(subtitles, subtitle_translations):
+        subtitle.translated_text = translated_text
+
+    for ocr_item, translated_text in zip(ocr_items, ocr_translations):
+        ocr_item.translated_text = translated_text
+
+    if _enum_value(job.translation_provider) == TranslationProvider.DEFAULT.value:
+        return [
+            "DEFAULT translation provider uses development placeholder output. "
+            "Configure a production provider before serving user-facing translations."
+        ]
+
+    return []
 
 
 def _build_subtitles(
@@ -313,12 +475,37 @@ def _extract_runtime_options(
         options = dict(job.options)
 
     return {
-        "model": options.get("model", "large-v3-turbo"),
-        "batch_size": int(options.get("batch_size", 16)),
-        "compute_type": options.get("compute_type", "float16"),
-        "align": not bool(options.get("no_align", False)),
-        "frame_interval": float(options.get("frame_interval", 1.0)),
-        "ocr_gpu": bool(options.get("ocr_gpu", True)),
+        "model": options.get(
+            "model",
+            os.getenv("AI_DEFAULT_MODEL", "large-v3-turbo"),
+        ),
+        "batch_size": int(
+            options.get("batch_size", os.getenv("AI_DEFAULT_BATCH_SIZE", "16"))
+        ),
+        "compute_type": options.get(
+            "compute_type",
+            os.getenv("AI_DEFAULT_COMPUTE_TYPE", "float16"),
+        ),
+        "align": not _to_bool(
+            options.get("no_align", os.getenv("AI_DEFAULT_NO_ALIGN", "false"))
+        ),
+        "frame_interval": float(
+            options.get("frame_interval", os.getenv("AI_DEFAULT_FRAME_INTERVAL", "1.0"))
+        ),
+        "ocr_gpu": _to_bool(
+            options.get("ocr_gpu", os.getenv("AI_DEFAULT_OCR_GPU", "true"))
+        ),
+        "ocr_change_threshold": float(options.get("ocr_change_threshold", 0.015)),
+        "ocr_skip_unchanged_frames": bool(
+            options.get("ocr_skip_unchanged_frames", True)
+        ),
+        "ocr_max_skip_frames": int(options.get("ocr_max_skip_frames", 1)),
+        "ocr_min_confidence": float(options.get("ocr_min_confidence", 0.3)),
+        "ocr_min_text_length": int(options.get("ocr_min_text_length", 2)),
+        "ocr_max_special_char_ratio": float(
+            options.get("ocr_max_special_char_ratio", 0.6)
+        ),
+        "ocr_edge_margin": float(options.get("ocr_edge_margin", 0.0)),
     }
 
 
@@ -335,6 +522,13 @@ def _optional_round_time(value: Any) -> float | None:
         return None
 
     return _round_time(value)
+
+
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _report_progress(

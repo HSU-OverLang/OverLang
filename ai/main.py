@@ -18,8 +18,17 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    _load_env_file()
+
     parser = argparse.ArgumentParser(description="OverLang AI CLI")
-    parser.add_argument("--input", type=str, required=True, help="Input media file path")
+    parser.add_argument("--input", type=str, required=True, help="Input media path or URL")
+    parser.add_argument(
+        "--source-type",
+        type=str,
+        default=SourceType.UPLOAD.value,
+        choices=[source_type.value for source_type in SourceType],
+        help="Input source type",
+    )
     parser.add_argument("--output", type=str, default="result.json", help="Output JSON path")
     parser.add_argument(
         "--job-type",
@@ -45,13 +54,13 @@ def main() -> None:
         "--language",
         type=str,
         default=None,
-        help="Source language code (ko, en, ja...)",
+        help="Source language code (KO, EN, ZH, JA, ES, FR)",
     )
     parser.add_argument(
         "--target-language",
         type=str,
         default=None,
-        help="Target language code",
+        help="Target language code (KO, EN, ZH, JA, ES, FR)",
     )
     parser.add_argument(
         "--translation-provider",
@@ -76,20 +85,69 @@ def main() -> None:
         action="store_true",
         help="Run OCR on CPU instead of GPU",
     )
+    parser.add_argument(
+        "--ocr-change-threshold",
+        type=float,
+        default=0.015,
+        help="Minimum frame difference score required to run OCR",
+    )
+    parser.add_argument(
+        "--disable-ocr-frame-skip",
+        action="store_true",
+        help="Run OCR on every extracted frame",
+    )
+    parser.add_argument(
+        "--ocr-max-skip-frames",
+        type=int,
+        default=1,
+        help="Maximum consecutive unchanged frames to skip before forcing OCR",
+    )
+    parser.add_argument(
+        "--ocr-min-confidence",
+        type=float,
+        default=0.3,
+        help="Minimum OCR confidence to keep a detected text item",
+    )
+    parser.add_argument(
+        "--ocr-min-text-length",
+        type=int,
+        default=2,
+        help="Minimum non-space text length to keep a detected text item",
+    )
+    parser.add_argument(
+        "--ocr-max-special-char-ratio",
+        type=float,
+        default=0.6,
+        help="Maximum special character ratio allowed for OCR text",
+    )
+    parser.add_argument(
+        "--ocr-edge-margin",
+        type=float,
+        default=0.0,
+        help="Edge margin for filtering tiny OCR noise near image borders",
+    )
 
     args = parser.parse_args()
-    input_path = Path(args.input)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input file not found: {input_path}")
+    source_type = SourceType(args.source_type)
+    file_url = None
+    source_url = None
+
+    if source_type == SourceType.UPLOAD:
+        input_path = Path(args.input)
+        if not input_path.exists():
+            raise FileNotFoundError(f"Input file not found: {input_path}")
+        file_url = str(input_path.resolve())
+    elif source_type == SourceType.YOUTUBE:
+        source_url = args.input
 
     request = AnalysisRequest(
-        source_type=SourceType.UPLOAD,
-        file_url=str(input_path.resolve()),
+        source_type=source_type,
+        file_url=file_url,
+        source_url=source_url,
         job_type=JobType(args.job_type),
         source_language=args.language,
         target_language=args.target_language,
         translation_provider=TranslationProvider(args.translation_provider),
-        use_user_api_key=False,
         options={
             "model": args.model,
             "compute_type": args.compute_type,
@@ -97,6 +155,13 @@ def main() -> None:
             "no_align": args.no_align,
             "frame_interval": args.frame_interval,
             "ocr_gpu": not args.ocr_cpu,
+            "ocr_change_threshold": args.ocr_change_threshold,
+            "ocr_skip_unchanged_frames": not args.disable_ocr_frame_skip,
+            "ocr_max_skip_frames": args.ocr_max_skip_frames,
+            "ocr_min_confidence": args.ocr_min_confidence,
+            "ocr_min_text_length": args.ocr_min_text_length,
+            "ocr_max_special_char_ratio": args.ocr_max_special_char_ratio,
+            "ocr_edge_margin": args.ocr_edge_margin,
         },
     )
 
@@ -114,6 +179,16 @@ def main() -> None:
 
     logger.info("Saved results to: %s", output_path)
     logger.info("Total processed in %.2fs", elapsed)
+
+
+def _load_env_file() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
+        logger.debug("python-dotenv is not installed; skipping .env loading.")
+        return
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 if __name__ == "__main__":

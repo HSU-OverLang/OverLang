@@ -1,21 +1,22 @@
-# 🎬 AI 자막 생성 및 편집 플랫폼
+# 🎬 OverLang - AI 영상 번역 및 학습 플랫폼
 
-> 영상을 업로드하면 AI가 자동으로 자막을 생성하고, 직관적인 에디터로 편집 및 번역까지 한 번에!
+> 영상을 업로드하면 AI가 음성 자막과 화면 텍스트를 분석하고, 번역 결과를 편집 및 학습 데이터로 활용할 수 있는 웹 플랫폼입니다.
 
 ---
 
 ## 📋 프로젝트 소개
 
-AI 기반 자막 자동 생성 및 실시간 편집이 가능한 웹 플랫폼입니다.
-WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타임라인 기반 비주얼 에디터로 자막 편집 작업을 간편하게 수행할 수 있습니다.
+OverLang는 영상 기반 언어 학습을 돕기 위한 AI 분석 플랫폼입니다.
+프론트엔드에서 영상을 업로드하고, 백엔드는 인증/프로젝트/작업/파일 업로드를 관리하며, AI 모듈은 STT, OCR, 번역 파이프라인을 비동기 작업으로 처리합니다.
 
 ### 주요 기능
 
-- 🎯 **AI 자동 자막 생성**: WhisperX 모델을 사용한 고정밀 음성 인식
-- ✏️ **실시간 자막 편집**: 비디오 플레이어와 동기화된 타임라인 에디터
-- 🌐 **다국어 번역**: 자막 자동 번역 기능 지원
-- 💾 **다양한 포맷 지원**: SRT, VTT 등 주요 자막 포맷 내보내기
-- 🎨 **직관적인 UI/UX**: React 기반의 반응형 웹 인터페이스
+- 🎯 **AI 영상 분석**: STT, OCR, 번역, 학습 데이터 생성을 하나의 작업으로 처리
+- 🔐 **Firebase 인증**: Firebase ID Token 기반 로그인 및 사용자 정보 조회
+- 📁 **파일 업로드**: 영상 파일을 S3에 업로드하고 프로젝트 생성에 활용
+- 🧩 **프로젝트/작업 관리**: 프로젝트별 AI 작업 생성, 목록 조회, 상태 조회
+- 📝 **자막 편집 화면**: 분석 결과를 기반으로 자막과 OCR 텍스트를 편집하는 프론트엔드 UI
+- 📚 **학습 기능 UI**: 단어장, 학습 노트, 마이페이지 등 학습 흐름을 위한 화면 구성
 
 ---
 
@@ -23,79 +24,95 @@ WhisperX를 활용하여 높은 정확도의 음성 인식을 제공하며, 타�
 
 ### Frontend
 
-- **Framework**: React 19.2.4
+- **Framework**: React 19.2.0
 - **Language**: TypeScript 5.9.3
 - **Build Tool**: Vite 7.3.1
 - **Styling**: Tailwind CSS 4.1.18
 - **Routing**: React Router DOM 7.13.0
-- **Video Player**: video.js 8.23.6, react-player 3.4.0
+- **Auth**: Firebase Web SDK 12.9.0
 - **Icons**: Lucide React 0.563.0
+- **Utilities**: clsx, tailwind-merge
 
 ### Backend
 
 - **Framework**: Spring Boot 3.5.10
 - **Language**: Java 21
-- **Security**: Spring Security (JWT)
 - **Database**: PostgreSQL
 - **ORM**: Spring Data JPA (Hibernate)
+- **Cache / Queue**: Redis
+- **Auth**: Firebase Admin SDK + Custom Auth Interceptor
+- **Storage**: AWS S3 SDK
+- **API Docs**: SpringDoc OpenAPI
 - **Build Tool**: Gradle
+- **Formatter**: Spotless + Google Java Format
 
 ### AI
 
-- **Language**: Python 3.10
-- **AI Framework**: PyTorch 2.1.2 (CUDA 12.1)
-- **Speech Recognition**: WhisperX 3.1.1, Faster-Whisper 1.0.3
-- **NLP**: Transformers 4.36.2
+- **Language**: Python 3
+- **Runtime**: CUDA 12.1 Docker image
+- **AI Framework**: PyTorch 2.1.2 + CUDA 12.1
+- **Speech Recognition**: WhisperX, Faster-Whisper 1.0.3
+- **OCR**: EasyOCR, OpenCV
+- **API**: FastAPI, Uvicorn
+- **Worker**: Celery + Redis
 
 ### Infrastructure
 
 - **Containerization**: Docker & Docker Compose
-- **Cache**: Redis 7
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL 16
+- **Cache / Broker**: Redis 7
+- **Object Storage**: AWS S3
 
 ---
 
 ## 📁 프로젝트 구조
 
-```
+```text
 OverLang/
-├── frontend/                # React 프론트엔드
+├── frontend/                     # React 프론트엔드
 │   ├── src/
-│   │   ├── assets/         # 이미지, 폰트 등
-│   │   ├── components/     # 재사용 컴포넌트
-│   │   ├── pages/          # 페이지 컴포넌트
-│   │   ├── hooks/          # Custom Hooks
-│   │   ├── services/       # API 통신
-│   │   ├── types/          # TypeScript 타입
-│   │   └── utils/          # 유틸 함수
+│   │   ├── api/                  # API 클라이언트와 인증 요청
+│   │   ├── app/
+│   │   │   ├── pages/            # 페이지 컴포넌트
+│   │   │   ├── providers/        # 전역 Provider
+│   │   │   └── router.tsx        # 라우터 설정
+│   │   ├── components/
+│   │   │   ├── layout/           # 레이아웃 컴포넌트
+│   │   │   └── ui/               # 공통 UI 컴포넌트
+│   │   ├── hooks/                # 커스텀 훅
+│   │   ├── lib/                  # Firebase 등 외부 설정
+│   │   └── utils/                # 유틸 함수
 │   ├── package.json
 │   └── vite.config.ts
 │
-├── backend/                 # Spring Boot 백엔드
+├── backend/                      # Spring Boot 백엔드
 │   ├── src/main/java/com/overlang/
 │   │   ├── api/
-│   │   │   ├── controller/ # REST 컨트롤러 (Dummy 포함)
-│   │   │   └── dto/        # Request/Response DTO
-│   │   ├── domain/         # 도메인 계층
-│   │   │   ├── common/     # 공통 엔티티
-│   │   │   ├── job/        # 작업 도메인
-│   │   │   ├── member/     # 회원 도메인
-│   │   │   ├── project/    # 프로젝트 도메인
-│   │   │   └── segment/    # 자막 구간 도메인
-│   │   └── global/         # Infrastructure / Common Settings
-│   │       ├── advice/     # 예외 처리
-│   │       ├── config/     # 보안, Swagger, Firebase 등 설정
-│   │       └── response/   # 공통 응답 규격
-│   └── build.gradle
+│   │   │   ├── controller/       # REST 컨트롤러
+│   │   │   └── dto/              # Request/Response DTO
+│   │   ├── domain/               # 도메인 계층
+│   │   │   ├── apikey/
+│   │   │   ├── common/
+│   │   │   ├── file/
+│   │   │   ├── job/
+│   │   │   ├── learning/
+│   │   │   ├── member/
+│   │   │   ├── ocr/
+│   │   │   ├── project/
+│   │   │   └── segment/
+│   │   └── global/               # 인증, 설정, 예외, 공통 응답
+│   ├── build.gradle
+│   └── gradlew
 │
-├── ai/                  # AI (Python)
-│   ├── models/             # AI 모델 관련
-│   ├── services/           # 자막 생성 로직
-│   ├── utils/              # 유틸리티
+├── ai/                           # AI API 및 Worker
+│   ├── api/                      # FastAPI 라우터와 스키마
+│   ├── ocr/                      # OCR 처리
+│   ├── pipeline/                 # 영상/오디오/프레임 처리 파이프라인
+│   ├── worker/                   # Celery 작업
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── docker-compose.yml       # 전체 서비스 오케스트레이션
+├── docker-compose.yml            # Redis, PostgreSQL, AI 서비스 구성
 └── README.md
 ```
 
@@ -105,63 +122,91 @@ OverLang/
 
 ### 사전 요구사항
 
-- **Node.js**: 22.19.0
-- **Java**: 21 (LTS)
-- **Python**: 3.10
+- **Node.js**: 22 이상 권장
+- **Java**: 21
+- **Python**: 3.10 이상 권장
 - **Docker**: 최신 버전
-- **NVIDIA GPU**: CUDA 12.6 이상 (AI 용, VRAM 8GB 이상 권장)
+- **NVIDIA GPU**: AI Docker 실행 시 필요
+- **AWS S3 / Firebase**: 실제 업로드 및 인증 테스트 시 필요
 
 ### 설치 및 실행
 
 #### 1️⃣ 저장소 클론
 
 ```bash
-git clone https://github.com/your-org/subtitle-platform.git
-cd subtitle-platform
+git clone https://github.com/your-org/OverLang.git
+cd OverLang
 ```
 
 #### 2️⃣ 환경 변수 설정
 
-각 디렉토리에 `.env` 파일을 생성합니다.
+각 디렉터리의 `.env.example`을 복사해 `.env` 파일을 생성한 뒤, 실제 값은 로컬 `.env`에만 입력합니다.
 
 **Frontend (`/frontend/.env`)**
 
 ```env
 VITE_API_BASE_URL=http://localhost:8080/api
+VITE_VIDEO_UPLOAD_MAX_SIZE=500
+
+# Firebase Web SDK
+VITE_FIREBASE_API_KEY=your_firebase_web_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_firebase_app_id
 ```
 
 **Backend (`/backend/.env`)**
 
 ```env
-# Database 설정 (PostgreSQL)
-# docker-compose.yml 및 ai/.env 와 동일한 규격 사용
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=overlang
+# Database (PostgreSQL)
+DB_URL=jdbc:postgresql://localhost:5432/overlang
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
 
-# Firebase 설정 (Admin SDK)
-# 파일은 backend/src/main/resources/ 경로에 위치해야 합니다.
-FIREBASE_SERVICE_ACCOUNT_PATH=your-firebase-admin.json
+# Firebase Admin SDK
+# 서비스 계정 JSON 파일은 backend/src/main/resources/ 아래에 둡니다.
+FIREBASE_SERVICE_ACCOUNT_PATH=classpath:your-firebase-admin.json
+
+# AWS S3
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 ```
 
-**ai (`/ai/.env`)**
+**AI (`/ai/.env`)**
 
 ```env
-REDIS_HOST=redis
-REDIS_PORT=6379
-DB_HOST=postgres
-DB_PORT=5432
 CUDA_VISIBLE_DEVICES=0
+
+# Redis (Local: localhost, Docker: redis)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Internal callback
+BACKEND_INTERNAL_BASE_URL=http://host.docker.internal:8080
+WORKER_SECRET=replace_with_strong_worker_secret
+CALLBACK_STRICT=false
+CALLBACK_RETRY_COUNT=3
+CALLBACK_RETRY_DELAY_SECONDS=1.0
+
+# Backend Redis queue consumer
+BACKEND_JOB_QUEUE_KEY=job-queue
+BACKEND_JOB_QUEUE_BLOCK_TIMEOUT_SECONDS=5
+BACKEND_JOB_QUEUE_RETRY_DELAY_SECONDS=3.0
+
+# Default runtime options for backend-created worker jobs
+AI_DEFAULT_MODEL=small
+AI_DEFAULT_BATCH_SIZE=2
+AI_DEFAULT_COMPUTE_TYPE=int8_float16
+AI_DEFAULT_NO_ALIGN=true
+AI_DEFAULT_FRAME_INTERVAL=3.0
+AI_DEFAULT_OCR_GPU=true
 ```
 
-> ⚠️ **보안 주의**: 실제 API 키와 비밀번호는 `.env.example` 파일을 참고하여 노션에서 확인하세요.
+> ⚠️ **보안 주의**: 실제 API 키, Firebase 설정, DB 비밀번호, worker secret은 `.env`에만 저장하고 `.env.example`이나 README에는 커밋하지 않습니다.
 
-
-
-##### 3️⃣ CLI 사용 (Legacy)
-FastAPI 서버를 실행하여 외부 요청을 처리할 수 있습니다.
+#### 3️⃣ 로컬 개발 서버 실행
 
 **Frontend 개발 서버**
 
@@ -173,139 +218,112 @@ npm run dev
 ```
 
 **Backend 개발 서버**
+
 ```bash
 cd backend
 ./gradlew bootRun
 # http://localhost:8080
 ```
 
-**AI 실행**
+**AI API 실행**
+
 ```bash
 cd ai
 
-# 가상환경 생성
 python -m venv venv
 
-# 활성화
 # Windows
 .\venv\Scripts\activate
+
 # Linux/Mac
 source venv/bin/activate
 
-# 의존성 설치
 pip install -r requirements.txt
-```
-````bash
-cd ai
 uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
-````
+```
 
-- API 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
-- 상태 조회: [http://localhost:8000/api/v1/health](http://localhost:8000/)
+> 전체 AI 파이프라인은 PyTorch, Faster-Whisper, WhisperX까지 필요합니다. 로컬 설치 대신 `ai/Dockerfile` 기반 Docker 실행을 권장합니다.
 
-**Celery Worker 실행 (비동기 작업용)**
+- AI API 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
+- AI 상태 조회: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
+
+**Celery Worker 실행**
 
 ```bash
-# Windows (pool=solo 필수)
+# Windows에서는 pool=solo 옵션을 사용합니다.
 celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
 ```
 
-#### 4️⃣ Docker로 전체 스택 실행
+**Backend Job Queue Consumer 실행**
 
-**Docker 실행**
-**일반 실행 (AI 제외, FE/BE 개발자용)**
-
-```bash
-docker-compose up -d
-```
-
-**AI 포함 실행 (GPU 보유자용)**
+Backend는 Redis list `job-queue`에 AI 작업 payload를 저장합니다.
+AI가 Backend 작업을 자동으로 처리하려면 Celery worker와 별도로 queue consumer를 실행해야 합니다.
 
 ```bash
-docker-compose --profile gpu-only up -d
+python -m ai.worker.job_queue_consumer
 ```
 
-````bash
-# 로그 확인
-docker-compose logs -f
-# 서비스 중지
-docker-compose down
-````
+#### 4️⃣ Docker 실행
 
+**Redis + PostgreSQL 실행**
 
+```bash
+docker-compose up -d redis postgres
+```
 
-**AI 모듈 실행 (Docker Only)**
+**AI 포함 실행 (GPU 환경)**
 
-**1. 전체 스택 실행 (API + Worker + Redis)**
 ```bash
 docker-compose --profile gpu-only up -d --build
 ```
 
-**2. 로그 확인 (실시간)**
+**로그 확인 및 중지**
+
 ```bash
-docker-compose logs -f ai ai-worker
+docker-compose logs -f
+docker-compose down
 ```
-- **API 서버**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Celery Worker**: 백그라운드에서 동작 (Redis 통해 작업 수신)
-
-**3. 테스트 방법 (Powershell)**
-Docker 내부 경로(`/app/...`)를 사용하여 요청을 보냅니다.
-
-```powershell
-$body = @{
-    file_path = "/app/ai/test_audio.mp3"
-    options   = @{
-        language   = "ko"        # ko, en, ja, etc.
-        model      = "large-v2"  # base, medium, large-v2, large-v3
-        batch_size = 16
-        no_align   = $true       # $true: 속도 우선, $false: 정밀 타임스탬프
-    }
-} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/analyze" -ContentType "application/json" -Body $body
-```
-
-**4. 외부 접속 (Radmin VPN) 테스트**
-- 서버 설정은 이미 외부 접속(`0.0.0.0`)이 허용되어 있습니다.
-- Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
-- 예: `http://26.155.20.10:8000/docs`
-
-**4. 외부 접속 (Radmin VPN) 테스트**
-- 서버 설정은 이미 외부 접속(`0.0.0.0`)이 허용되어 있습니다.
-- Radmin VPN IP(예: `26.x.x.x`)를 사용하여 외부 기기에서 접속하세요.
-- 예: `http://26.155.20.10:8000/docs`
 
 ---
 
-## 🧪 테스트
+## 🧪 검증
 
-### Frontend 테스트
+### Frontend
 
 ```bash
 cd frontend
-npm run test        # Unit 테스트
-npm run test:e2e    # E2E 테스트
+npm run lint
+npm run build
 ```
 
-### Backend 테스트
+### Backend
 
 ```bash
 cd backend
-./gradlew spotlessCheck # 코드 스타일 검사 (Spotless)
-./gradlew test # 테스트 코드 실행 및 빌드 검증
+./gradlew spotlessCheck
+./gradlew test
 ```
 
-### AI 테스트
+### AI
 
 ```bash
 cd ai
-# 기본 실행
-python main.py --input sample.mp4
+uvicorn ai.api.app:app --reload --host 0.0.0.0 --port 8000
+celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
+```
 
-# 옵션 사용 (속도 최적화)
-python main.py --input sample.mp4 --no-align --batch-size 8 --warmup
+FastAPI 작업 요청 예시:
 
-# 전체 옵션 확인
-python main.py --help
+```powershell
+$body = @{
+    sourceType = "UPLOAD"
+    fileUrl = "file:///absolute/path/to/sample.mp4"
+    jobType = "FULL_ANALYSIS"
+    sourceLanguage = "en"
+    targetLanguage = "ko"
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/analyze" -ContentType "application/json" -Body $body
 ```
 
 ---
@@ -319,91 +337,83 @@ python main.py --help
 1. **브랜치 생성**
 
    ```bash
-   # 기능 개발 & 버그 수정
-   git checkout -b fe/mypage
-
-   # 문서 작업
-   git checkout -b doc/api-spec
+   git checkout -b fe/upload
+   git checkout -b be/project-api
+   git checkout -b ai/pipeline
+   git checkout -b doc/readme
    ```
 
 2. **커밋 메시지 규칙**
 
    ```bash
-   git commit -m "design: 마이페이지 UI 구현"
-   git commit -m "fix: 로그인 에러 수정"
+   git commit -m "feat: 영상 업로드 API 연동"
+   git commit -m "fix: Firebase 로그인 오류 수정"
+   git commit -m "doc: 환경 변수 문서 정리"
    ```
 
 3. **Pull Request**
    - `main` 브랜치로 PR 생성
-   - 1명 이상의 리뷰어 승인 필요
-   - Squash Merge 방식 사용
+   - 리뷰 후 Squash Merge 방식 사용
 
 ### 브랜치 네이밍
 
 | 타입                 | 형식          | 예시                   |
 | -------------------- | ------------- | ---------------------- |
-| 기능 개발, 버그 수정 | `역할/기능명` | `fe/player`, `be/auth` |
-| 문서 작업            | `doc/내용`    | `doc/api-spec`         |
+| 프론트엔드           | `fe/기능명`   | `fe/upload`            |
+| 백엔드               | `be/기능명`   | `be/auth`              |
+| AI                   | `ai/기능명`   | `ai/ocr-pipeline`      |
+| 문서                 | `doc/내용`    | `doc/readme`           |
 
 ### 커밋 타입
 
-| 타입       | 설명                                                      |
-| ---------- | --------------------------------------------------------- |
-| `feat`     | 새로운 기능 추가 또는 기존 기능 개선                      |
-| `fix`      | 버그 수정                                                 |
-| `refactor` | 코드 리팩토링 (기능 변화 없이 구조 개선)                  |
-| `doc`      | 문서 작업 (README 등)                                     |
-| `test`     | 테스트 코드 추가 또는 수정                                |
-| `chore`    | 환경 설정, 패키지 설치, 그 외 기타 (.gitignore 등)        |
-| `perform`  | 성능 개선                                                 |
-| `clean`    | 불필요한 코드 및 파일 제거, 정리                          |
-| `design`   | UI/UX 스타일 작업 또는 개선                               |
-| `style`    | 코드 스타일 변경 (세미콜론, 들여쓰기 등) – 기능 변화 없음 |
-| `comment`  | 주석 수정, 추가                                           |
+| 타입       | 설명                                      |
+| ---------- | ----------------------------------------- |
+| `feat`     | 새로운 기능 추가 또는 기존 기능 개선      |
+| `fix`      | 버그 수정                                 |
+| `refactor` | 기능 변화 없는 구조 개선                  |
+| `doc`      | README, API 문서 등 문서 수정             |
+| `test`     | 테스트 코드 추가 또는 수정                |
+| `chore`    | 환경 설정, 빌드, 패키지 관련 작업         |
+| `design`   | UI/UX 스타일 작업                         |
+| `style`    | 포맷팅 등 기능 변화 없는 코드 스타일 수정 |
+| `comment`  | 주석 수정 또는 추가                       |
 
 ### 코드 스타일
 
 **Frontend**
 
-- Formatter: Prettier (Google JavaScript Style Guide)
-- Linter: ESLint
-- 자동 포맷팅: 파일 저장 시 자동 적용
-
 ```bash
-npm run lint        # 린트 검사
-npm run format      # 코드 포맷팅
+cd frontend
+npm run lint
+npm run format
 ```
 
 **Backend**
 
-- Formatter: Spotless (Google Java Format)
-- PR 전 반드시 실행:
-
 ```bash
+cd backend
 ./gradlew spotlessApply
 ```
 
 **AI**
 
-- Formatter: Black
-- Linter: Ruff
-
 ```bash
-black .
-ruff check .
+cd ai
+python -m compileall .
 ```
 
 ---
 
 ## 🔌 API 명세
 
-서버 실행 후 브라우저에서 아래 주소로 접속하면 실시간으로 API를 테스트하고 명세를 확인할 수 있습니다.
+서버 실행 후 브라우저에서 아래 주소로 접속하면 API 문서를 확인할 수 있습니다.
 
-- **Swagger UI**: http://localhost:8080/swagger-ui/index.html
+- **Backend Swagger UI**: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **AI FastAPI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 응답 형식
+### 공통 응답 형식
 
-모든 API는 다음 형식을 따릅니다:
+Backend API는 다음 응답 형식을 사용합니다.
 
 **성공 응답**
 
@@ -411,7 +421,7 @@ ruff check .
 {
   "status": "SUCCESS",
   "data": {
-    "id": "uuid-string",
+    "id": 1,
     "name": "example"
   },
   "error": null
@@ -431,30 +441,45 @@ ruff check .
 }
 ```
 
-### 주요 엔드포인트
+### Backend 주요 엔드포인트
 
-| 메서드 | 엔드포인트              | 설명                                  |
-| ------ | ----------------------- | ------------------------------------- |
-| POST   | `/api/v1/auth/firebase` | Firebase 토큰 검증 및 로그인/회원가입 |
-| GET    | `/api/v1/auth/me`       | 현재 로그인한 사용자 정보 조회        |
-| GET    | `/api/v1/projects`      | 프로젝트 목록 조회 (더미)             |
-| POST   | `/auth/register`        | 회원가입                              |
-| POST   | `/videos/upload`        | 영상 업로드                           |
-| GET    | `/videos/:id`           | 영상 정보 조회                        |
-| GET    | `/subtitles/:videoId`   | 자막 조회                             |
-| POST   | `/subtitles`            | 자막 생성                             |
-| PUT    | `/subtitles/:id`        | 자막 수정                             |
-| POST   | `/subtitles/translate`  | 자막 번역 요청                        |
-| GET    | `/api/v1/health`        | 서버 및 DB 상태 체크       |
+| 메서드 | 엔드포인트                         | 설명                                  |
+| ------ | ---------------------------------- | ------------------------------------- |
+| POST   | `/api/v1/auth/firebase`            | Firebase 토큰 검증 및 로그인/회원가입 |
+| GET    | `/api/v1/auth/me`                  | 현재 로그인한 사용자 정보 조회        |
+| GET    | `/api/v1/health`                   | 서버 및 DB 상태 체크                  |
+| POST   | `/api/v1/files/upload`             | 영상 파일 S3 업로드                   |
+| POST   | `/api/v1/projects`                 | 프로젝트 생성                         |
+| GET    | `/api/v1/projects`                 | 프로젝트 목록 조회                    |
+| GET    | `/api/v1/projects/{projectId}`     | 프로젝트 상세 조회                    |
+| POST   | `/api/v1/projects/{projectId}/jobs` | 프로젝트 AI 작업 생성                 |
+| GET    | `/api/v1/projects/{projectId}/jobs` | 프로젝트 AI 작업 목록 조회            |
+| GET    | `/api/v1/jobs/{jobId}`             | AI 작업 상태 조회                     |
 
-### 에러 코드
-| 코드 | 설명 | 예시 |
-| :--- | :--- | :--- |
-| `WORKER_001` | GPU Out of Memory | VRAM 부족 (모델/배치 크기 조절 필요) |
-| `WORKER_002` | File Not Supported | 파일이 없거나 지원하지 않는 형식 |
-| `WORKER_999` | Unknown Error | 서버 내부 에러 |
+### AI 주요 엔드포인트
 
-자세한 API 문서는 노션 페이지를 참고하세요.
+| 메서드 | 엔드포인트               | 설명                       |
+| ------ | ------------------------ | -------------------------- |
+| GET    | `/`                      | AI 서버 기본 상태 확인     |
+| GET    | `/api/v1/health`         | AI API 상태 확인           |
+| POST   | `/api/v1/analyze`        | AI 분석 작업 등록          |
+| GET    | `/api/v1/status/{jobId}` | AI 분석 작업 상태 조회     |
+
+### AI 에러 코드
+
+| 코드         | 설명                  |
+| ------------ | --------------------- |
+| `WORKER_001` | GPU Out of Memory     |
+| `WORKER_002` | FFmpeg 처리 실패      |
+| `WORKER_003` | LLM 토큰 제한 초과    |
+| `WORKER_004` | OCR 엔진 실패         |
+| `WORKER_005` | 모델 로드 실패        |
+| `WORKER_006` | 영상 길이 제한 초과   |
+| `WORKER_007` | 잘못된 옵션           |
+| `WORKER_008` | 인증 실패             |
+| `WORKER_009` | 작업 타임아웃         |
+| `WORKER_010` | 다운로드 실패         |
+| `WORKER_999` | 알 수 없는 오류       |
 
 ---
 
@@ -462,58 +487,46 @@ ruff check .
 
 ### 서비스 목록
 
-| 서비스     | 포트 | 설명            |
-| ---------- | ---- | --------------- |
-| Frontend   | 5173 | React 개발 서버 |
-| Backend    | 8080 | Spring Boot API |
-| PostgreSQL | 5432 | 데이터베이스    |
-| Redis      | 6379 | 캐시 서버       |
-| AI         | -    | AI 자막 생성    |
+| 서비스     | 포트 | 설명                         |
+| ---------- | ---- | ---------------------------- |
+| PostgreSQL | 5432 | 백엔드 데이터베이스          |
+| Redis      | 6379 | AI 작업 브로커 및 캐시       |
+| AI         | 8000 | FastAPI 분석 API             |
+| AI Worker  | -    | Celery 기반 비동기 분석 작업 |
 
 ### GPU 사용 설정
 
-AI 컨테이너는 NVIDIA GPU를 사용합니다:
+AI 컨테이너는 Docker Compose profile로 GPU 환경에서 실행합니다.
 
-```yaml
-ai:
-  runtime: nvidia
-  environment:
-    - CUDA_VISIBLE_DEVICES=0
+```bash
+docker-compose --profile gpu-only up -d --build
 ```
 
-**사전 요구사항**: NVIDIA Docker Runtime 설치
+**사전 요구사항**: NVIDIA Driver, NVIDIA Container Toolkit 설치
 
 ---
 
 ## 👥 팀 구성
 
-| 역할     | 담당자 | 주요 기술                    |
-| -------- | ------ | ---------------------------- |
-| Frontend | 이지원 | React, TypeScript, Tailwind  |
-| Backend  | 한국희 | Spring Boot, JPA, PostgreSQL |
-| AI       | 서유정 | Python, PyTorch, WhisperX    |
+| 역할     | 주요 기술                    |
+| -------- | ---------------------------- |
+| Frontend | React, TypeScript, Tailwind  |
+| Backend  | Spring Boot, JPA, PostgreSQL |
+| AI       | Python, PyTorch, WhisperX    |
 
 ---
 
 ## 📄 라이센스
 
-이 프로젝트는 MIT 라이센스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요.
+라이센스 파일이 추가되면 이 섹션에 배포 조건을 명시합니다.
 
 ---
 
-## 📞 문의
+## 🔗 관련 링크
 
-- **노션**: [프로젝트 문서](https://notion.so/your-workspace)
-
----
-
-## 🔗 관련 링크 (References)
-
-프로젝트 개발 및 유지보수에 필요한 공식 기술 문서들입니다.
-
-- **Frontend**: [React 공식 문서](https://react.dev)
-- **Tailwind CSS**: [Tailwind CSS 문서](https://tailwindcss.com/docs)
-- **Backend**: [Spring Boot 공식 문서](https://spring.io/projects/spring-boot)
-- **AI**: [WhisperX GitHub](https://github.com/m-bain/whisperX)
-````
-
+- **React**: [https://react.dev](https://react.dev)
+- **Vite**: [https://vite.dev](https://vite.dev)
+- **Tailwind CSS**: [https://tailwindcss.com/docs](https://tailwindcss.com/docs)
+- **Spring Boot**: [https://spring.io/projects/spring-boot](https://spring.io/projects/spring-boot)
+- **FastAPI**: [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com)
+- **WhisperX**: [https://github.com/m-bain/whisperX](https://github.com/m-bain/whisperX)

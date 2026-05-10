@@ -6,6 +6,7 @@ import urllib.request
 from pathlib import Path
 
 from ai.api.schemas import AnalysisRequest, SourceType, WorkerJobPayload
+from ai.pipeline.youtube_service import download_youtube_video
 
 
 def resolve_input_source(
@@ -16,12 +17,13 @@ def resolve_input_source(
     video_dir.mkdir(parents=True, exist_ok=True)
 
     if isinstance(job, AnalysisRequest):
-        return _resolve_analysis_request(job)
+        return _resolve_analysis_request(job, video_dir)
 
     if job.source_type == SourceType.YOUTUBE:
-        raise NotImplementedError(
-            "YOUTUBE source resolution will be implemented after input_service skeleton."
-        )
+        if not job.source_url:
+            raise ValueError("sourceUrl is required when sourceType is YOUTUBE")
+
+        return download_youtube_video(job.source_url, video_dir)
 
     if not job.presigned_url:
         raise ValueError("presignedUrl is required when sourceType is UPLOAD")
@@ -47,7 +49,16 @@ def resolve_input_source(
     return target_path
 
 
-def _resolve_analysis_request(job: AnalysisRequest) -> Path:
+def _resolve_analysis_request(
+    job: AnalysisRequest,
+    video_dir: Path,
+) -> Path:
+    if job.source_type == SourceType.YOUTUBE:
+        if not job.source_url:
+            raise ValueError("sourceUrl is required when sourceType is YOUTUBE")
+
+        return download_youtube_video(job.source_url, video_dir)
+
     if job.source_type != SourceType.UPLOAD or not job.file_url:
         raise ValueError("The current analyze API only supports UPLOAD fileUrl input")
 
