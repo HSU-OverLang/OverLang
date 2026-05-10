@@ -91,7 +91,6 @@ export async function createJob(
     sourceLanguage,
     targetLanguage,
     translationProvider: 'OPENAI',
-    useUserApiKey: false,
   });
   return unwrap<JobResult>(res);
 }
@@ -163,7 +162,7 @@ export async function getSegments(jobId: number): Promise<SegmentResult[]> {
   if (Array.isArray(data)) return data;
   if (data && 'content' in data && Array.isArray(data.content)) return data.content;
   // 그 외 형태도 처리 (totalElements 등이 있는 Pageable 응답)
-  const anyData = data as any;
+  const anyData = data as unknown;
   if (anyData?.content) return anyData.content;
   return [];
 }
