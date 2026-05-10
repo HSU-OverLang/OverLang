@@ -45,10 +45,11 @@ const STAGES_ORDER = [
 export function ProcessingPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { jobId, videoSrc, targetLanguage } =
+  const { jobId, videoSrc, projectId, targetLanguage } =
     (location.state as {
       jobId?: number;
       videoSrc?: string;
+      projectId?: number;
       targetLanguage?: string;
     }) ?? {};
 
@@ -78,7 +79,7 @@ export function ProcessingPage() {
       if (detail.status === 'COMPLETED') {
         stopPolling();
         setTimeout(() => {
-          navigate('/translate', { state: { videoSrc, targetLanguage } });
+          navigate('/translate', { state: { videoSrc, projectId, targetLanguage } });
         }, 1200);
       } else if (detail.status === 'FAILED') {
         stopPolling();
@@ -95,15 +96,9 @@ export function ProcessingPage() {
       navigate('/upload', { replace: true });
       return;
     }
-    // TODO: 개발용 임시 우회 — AI 워커 연동 후 아래 블록 제거하고 poll() / setInterval 복구
-    const devTimer = setTimeout(() => {
-      navigate('/translate', { state: { videoSrc, targetLanguage } });
-    }, 3000);
-    return () => clearTimeout(devTimer);
-
-    // poll();
-    // intervalRef.current = setInterval(poll, 3000);
-    // return stopPolling;
+    poll();
+    intervalRef.current = setInterval(poll, 3000);
+    return stopPolling;
   }, [jobId]);
 
   const stageIndex = STAGES_ORDER.indexOf(currentStage);
