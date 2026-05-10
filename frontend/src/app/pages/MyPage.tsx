@@ -4,10 +4,10 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { cn } from '@/utils/cn';
 
 const MOCK_PROJECTS = [
-  { id: 1, title: '제품 소개 영상', date: '2026.03.10', duration: '3:45' },
-  { id: 2, title: '강의 영상 1강', date: '2026.03.12', duration: '15:20' },
-  { id: 3, title: '브이로그 촬영본', date: '2026.03.08', duration: '8:12' },
-  { id: 4, title: '인터뷰 영상', date: '2026.03.05', duration: '12:30' },
+  { id: 1, title: '제품 소개 영상', date: '2026.03.10', duration: '3:45', lang: 'EN → KO' },
+  { id: 2, title: '강의 영상 1강', date: '2026.03.12', duration: '15:20', lang: 'EN → KO' },
+  { id: 3, title: '브이로그 촬영본', date: '2026.03.08', duration: '8:12', lang: 'JA → KO' },
+  { id: 4, title: '인터뷰 영상', date: '2026.03.05', duration: '12:30', lang: 'EN → KO' },
 ];
 
 function formatDate(isoString?: string | null) {
@@ -35,112 +35,113 @@ export function MyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col md:flex-row gap-6">
+    <div className="min-h-screen bg-slate-50">
 
-        {/* ── 왼쪽: 프로필 카드 ── */}
-        <div className="w-full md:w-64 shrink-0">
-          <div className="rounded-2xl bg-white p-6 shadow-sm flex flex-col items-center gap-4">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-600">
-              {user?.photoURL ? (
-                <img src={user.photoURL} className="h-full w-full rounded-full object-cover" alt="프로필" />
-              ) : (
-                <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              )}
-            </div>
-
-            <div className="text-center">
-              <p className="font-bold text-slate-800 text-lg">{displayName}</p>
-              <p className="text-sm text-slate-500">{user?.email}</p>
-            </div>
-
-            <div className="w-full space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
-                <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <div>
-                  <p className="text-xs text-slate-400">이메일</p>
-                  <p className="text-sm font-medium text-slate-700 truncate max-w-[140px]">{user?.email}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
-                <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <div>
-                  <p className="text-xs text-slate-400">가입일</p>
-                  <p className="text-sm font-medium text-slate-700">
-                    {formatDate(user?.metadata.creationTime)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSubPage('settings')}
-              className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-500 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              계정 설정
-            </button>
-          </div>
-        </div>
-
-        {/* ── 오른쪽 ── */}
-        <div className="flex-1 space-y-6">
-
-          {/* 최근 프로젝트 */}
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-slate-800">최근 프로젝트</h2>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="text-sm text-emerald-500 hover:text-emerald-400 transition-colors"
-              >
-                전체 보기
-              </button>
-            </div>
-            <div className="space-y-2">
-              {MOCK_PROJECTS.map((proj) => (
-                <div
-                  key={proj.id}
-                  className="flex items-center gap-4 rounded-xl hover:bg-slate-50 px-3 py-3 transition-colors cursor-pointer"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 shrink-0">
-                    <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+      {/* ── 프로필 헤더 ── */}
+      <div className="bg-gradient-to-br from-emerald-600 to-teal-500 px-6 pt-12 pb-20">
+        <div className="mx-auto max-w-5xl flex items-end justify-between">
+          <div className="flex items-center gap-5">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-2xl overflow-hidden ring-4 ring-white/30 shadow-lg bg-white/20">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} className="h-full w-full object-cover" alt="프로필" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <svg className="h-10 w-10 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-800 truncate">{proj.title}</p>
-                    <p className="text-xs text-slate-400">{proj.date} · {proj.duration}</p>
-                  </div>
-                  <svg className="h-4 w-4 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              ))}
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-white">{displayName}</p>
+              <p className="text-emerald-100 text-sm mt-0.5">{user?.email}</p>
+              <p className="text-emerald-200 text-xs mt-1">가입일 {formatDate(user?.metadata.creationTime)}</p>
             </div>
           </div>
-
-          {/* 새 프로젝트 CTA */}
-          <div
-            onClick={() => navigate('/upload')}
-            className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 p-6 cursor-pointer hover:opacity-90 transition-opacity"
+          <button
+            onClick={() => setSubPage('settings')}
+            className="flex items-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2.5 text-sm font-medium text-white transition-all"
           >
-            <p className="font-bold text-white text-lg">새 프로젝트 시작하기</p>
-            <p className="text-emerald-100 text-sm mt-1">영상을 업로드하고 AI 자막 생성을 시작하세요</p>
-            <button className="mt-4 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors">
-              프로젝트 만들기
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            계정 설정
+          </button>
+        </div>
+      </div>
+
+      {/* ── 컨텐츠 ── */}
+      <div className="mx-auto max-w-5xl px-6 -mt-10 pb-12 space-y-5">
+
+        {/* 통계 카드 */}
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: '총 프로젝트', value: MOCK_PROJECTS.length, icon: '🎬' },
+            { label: '저장된 단어', value: '24', icon: '📖' },
+            { label: '학습 시간', value: '2.3h', icon: '⏱' },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-2xl bg-white p-5 shadow-sm text-center">
+              <p className="text-2xl mb-1">{stat.icon}</p>
+              <p className="text-2xl font-extrabold text-slate-800">{stat.value}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* 최근 프로젝트 */}
+        <div className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-bold text-slate-800 text-lg">최근 프로젝트</h2>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-500 transition-colors flex items-center gap-1"
+            >
+              전체 보기
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </button>
           </div>
+          <div className="space-y-2">
+            {MOCK_PROJECTS.map((proj) => (
+              <div
+                key={proj.id}
+                className="group flex items-center gap-4 rounded-xl hover:bg-slate-50 px-3 py-3.5 transition-colors cursor-pointer"
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors shrink-0">
+                  <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-800 truncate">{proj.title}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{proj.date} · {proj.duration} · {proj.lang}</p>
+                </div>
+                <svg className="h-4 w-4 text-slate-300 group-hover:text-slate-400 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* 새 프로젝트 CTA */}
+        <div
+          onClick={() => navigate('/upload')}
+          className="relative rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 p-6 cursor-pointer hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg shadow-emerald-100 overflow-hidden"
+        >
+          {/* 배경 장식 */}
+          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+          <div className="absolute -right-2 top-8 h-16 w-16 rounded-full bg-white/10" />
+          <div className="relative">
+            <p className="font-bold text-white text-xl">새 프로젝트 시작하기 →</p>
+            <p className="text-emerald-100 text-sm mt-1.5">영상을 업로드하고 AI 자막 생성을 시작하세요</p>
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -214,28 +215,32 @@ function SettingsPage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
+    <div className="min-h-screen bg-slate-50">
 
-        {/* 뒤로가기 + 타이틀 */}
-        <div>
+      {/* 헤더 */}
+      <div className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-10">
+        <div className="mx-auto max-w-2xl flex items-center gap-4">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-4"
+            className="flex items-center justify-center h-9 w-9 rounded-xl hover:bg-slate-100 transition-colors"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            마이페이지로 돌아가기
           </button>
-          <h1 className="text-xl font-bold text-slate-800">계정 설정</h1>
+          <div>
+            <h1 className="text-lg font-bold text-slate-800">계정 설정</h1>
+          </div>
         </div>
+      </div>
+
+      <div className="mx-auto max-w-2xl px-6 py-8 space-y-5">
 
         {/* 프로필 정보 */}
         <div className="rounded-2xl bg-white p-6 shadow-sm space-y-5">
           <h2 className="font-bold text-slate-800">프로필 정보</h2>
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="relative shrink-0">
               <div className="h-16 w-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center">
                 {profileImage ? (
@@ -248,7 +253,7 @@ function SettingsPage({
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-500"
+                className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-500 shadow"
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -258,54 +263,60 @@ function SettingsPage({
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-700">프로필 사진</p>
-              <p className="text-xs text-slate-400">JPG, PNG 파일 (최대 5MB)</p>
+              <p className="text-sm font-semibold text-slate-700">프로필 사진</p>
+              <p className="text-xs text-slate-400 mt-0.5">JPG, PNG (최대 5MB)</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-500 transition-colors"
+              >
+                사진 변경
+              </button>
             </div>
           </div>
 
-          <hr className="border-slate-100" />
-
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">이름</label>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">이메일</label>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <input
-                type="email"
-                value={user?.email ?? ''}
-                readOnly
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-slate-500 cursor-not-allowed"
-              />
-            </div>
+            <input
+              type="email"
+              value={user?.email ?? ''}
+              readOnly
+              className="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500 cursor-not-allowed"
+            />
+            <p className="text-xs text-slate-400">이메일은 변경할 수 없습니다.</p>
           </div>
 
           <button
             onClick={handleSave}
             className={cn(
-              'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition-colors',
+              'flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition-all',
               saved ? 'bg-green-500' : 'bg-emerald-600 hover:bg-emerald-500'
             )}
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-            {saved ? '저장됨 ✓' : '저장하기'}
+            {saved ? (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                저장됨
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                저장하기
+              </>
+            )}
           </button>
         </div>
 
@@ -314,30 +325,25 @@ function SettingsPage({
           <h2 className="font-bold text-slate-800">비밀번호 변경</h2>
 
           {[
-            { label: '현재 비밀번호', placeholder: '현재 비밀번호', value: currentPw, onChange: setCurrentPw },
-            { label: '새 비밀번호', placeholder: '새 비밀번호 (8자 이상)', value: newPw, onChange: setNewPw },
-            { label: '새 비밀번호 확인', placeholder: '새 비밀번호 확인', value: newPwConfirm, onChange: setNewPwConfirm },
-          ].map((field, i) => (
+            { label: '현재 비밀번호', placeholder: '현재 비밀번호', value: currentPw, onChange: setCurrentPw, isLast: false },
+            { label: '새 비밀번호', placeholder: '새 비밀번호 (8자 이상)', value: newPw, onChange: setNewPw, isLast: false },
+            { label: '새 비밀번호 확인', placeholder: '새 비밀번호 확인', value: newPwConfirm, onChange: setNewPwConfirm, isLast: true },
+          ].map((field) => (
             <div key={field.label} className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">{field.label}</label>
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <input
-                  type="password"
-                  placeholder={field.placeholder}
-                  value={field.value}
-                  onChange={(e) => field.onChange(e.target.value)}
-                  className={cn(
-                    'w-full rounded-xl border bg-white pl-10 pr-4 py-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1',
-                    i === 2 && pwError
-                      ? 'border-red-300 focus:border-red-400 focus:ring-red-400'
-                      : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500'
-                  )}
-                />
-              </div>
-              {i === 2 && pwError && <p className="text-xs text-red-500">{pwError}</p>}
+              <input
+                type="password"
+                placeholder={field.placeholder}
+                value={field.value}
+                onChange={(e) => field.onChange(e.target.value)}
+                className={cn(
+                  'w-full rounded-xl border bg-slate-50 px-4 py-3 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all',
+                  field.isLast && pwError
+                    ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                    : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-100'
+                )}
+              />
+              {field.isLast && pwError && <p className="text-xs text-red-500">{pwError}</p>}
             </div>
           ))}
 
@@ -350,33 +356,37 @@ function SettingsPage({
         </div>
 
         {/* 회원 탈퇴 */}
-        <div className="rounded-2xl bg-white border border-red-200 p-6 shadow-sm space-y-3">
-          <h2 className="font-bold text-red-600">회원 탈퇴</h2>
-          <p className="text-sm text-slate-500">
-            계정을 삭제하면 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
-          </p>
+        <div className="rounded-2xl bg-white border border-red-100 p-6 shadow-sm space-y-4">
+          <div>
+            <h2 className="font-bold text-red-600">회원 탈퇴</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              계정을 삭제하면 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 space-y-1">
+            <p className="text-xs font-semibold text-red-700">삭제되는 항목</p>
+            <p className="text-xs text-red-600">모든 프로젝트 · 저장된 단어 · 계정 정보</p>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">비밀번호 확인</label>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <input
-                type="password"
-                placeholder="현재 비밀번호 입력"
-                value={confirmPw}
-                onChange={(e) => setConfirmPw(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-slate-800 placeholder-slate-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
-              />
-            </div>
+            <input
+              type="password"
+              placeholder="현재 비밀번호 입력"
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100 transition-all"
+            />
             {deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
           </div>
+
           <button
             onClick={handleDeleteAccount}
             className="flex items-center gap-2 rounded-xl bg-red-500 px-5 py-3 text-sm font-semibold text-white hover:bg-red-400 transition-colors"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             회원 탈퇴하기
           </button>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getProjects } from '@/api/video';
+import { getProjects, getVideoPresignedUrl } from '@/api/video';
 import type { ProjectResult } from '@/api/video';
 
 function extractYoutubeId(url: string): string | null {
@@ -46,10 +46,22 @@ export function DashboardPage() {
   const [projects, setProjects] = useState<ProjectResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [thumbUrls, setThumbUrls] = useState<Record<number, string>>({});
 
   useEffect(() => {
     getProjects()
-      .then(setProjects)
+      .then(data => {
+        setProjects(data);
+        // 파일 업로드 프로젝트의 presigned URL 병렬 발급
+        data.forEach(project => {
+          if (project.sourceType === 'YOUTUBE') return;
+          const pid = project.id ?? project.projectId;
+          if (!pid) return;
+          getVideoPresignedUrl(pid)
+            .then(url => setThumbUrls(prev => ({ ...prev, [pid]: url })))
+            .catch(() => {}); // 실패 시 그라디언트 폴백
+        });
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -60,7 +72,10 @@ export function DashboardPage() {
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={() => navigate('/')}
+          >
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600">
               <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -137,6 +152,7 @@ export function DashboardPage() {
         {!loading && !error && projects.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((project, idx) => {
+              const pid = project.id ?? project.projectId; // 목록: id, 생성: projectId
               const statusCfg = STATUS_CONFIG[project.status] ?? { label: project.status, color: 'bg-gray-100 text-gray-500' };
               const isYoutube = project.sourceType === 'YOUTUBE';
               const youtubeId = isYoutube && project.sourceUrl ? extractYoutubeId(project.sourceUrl) : null;
@@ -145,8 +161,16 @@ export function DashboardPage() {
 
               return (
                 <div
-                  key={project.projectId}
-                  onClick={() => navigate('/translate', { state: { videoSrc } })}
+                  key={pid ?? idx}
+                  onClick={() => {
+                    if (isYoutube) {
+                      // YouTube: URL + projectId 전달
+                      navigate('/translate', { state: { videoSrc, projectId: pid } });
+                    } else {
+                      // 파일 업로드: projectId를 넘겨서 TranslatePage에서 presigned URL 발급
+                      navigate('/translate', { state: { projectId: pid } });
+                    }
+                  }}
                   className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
                 >
                   {/* 썸네일 */}
@@ -158,14 +182,15 @@ export function DashboardPage() {
                         alt={project.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
-                    ) : project.fileUrl ? (
-                      /* S3 영상 첫 프레임 (퍼블릭일 때만 동작) */
+                    ) : pid && thumbUrls[pid] ? (
+                      /* presigned URL로 첫 프레임 표시 */
                       <video
-                        src={project.fileUrl}
+                        src={thumbUrls[pid]}
                         className="w-full h-full object-cover"
                         preload="metadata"
                         muted
                         playsInline
+                        onLoadedMetadata={e => { e.currentTarget.currentTime = 0; }}
                         onError={e => {
                           const el = e.currentTarget;
                           el.style.display = 'none';
@@ -174,15 +199,15 @@ export function DashboardPage() {
                         }}
                       />
                     ) : (
-                      /* 폴백: 컬러 그라디언트 */
+                      /* presigned URL 로딩 중 or 실패 시 그라디언트 */
                       <div className={`w-full h-full bg-gradient-to-br ${cardColor} flex items-center justify-center`}>
                         <span className="text-white text-4xl font-bold opacity-80">
                           {project.title.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
-                    {/* S3 로드 실패 시 폴백 (video onError로 표시) */}
-                    {project.fileUrl && !isYoutube && (
+                    {/* video 로드 실패 시 폴백 */}
+                    {!isYoutube && pid && thumbUrls[pid] && (
                       <div
                         style={{ display: 'none' }}
                         className={`absolute inset-0 bg-gradient-to-br ${cardColor} flex items-center justify-center`}
