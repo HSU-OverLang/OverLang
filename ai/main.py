@@ -148,7 +148,6 @@ def main() -> None:
         source_language=args.language,
         target_language=args.target_language,
         translation_provider=TranslationProvider(args.translation_provider),
-        use_user_api_key=False,
         options={
             "model": args.model,
             "compute_type": args.compute_type,

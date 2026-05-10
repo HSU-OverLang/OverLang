@@ -47,6 +47,12 @@ class TranslationProvider(str, Enum):
     OPENAI = "OPENAI"
 
 
+class LearningContentType(str, Enum):
+    KEYWORD = "KEYWORD"
+    SUMMARY = "SUMMARY"
+    EXPRESSION = "EXPRESSION"
+
+
 class ErrorCode(str, Enum):
     GPU_OOM = "WORKER_001"
     FFMPEG_ERROR = "WORKER_002"
@@ -80,7 +86,6 @@ class AnalysisRequest(CamelModel):
     source_language: str | None = None
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
-    use_user_api_key: bool = False
     options: dict[str, Any] | None = None
 
     @field_validator("source_language", "target_language", mode="before")
@@ -113,6 +118,7 @@ class AnalysisRequest(CamelModel):
 class WorkerJobPayload(CamelModel):
     job_id: int | str
     project_id: int | str
+    member_id: int | str
     source_type: SourceType
     source_url: str | None = None
     file_key: str | None = None
@@ -121,7 +127,6 @@ class WorkerJobPayload(CamelModel):
     source_language: str | None = None
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
-    use_user_api_key: bool = False
 
     @field_validator("source_language", "target_language", mode="before")
     @classmethod
@@ -172,10 +177,16 @@ class OcrItem(CamelModel):
     confidence: float | None = None
 
 
+class LearningContent(CamelModel):
+    content_type: LearningContentType
+    title: str
+    content: str
+    start_time: float | None = None
+    end_time: float | None = None
+
+
 class LearningData(CamelModel):
-    keywords: list[str] = Field(default_factory=list)
-    summary: str | None = None
-    expression_notes: list[str] = Field(default_factory=list)
+    contents: list[LearningContent] = Field(default_factory=list)
 
 
 class AnalysisMetadata(CamelModel):

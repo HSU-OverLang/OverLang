@@ -10,12 +10,14 @@ from ai.api.schemas import (
     AnalysisResult,
     CurrentStage,
     JobType,
+    LearningData,
     OcrItem,
     SubtitleSegment,
     TranslationProvider,
     WordTiming,
     WorkerJobPayload,
 )
+from ai.learning import generate_learning_data
 from ai.ocr.frame_change import annotate_frame_changes
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
 from ai.ocr.postprocess import build_ocr_items
@@ -61,6 +63,7 @@ def run_pipeline(
 
         subtitles: list[SubtitleSegment] = []
         ocr_items: list[OcrItem] = []
+        learning_data: LearningData | None = None
         pipeline_steps: list[str] = []
         warnings: list[str] = []
         audio_path: Path | None = None
@@ -138,10 +141,29 @@ def run_pipeline(
             )
             pipeline_steps.append("TRANSLATION")
 
+        if _should_run_learning_analysis(normalized_job, subtitles):
+            _report_progress(progress_callback, CurrentStage.LLM_ANALYSIS, 85.0)
+            try:
+                learning_data = generate_learning_data(
+                    subtitles,
+                    source_language=resolved_source_language,
+                    target_language=normalized_job.target_language,
+                )
+                if learning_data is not None:
+                    save_intermediate(
+                        resolved_job_id,
+                        "learning_data",
+                        learning_data.model_dump(by_alias=True),
+                    )
+                    pipeline_steps.append("LLM_ANALYSIS")
+            except Exception as error:
+                warnings.append(f"Learning data generation failed: {error}")
+
         _report_progress(progress_callback, CurrentStage.FINALIZING, 90.0)
         result = AnalysisResult(
             subtitles=subtitles,
             ocr_items=ocr_items,
+            learning_data=learning_data,
             metadata=AnalysisMetadata(
                 job_id=resolved_job_id,
                 source_type=normalized_job.source_type,
@@ -299,6 +321,16 @@ def _should_run_translation(
         return False
 
     return True
+
+
+def _should_run_learning_analysis(
+    job: AnalysisRequest | WorkerJobPayload,
+    subtitles: list[SubtitleSegment],
+) -> bool:
+    if _enum_value(job.job_type) != JobType.FULL_ANALYSIS.value:
+        return False
+
+    return bool(subtitles)
 
 
 def _run_translation_stage(
