@@ -102,7 +102,7 @@ export function UploadPage() {
         navigate("/processing", {
           state: {
             jobId: job.jobId,
-            videoSrc: fileResult.fileUrl,
+            projectId: project.projectId,
             targetLanguage,
           },
         });
@@ -122,6 +122,7 @@ export function UploadPage() {
         navigate("/processing", {
           state: {
             jobId: job.jobId,
+            projectId: project.projectId ?? project.id,
             videoSrc: videoLink.trim(),
             targetLanguage,
           },

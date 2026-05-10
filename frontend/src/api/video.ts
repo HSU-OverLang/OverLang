@@ -23,8 +23,9 @@ export interface FileUploadResult {
 }
 
 export interface ProjectResult {
-  projectId: number;
-  memberId: number;
+  id?: number;        // 목록 조회 응답
+  projectId?: number; // 생성 응답
+  memberId?: number;
   title: string;
   sourceType: string;
   sourceUrl: string | null;
@@ -89,7 +90,7 @@ export async function createJob(
     jobType: 'FULL_ANALYSIS',
     sourceLanguage,
     targetLanguage,
-    translationProvider: 'DEFAULT',
+    translationProvider: 'OPENAI',
     useUserApiKey: false,
   });
   return unwrap<JobResult>(res);
@@ -99,4 +100,83 @@ export async function createJob(
 export async function getJobDetail(jobId: number): Promise<JobDetail> {
   const res = await apiGet(`/v1/jobs/${jobId}`);
   return unwrap<JobDetail>(res);
+}
+
+/** Presigned URL 발급 (Private S3 영상 재생용) */
+export async function getVideoPresignedUrl(projectId: number): Promise<string> {
+  const res = await apiGet(`/v1/projects/${projectId}/video-url`);
+  const data = await unwrap<{ presignedUrl: string }>(res);
+  return data.presignedUrl;
+}
+
+// ── 자막 / OCR Types ────────────────────────────────────
+
+export interface JobSummary {
+  jobId: number;
+  projectId: number;
+  jobType: string;
+  status: string;
+  progress: number;
+  currentStage: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export interface SegmentResult {
+  segmentId: number;
+  jobId: number;
+  seq: number;
+  startTime: number;
+  endTime: number;
+  text: string;
+  translatedText: string | null;
+  languageCode: string;
+}
+
+export interface OcrItemResult {
+  ocrItemId: number;
+  jobId: number;
+  startTime: number;
+  endTime: number;
+  originText: string;
+  translatedText: string | null;
+  boundingBox: { x: number; y: number; w: number; h: number };
+  confidence: number;
+}
+
+/** 프로젝트의 Job 목록 조회 */
+export async function getProjectJobs(projectId: number): Promise<JobSummary[]> {
+  const res = await apiGet(`/v1/projects/${projectId}/jobs`);
+  const data = await unwrap<JobSummary[] | { content: JobSummary[] }>(res);
+  return Array.isArray(data) ? data : data.content ?? [];
+}
+
+/** STT 세그먼트(자막) 조회 */
+export async function getSegments(jobId: number): Promise<SegmentResult[]> {
+  const res = await apiGet(`/v1/jobs/${jobId}/segments?size=10000`);
+  const raw = await res.clone().json().catch(() => null);
+  console.log('[OverLang] segments 원시 응답:', JSON.stringify(raw)?.slice(0, 300));
+  const data = await unwrap<SegmentResult[] | { content: SegmentResult[] }>(res);
+  if (Array.isArray(data)) return data;
+  if (data && 'content' in data && Array.isArray(data.content)) return data.content;
+  // 그 외 형태도 처리 (totalElements 등이 있는 Pageable 응답)
+  const anyData = data as any;
+  if (anyData?.content) return anyData.content;
+  return [];
+}
+
+/** OCR 결과 조회 */
+export async function getOcrItems(jobId: number): Promise<OcrItemResult[]> {
+  const res = await apiGet(`/v1/jobs/${jobId}/ocr-items?size=10000`);
+  const raw = await res.clone().json().catch(() => null);
+  console.log('[OverLang] ocr-items 원시 응답:', JSON.stringify(raw)?.slice(0, 300));
+  const data = await unwrap<OcrItemResult[] | { content: OcrItemResult[] }>(res);
+  if (Array.isArray(data)) return data;
+  if (data && 'content' in data && Array.isArray(data.content)) return data.content;
+  const anyData = data as any;
+  if (anyData?.content) return anyData.content;
+  return [];
 }
