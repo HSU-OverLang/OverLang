@@ -10,7 +10,8 @@ public record OcrItemResponse(
     String originText,
     String translatedText,
     BoundingBoxResponse boundingBox,
-    Double confidence) {
+    Double confidence,
+    OcrStyleResponse style) {
 
   public static OcrItemResponse from(OcrItem ocrItem) {
     return new OcrItemResponse(
@@ -21,6 +22,12 @@ public record OcrItemResponse(
         ocrItem.getOriginText(),
         ocrItem.getTranslatedText(),
         new BoundingBoxResponse(ocrItem.getX(), ocrItem.getY(), ocrItem.getW(), ocrItem.getH()),
-        ocrItem.getConfidence());
+        ocrItem.getConfidence(),
+        new OcrStyleResponse(
+            ocrItem.getBackgroundColor(),
+            ocrItem.getDominantBackgroundColor(),
+            ocrItem.getTextColor(),
+            new BlurRegionResponse(
+                ocrItem.getBlurX(), ocrItem.getBlurY(), ocrItem.getBlurW(), ocrItem.getBlurH())));
   }
 }

@@ -61,7 +61,14 @@ public class ResultCopyService {
                         item.getY(),
                         item.getW(),
                         item.getH(),
-                        item.getConfidence()))
+                        item.getConfidence(),
+                        item.getBackgroundColor(),
+                        item.getDominantBackgroundColor(),
+                        item.getTextColor(),
+                        item.getBlurX(),
+                        item.getBlurY(),
+                        item.getBlurW(),
+                        item.getBlurH()))
             .toList();
 
     ocrItemRepository.saveAll(copiedOcrItems);
