@@ -75,6 +75,48 @@ def main() -> None:
         help="Skip alignment step for speed",
     )
     parser.add_argument(
+        "--stt-min-segment-seconds",
+        type=float,
+        default=0.2,
+        help="Minimum subtitle segment duration before merging with the previous segment",
+    )
+    parser.add_argument(
+        "--stt-max-segment-seconds",
+        type=float,
+        default=15.0,
+        help="Maximum source subtitle duration before safety splitting long STT output",
+    )
+    parser.add_argument(
+        "--stt-max-segment-chars",
+        type=int,
+        default=220,
+        help="Maximum source subtitle text length before safety splitting long STT output",
+    )
+    parser.add_argument(
+        "--stt-min-split-seconds",
+        type=float,
+        default=1.0,
+        help="Minimum duration for sentence-boundary STT split chunks",
+    )
+    parser.add_argument(
+        "--translated-subtitle-max-seconds",
+        type=float,
+        default=8.0,
+        help="Maximum rendered translated subtitle duration before splitting",
+    )
+    parser.add_argument(
+        "--translated-subtitle-max-chars",
+        type=int,
+        default=0,
+        help="Maximum rendered translated subtitle length. Use 0 for two-line language defaults.",
+    )
+    parser.add_argument(
+        "--translated-subtitle-min-split-seconds",
+        type=float,
+        default=1.5,
+        help="Minimum duration for rendered translated subtitle chunks",
+    )
+    parser.add_argument(
         "--frame-interval",
         type=float,
         default=1.0,
@@ -153,6 +195,15 @@ def main() -> None:
             "compute_type": args.compute_type,
             "batch_size": args.batch_size,
             "no_align": args.no_align,
+            "stt_min_segment_seconds": args.stt_min_segment_seconds,
+            "stt_max_segment_seconds": args.stt_max_segment_seconds,
+            "stt_max_segment_chars": args.stt_max_segment_chars,
+            "stt_min_split_seconds": args.stt_min_split_seconds,
+            "translated_subtitle_max_seconds": args.translated_subtitle_max_seconds,
+            "translated_subtitle_max_chars": args.translated_subtitle_max_chars,
+            "translated_subtitle_min_split_seconds": (
+                args.translated_subtitle_min_split_seconds
+            ),
             "frame_interval": args.frame_interval,
             "ocr_gpu": not args.ocr_cpu,
             "ocr_change_threshold": args.ocr_change_threshold,
