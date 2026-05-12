@@ -9,6 +9,8 @@ from PIL import Image
 
 DEFAULT_CHANGE_THRESHOLD = 0.015
 DEFAULT_SAMPLE_SIZE = (320, 180)
+DEFAULT_BBOX_SAMPLE_SIZE = (160, 80)
+DEFAULT_BBOX_PADDING_RATIO = 0.02
 
 TEXT_PRIORITY_REGIONS = (
     (0.00, 0.00, 1.00, 0.30),  # top captions or labels
@@ -100,6 +102,59 @@ def calculate_frame_change_metrics(
         "edgeChangeScore": _round_score(edge_score),
         "localizedChangeScore": _round_score(localized_score),
     }
+
+
+def calculate_bounding_box_change_score(
+    previous_frame_path: str | Path,
+    current_frame_path: str | Path,
+    bounding_boxes: list[Any],
+    padding_ratio: float = DEFAULT_BBOX_PADDING_RATIO,
+    sample_size: tuple[int, int] = DEFAULT_BBOX_SAMPLE_SIZE,
+) -> float:
+    if not bounding_boxes:
+        return 0.0
+
+    previous_path = Path(previous_frame_path)
+    current_path = Path(current_frame_path)
+    if not previous_path.exists():
+        raise FileNotFoundError(f"Frame image not found: {previous_path}")
+    if not current_path.exists():
+        raise FileNotFoundError(f"Frame image not found: {current_path}")
+
+    scores = []
+    with Image.open(previous_path) as previous_image, Image.open(current_path) as current_image:
+        previous_gray = previous_image.convert("L")
+        current_gray = current_image.convert("L")
+        image_width, image_height = current_gray.size
+
+        for bounding_box in bounding_boxes:
+            crop_box = _bbox_to_padded_pixel_box(
+                bounding_box,
+                image_width,
+                image_height,
+                padding_ratio,
+            )
+            previous_pixels = _crop_sampled_grayscale(
+                previous_gray,
+                crop_box,
+                sample_size,
+            )
+            current_pixels = _crop_sampled_grayscale(
+                current_gray,
+                crop_box,
+                sample_size,
+            )
+            diff = np.abs(previous_pixels - current_pixels)
+            pixel_score = float(diff.mean())
+            edge_score = _calculate_edge_change_score(previous_pixels, current_pixels)
+            localized_score = _calculate_localized_change_score(
+                diff,
+                previous_pixels,
+                current_pixels,
+            )
+            scores.append(max(pixel_score, edge_score, localized_score))
+
+    return _round_score(max(scores) if scores else 0.0)
 
 
 def _calculate_priority_region_score(diff: np.ndarray) -> float:
@@ -200,6 +255,50 @@ def _load_sampled_grayscale(
             image.convert("L").resize(sample_size),
             dtype=np.float32,
         ) / 255.0
+
+
+def _crop_sampled_grayscale(
+    image: Image.Image,
+    crop_box: tuple[int, int, int, int],
+    sample_size: tuple[int, int],
+) -> np.ndarray:
+    return np.asarray(
+        image.crop(crop_box).resize(sample_size),
+        dtype=np.float32,
+    ) / 255.0
+
+
+def _bbox_to_padded_pixel_box(
+    bounding_box: Any,
+    image_width: int,
+    image_height: int,
+    padding_ratio: float,
+) -> tuple[int, int, int, int]:
+    x = _bbox_value(bounding_box, "x")
+    y = _bbox_value(bounding_box, "y")
+    w = _bbox_value(bounding_box, "w")
+    h = _bbox_value(bounding_box, "h")
+
+    left = int((x - padding_ratio) * image_width)
+    top = int((y - padding_ratio) * image_height)
+    right = int((x + w + padding_ratio) * image_width)
+    bottom = int((y + h + padding_ratio) * image_height)
+
+    left = max(0, min(left, image_width - 1))
+    top = max(0, min(top, image_height - 1))
+    right = max(left + 1, min(right, image_width))
+    bottom = max(top + 1, min(bottom, image_height))
+    return left, top, right, bottom
+
+
+def _bbox_value(
+    bounding_box: Any,
+    key: str,
+) -> float:
+    if isinstance(bounding_box, dict):
+        return float(bounding_box[key])
+
+    return float(getattr(bounding_box, key))
 
 
 def _round_score(value: float) -> float:

@@ -19,7 +19,10 @@ from ai.api.schemas import (
     WorkerJobPayload,
 )
 from ai.learning import generate_learning_data
-from ai.ocr.frame_change import annotate_frame_changes
+from ai.ocr.frame_change import (
+    annotate_frame_changes,
+    calculate_bounding_box_change_score,
+)
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
 from ai.ocr.postprocess import build_ocr_items
 from ai.pipeline.audio_service import extract_audio_to_wav
@@ -422,16 +425,26 @@ def _run_ocr_stage(
 
     raw_items = []
     latest_detected_items: list[dict[str, Any]] = []
+    previous_ocr_frame_path: Path | None = None
     consecutive_skipped_frames = 0
     for frame in frames:
-        should_skip_frame = (
-            runtime_options["ocr_skip_unchanged_frames"]
-            and not bool(frame.get("hasVisualChange", True))
-            and consecutive_skipped_frames
-            < int(runtime_options["ocr_max_skip_frames"])
+        bbox_change_score = _calculate_latest_ocr_bbox_change_score(
+            previous_ocr_frame_path,
+            Path(str(frame["path"])),
+            latest_detected_items,
+            padding_ratio=float(runtime_options["ocr_bbox_change_padding"]),
+        )
+        should_run_ocr = _should_run_ocr_for_frame(
+            frame,
+            latest_detected_items,
+            consecutive_skipped_frames,
+            bbox_change_score,
+            skip_unchanged_frames=bool(runtime_options["ocr_skip_unchanged_frames"]),
+            max_skip_frames=int(runtime_options["ocr_max_skip_frames"]),
+            bbox_change_threshold=float(runtime_options["ocr_bbox_change_threshold"]),
         )
 
-        if should_skip_frame:
+        if not should_run_ocr:
             raw_items.extend(
                 _carry_forward_ocr_items(
                     latest_detected_items,
@@ -476,6 +489,55 @@ def _carry_forward_ocr_items(
         carried_items.append(carried_item)
 
     return carried_items
+
+
+def _calculate_latest_ocr_bbox_change_score(
+    previous_frame_path: Path | None,
+    current_frame_path: Path,
+    latest_items: list[dict[str, Any]],
+    padding_ratio: float,
+) -> float:
+    if previous_frame_path is None or not latest_items:
+        return 0.0
+
+    bounding_boxes = [
+        item["boundingBox"]
+        for item in latest_items
+        if item.get("boundingBox") is not None
+    ]
+    if not bounding_boxes:
+        return 0.0
+
+    return calculate_bounding_box_change_score(
+        previous_frame_path,
+        current_frame_path,
+        bounding_boxes,
+        padding_ratio=padding_ratio,
+    )
+
+
+def _should_run_ocr_for_frame(
+    frame: dict[str, object],
+    latest_items: list[dict[str, Any]],
+    consecutive_skipped_frames: int,
+    bbox_change_score: float,
+    skip_unchanged_frames: bool,
+    max_skip_frames: int,
+    bbox_change_threshold: float,
+) -> bool:
+    if not skip_unchanged_frames:
+        return True
+
+    if not latest_items:
+        return True
+
+    if bool(frame.get("hasVisualChange", True)):
+        return True
+
+    if bbox_change_score >= bbox_change_threshold:
+        return True
+
+    return consecutive_skipped_frames >= max_skip_frames
 
 
 def _should_run_translation(
@@ -530,7 +592,7 @@ def _run_translation_stage(
         subtitle.translated_text = translated_text
 
     for ocr_item, translated_text in zip(ocr_items, ocr_translations):
-        ocr_item.translated_text = translated_text
+        ocr_item.translated_text = _normalize_ocr_translation_text(translated_text)
 
     if _enum_value(job.translation_provider) == TranslationProvider.DEFAULT.value:
         return [
@@ -539,6 +601,10 @@ def _run_translation_stage(
         ]
 
     return []
+
+
+def _normalize_ocr_translation_text(translated_text: str) -> str:
+    return " ".join(str(translated_text).split())
 
 
 def _split_translated_subtitles_for_rendering(
@@ -1654,22 +1720,62 @@ def _extract_runtime_options(
             )
         ),
         "frame_interval": float(
-            options.get("frame_interval", os.getenv("AI_DEFAULT_FRAME_INTERVAL", "1.0"))
+            options.get("frame_interval", os.getenv("AI_DEFAULT_FRAME_INTERVAL", "0.5"))
         ),
         "ocr_gpu": _to_bool(
             options.get("ocr_gpu", os.getenv("AI_DEFAULT_OCR_GPU", "true"))
         ),
-        "ocr_change_threshold": float(options.get("ocr_change_threshold", 0.015)),
-        "ocr_skip_unchanged_frames": bool(
-            options.get("ocr_skip_unchanged_frames", True)
+        "ocr_change_threshold": float(
+            options.get(
+                "ocr_change_threshold",
+                os.getenv("AI_OCR_CHANGE_THRESHOLD", "0.015"),
+            )
         ),
-        "ocr_max_skip_frames": int(options.get("ocr_max_skip_frames", 1)),
-        "ocr_min_confidence": float(options.get("ocr_min_confidence", 0.3)),
-        "ocr_min_text_length": int(options.get("ocr_min_text_length", 2)),
+        "ocr_skip_unchanged_frames": _to_bool(
+            options.get(
+                "ocr_skip_unchanged_frames",
+                os.getenv("AI_OCR_SKIP_UNCHANGED_FRAMES", "true"),
+            )
+        ),
+        "ocr_max_skip_frames": int(
+            options.get(
+                "ocr_max_skip_frames",
+                os.getenv("AI_OCR_MAX_SKIP_FRAMES", "1"),
+            )
+        ),
+        "ocr_min_confidence": float(
+            options.get(
+                "ocr_min_confidence",
+                os.getenv("AI_OCR_MIN_CONFIDENCE", "0.3"),
+            )
+        ),
+        "ocr_min_text_length": int(
+            options.get(
+                "ocr_min_text_length",
+                os.getenv("AI_OCR_MIN_TEXT_LENGTH", "2"),
+            )
+        ),
         "ocr_max_special_char_ratio": float(
-            options.get("ocr_max_special_char_ratio", 0.6)
+            options.get(
+                "ocr_max_special_char_ratio",
+                os.getenv("AI_OCR_MAX_SPECIAL_CHAR_RATIO", "0.6"),
+            )
         ),
-        "ocr_edge_margin": float(options.get("ocr_edge_margin", 0.0)),
+        "ocr_edge_margin": float(
+            options.get("ocr_edge_margin", os.getenv("AI_OCR_EDGE_MARGIN", "0.0"))
+        ),
+        "ocr_bbox_change_threshold": float(
+            options.get(
+                "ocr_bbox_change_threshold",
+                os.getenv("AI_OCR_BBOX_CHANGE_THRESHOLD", "0.01"),
+            )
+        ),
+        "ocr_bbox_change_padding": float(
+            options.get(
+                "ocr_bbox_change_padding",
+                os.getenv("AI_OCR_BBOX_CHANGE_PADDING", "0.02"),
+            )
+        ),
     }
 
 
