@@ -155,9 +155,21 @@ def _build_translation_instructions(
 ) -> str:
     source = _language_name(source_language) if source_language else "the detected language"
     target = _language_name(target_language)
+    target_native_name = _language_native_name(target_language)
     return (
         "You are a translation engine for a video language learning service. "
         f"Translate each input text from {source} to {target}. "
+        f"Every translation must be written only in {target} ({target_native_name}). "
+        "Do not mix in any other language unless the input contains an untranslatable "
+        "proper noun, brand name, title, or technical term. "
+        "If a word can be naturally translated, translate it instead of preserving "
+        "the source-language word. "
+        "For subtitles, prefer short, natural, spoken-language phrasing that is easy "
+        "to read on screen. "
+        "For OCR text, preserve the meaning and concise label-like form of the source. "
+        "Preserve numbers, symbols, product names, person names, and URLs as needed. "
+        "Translate idioms by meaning rather than word-for-word. "
+        "If the input is empty or whitespace, return an empty string for that item. "
         "Preserve the number and order of input texts exactly. "
         "Return only JSON that matches the provided schema. "
         "Do not add explanations, numbering, markdown, or extra fields."
@@ -172,6 +184,18 @@ def _language_name(language_code: str | None) -> str:
         "ja": "Japanese",
         "es": "Spanish",
         "fr": "French",
+    }
+    return names.get(language_code or "", language_code or "unknown language")
+
+
+def _language_native_name(language_code: str | None) -> str:
+    names = {
+        "ko": "한국어",
+        "en": "English",
+        "zh": "中文",
+        "ja": "日本語",
+        "es": "español",
+        "fr": "français",
     }
     return names.get(language_code or "", language_code or "unknown language")
 
