@@ -22,6 +22,10 @@ public class AuthInterceptor implements HandlerInterceptor {
   public boolean preHandle(
       HttpServletRequest request, HttpServletResponse response, Object handler) {
 
+    if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+      return true;
+    }
+
     String token = bearerTokenResolver.resolve(request);
     FirebaseUserInfo userInfo = firebaseTokenVerifier.verify(token);
 
