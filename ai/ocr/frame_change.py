@@ -8,7 +8,19 @@ from PIL import Image
 
 
 DEFAULT_CHANGE_THRESHOLD = 0.015
-DEFAULT_SAMPLE_SIZE = (160, 90)
+DEFAULT_SAMPLE_SIZE = (320, 180)
+
+TEXT_PRIORITY_REGIONS = (
+    (0.00, 0.00, 1.00, 0.30),  # top captions or labels
+    (0.00, 0.35, 1.00, 1.00),  # subtitles and lower-third overlays
+    (0.15, 0.15, 0.85, 0.85),  # centered title cards
+)
+PIXEL_SCORE_WEIGHT = 0.35
+REGION_SCORE_WEIGHT = 0.35
+EDGE_SCORE_WEIGHT = 0.30
+SIGNIFICANT_PIXEL_DIFF_THRESHOLD = 0.12
+SIGNIFICANT_EDGE_DIFF_THRESHOLD = 0.08
+LOCALIZED_CHANGE_MULTIPLIER = 25.0
 
 
 def annotate_frame_changes(
@@ -27,13 +39,15 @@ def annotate_frame_changes(
             current_frame["changeScore"] = 1.0
             current_frame["hasVisualChange"] = True
         else:
-            change_score = calculate_frame_change_score(
+            change_metrics = calculate_frame_change_metrics(
                 previous_frame_path,
                 current_frame_path,
                 sample_size=sample_size,
             )
-            current_frame["changeScore"] = change_score
-            current_frame["hasVisualChange"] = change_score >= change_threshold
+            current_frame.update(change_metrics)
+            current_frame["hasVisualChange"] = (
+                change_metrics["changeScore"] >= change_threshold
+            )
 
         annotated_frames.append(current_frame)
         previous_frame_path = current_frame_path
@@ -46,11 +60,131 @@ def calculate_frame_change_score(
     current_frame_path: str | Path,
     sample_size: tuple[int, int] = DEFAULT_SAMPLE_SIZE,
 ) -> float:
+    return calculate_frame_change_metrics(
+        previous_frame_path,
+        current_frame_path,
+        sample_size=sample_size,
+    )["changeScore"]
+
+
+def calculate_frame_change_metrics(
+    previous_frame_path: str | Path,
+    current_frame_path: str | Path,
+    sample_size: tuple[int, int] = DEFAULT_SAMPLE_SIZE,
+) -> dict[str, float]:
     previous_pixels = _load_sampled_grayscale(previous_frame_path, sample_size)
     current_pixels = _load_sampled_grayscale(current_frame_path, sample_size)
     diff = np.abs(previous_pixels - current_pixels)
 
-    return round(float(diff.mean() / 255.0), 6)
+    pixel_score = float(diff.mean())
+    region_score = _calculate_priority_region_score(diff)
+    edge_score = _calculate_edge_change_score(previous_pixels, current_pixels)
+    localized_score = _calculate_localized_change_score(
+        diff,
+        previous_pixels,
+        current_pixels,
+    )
+    change_score = max(
+        (pixel_score * PIXEL_SCORE_WEIGHT)
+        + (region_score * REGION_SCORE_WEIGHT)
+        + (edge_score * EDGE_SCORE_WEIGHT),
+        region_score,
+        edge_score,
+        localized_score,
+    )
+
+    return {
+        "changeScore": _round_score(change_score),
+        "pixelChangeScore": _round_score(pixel_score),
+        "regionChangeScore": _round_score(region_score),
+        "edgeChangeScore": _round_score(edge_score),
+        "localizedChangeScore": _round_score(localized_score),
+    }
+
+
+def _calculate_priority_region_score(diff: np.ndarray) -> float:
+    height, width = diff.shape
+    region_scores = []
+
+    for left_ratio, top_ratio, right_ratio, bottom_ratio in TEXT_PRIORITY_REGIONS:
+        left = int(width * left_ratio)
+        right = max(left + 1, int(width * right_ratio))
+        top = int(height * top_ratio)
+        bottom = max(top + 1, int(height * bottom_ratio))
+        region_scores.append(float(diff[top:bottom, left:right].mean()))
+
+    return max(region_scores) if region_scores else float(diff.mean())
+
+
+def _calculate_edge_change_score(
+    previous_pixels: np.ndarray,
+    current_pixels: np.ndarray,
+) -> float:
+    previous_edges = _calculate_edge_map(previous_pixels)
+    current_edges = _calculate_edge_map(current_pixels)
+    return float(np.abs(previous_edges - current_edges).mean())
+
+
+def _calculate_localized_change_score(
+    diff: np.ndarray,
+    previous_pixels: np.ndarray,
+    current_pixels: np.ndarray,
+) -> float:
+    edge_diff = np.abs(
+        _calculate_edge_map(previous_pixels) - _calculate_edge_map(current_pixels)
+    )
+    strong_pixel_ratio = _calculate_strong_change_ratio(
+        diff,
+        SIGNIFICANT_PIXEL_DIFF_THRESHOLD,
+    )
+    strong_region_ratio = _calculate_priority_region_strong_change_ratio(
+        diff,
+        SIGNIFICANT_PIXEL_DIFF_THRESHOLD,
+    )
+    strong_edge_ratio = _calculate_strong_change_ratio(
+        edge_diff,
+        SIGNIFICANT_EDGE_DIFF_THRESHOLD,
+    )
+    return min(
+        max(strong_pixel_ratio, strong_region_ratio, strong_edge_ratio)
+        * LOCALIZED_CHANGE_MULTIPLIER,
+        1.0,
+    )
+
+
+def _calculate_priority_region_strong_change_ratio(
+    diff: np.ndarray,
+    threshold: float,
+) -> float:
+    height, width = diff.shape
+    region_ratios = []
+
+    for left_ratio, top_ratio, right_ratio, bottom_ratio in TEXT_PRIORITY_REGIONS:
+        left = int(width * left_ratio)
+        right = max(left + 1, int(width * right_ratio))
+        top = int(height * top_ratio)
+        bottom = max(top + 1, int(height * bottom_ratio))
+        region_ratios.append(
+            _calculate_strong_change_ratio(diff[top:bottom, left:right], threshold)
+        )
+
+    return max(region_ratios) if region_ratios else _calculate_strong_change_ratio(
+        diff,
+        threshold,
+    )
+
+
+def _calculate_strong_change_ratio(
+    diff: np.ndarray,
+    threshold: float,
+) -> float:
+    return float(np.mean(diff >= threshold))
+
+
+def _calculate_edge_map(pixels: np.ndarray) -> np.ndarray:
+    vertical_edges = np.abs(np.diff(pixels, axis=0, prepend=pixels[:1, :]))
+    horizontal_edges = np.abs(np.diff(pixels, axis=1, prepend=pixels[:, :1]))
+    return (vertical_edges + horizontal_edges) / 2.0
 
 
 def _load_sampled_grayscale(
@@ -65,4 +199,8 @@ def _load_sampled_grayscale(
         return np.asarray(
             image.convert("L").resize(sample_size),
             dtype=np.float32,
-        )
+        ) / 255.0
+
+
+def _round_score(value: float) -> float:
+    return round(float(value), 6)
