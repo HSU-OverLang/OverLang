@@ -448,11 +448,13 @@ def _run_ocr_stage(
         )
         raw_items.extend(detected_items)
         latest_detected_items = detected_items
+        previous_ocr_frame_path = Path(str(frame["path"]))
         consecutive_skipped_frames = 0
 
     return build_ocr_items(
         raw_items,
         frame_interval_seconds=frame_interval,
+        frame_timestamps=[float(frame["timestamp"]) for frame in frames],
         min_confidence=float(runtime_options["ocr_min_confidence"]),
         min_text_length=int(runtime_options["ocr_min_text_length"]),
         max_special_char_ratio=float(runtime_options["ocr_max_special_char_ratio"]),
@@ -468,6 +470,7 @@ def _carry_forward_ocr_items(
     for item in latest_items:
         carried_item = dict(item)
         carried_item["frameIndex"] = int(frame["frameIndex"])
+        carried_item["framePath"] = str(frame["path"])
         carried_item["timestamp"] = round(float(frame["timestamp"]), 3)
         carried_item["carriedForward"] = True
         carried_items.append(carried_item)

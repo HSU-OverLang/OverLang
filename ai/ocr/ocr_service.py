@@ -1,11 +1,25 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from PIL import Image
 
 from ai.api.schemas import BoundingBox
+
+DEFAULT_OCR_REGIONS = "full,top,center,bottom"
+DEFAULT_REFINE_ENABLED = True
+DEFAULT_REFINE_SCALE = 2.0
+DEFAULT_REFINE_PADDING = 0.015
+DEFAULT_REFINE_MIN_CONFIDENCE = 0.2
+PRESET_OCR_REGIONS = {
+    "full": (0.0, 0.0, 1.0, 1.0),
+    "top": (0.0, 0.0, 1.0, 0.35),
+    "center": (0.0, 0.25, 1.0, 0.75),
+    "bottom": (0.0, 0.55, 1.0, 1.0),
+}
 
 
 class EasyOcrService:
