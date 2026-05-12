@@ -15,31 +15,59 @@ def build_ocr_items(
     max_special_char_ratio: float = 0.6,
     edge_margin: float = 0.0,
 ) -> list[OcrItem]:
-    tracks: list[dict[str, Any]] = []
+    active_tracks: list[dict[str, Any]] = []
+    finalized_tracks: list[dict[str, Any]] = []
+    max_tracking_gap_seconds = max(frame_interval_seconds * 1.5, frame_interval_seconds)
 
-    for raw_item in sorted(raw_items, key=lambda item: item["timestamp"]):
-        if not _is_valid_raw_item(
-            raw_item,
-            min_confidence,
-            min_text_length,
-            max_special_char_ratio,
-            edge_margin,
-        ):
-            continue
+    for timestamp, frame_items in _group_raw_items_by_timestamp(raw_items):
+        valid_items = [
+            raw_item
+            for raw_item in frame_items
+            if _is_valid_raw_item(
+                raw_item,
+                min_confidence,
+                min_text_length,
+                max_special_char_ratio,
+                edge_margin,
+            )
+        ]
 
-        matched_track = _find_matching_track(
-            tracks,
-            raw_item,
-            text_similarity_threshold,
-            bbox_tolerance,
+        active_tracks, expired_tracks = _split_expired_tracks(
+            active_tracks,
+            timestamp,
+            max_tracking_gap_seconds,
         )
-        if matched_track is None:
-            tracks.append(_create_track(raw_item, frame_interval_seconds))
-            continue
+        finalized_tracks.extend(expired_tracks)
 
-        _extend_track(matched_track, raw_item, frame_interval_seconds)
+        matched_track_ids: set[int] = set()
+        for raw_item in valid_items:
+            matched_track = _find_best_matching_active_track(
+                active_tracks,
+                raw_item,
+                matched_track_ids,
+                text_similarity_threshold,
+                bbox_tolerance,
+            )
+            if matched_track is None:
+                active_tracks.append(_create_track(raw_item, frame_interval_seconds))
+                continue
 
-    return [_track_to_ocr_item(track) for track in tracks]
+            _extend_track(matched_track, raw_item, frame_interval_seconds)
+            matched_track_ids.add(id(matched_track))
+
+        if valid_items:
+            remaining_active_tracks = []
+            for track in active_tracks:
+                if id(track) in matched_track_ids or track["lastTimestamp"] == timestamp:
+                    remaining_active_tracks.append(track)
+                    continue
+
+                finalized_tracks.append(track)
+            active_tracks = remaining_active_tracks
+
+    finalized_tracks.extend(active_tracks)
+    finalized_tracks.sort(key=lambda track: (track["startTime"], track["endTime"]))
+    return [_track_to_ocr_item(track) for track in finalized_tracks]
 
 
 def _create_track(
@@ -141,30 +169,67 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
     )
 
 
-def _find_matching_track(
+def _group_raw_items_by_timestamp(
+    raw_items: list[dict[str, Any]],
+) -> list[tuple[float, list[dict[str, Any]]]]:
+    grouped_items: dict[float, list[dict[str, Any]]] = {}
+    for raw_item in raw_items:
+        timestamp = round(float(raw_item["timestamp"]), 3)
+        grouped_items.setdefault(timestamp, []).append(raw_item)
+
+    return sorted(grouped_items.items(), key=lambda item: item[0])
+
+
+def _split_expired_tracks(
+    tracks: list[dict[str, Any]],
+    timestamp: float,
+    max_tracking_gap_seconds: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    active_tracks = []
+    expired_tracks = []
+    for track in tracks:
+        if timestamp - float(track["lastTimestamp"]) > max_tracking_gap_seconds:
+            expired_tracks.append(track)
+            continue
+
+        active_tracks.append(track)
+
+    return active_tracks, expired_tracks
+
+
+def _find_best_matching_active_track(
     tracks: list[dict[str, Any]],
     raw_item: dict[str, Any],
+    matched_track_ids: set[int],
     text_similarity_threshold: float,
     bbox_tolerance: float,
 ) -> dict[str, Any] | None:
+    candidates = []
     for track in reversed(tracks):
-        if not _is_same_text(
-            track["originText"],
-            raw_item["originText"],
-            text_similarity_threshold,
-        ):
+        if id(track) in matched_track_ids:
             continue
 
-        if not _is_similar_bbox(
+        text_similarity = _text_similarity(
+            track["originText"],
+            raw_item["originText"],
+        )
+        if text_similarity < text_similarity_threshold:
+            continue
+
+        bbox_overlap = _bbox_iou(track["boundingBox"], raw_item["boundingBox"])
+        if bbox_overlap <= 0 and not _is_similar_bbox(
             track["boundingBox"],
             raw_item["boundingBox"],
             bbox_tolerance,
         ):
             continue
 
-        return track
+        candidates.append((text_similarity + bbox_overlap, track))
 
-    return None
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda candidate: candidate[0])[1]
 
 
 def _is_same_text(
@@ -172,15 +237,22 @@ def _is_same_text(
     right: str,
     threshold: float,
 ) -> bool:
+    return _text_similarity(left, right) >= threshold
+
+
+def _text_similarity(
+    left: str,
+    right: str,
+) -> float:
     normalized_left = _normalize_text(left)
     normalized_right = _normalize_text(right)
     if not normalized_left or not normalized_right:
-        return False
+        return 0.0
 
     if normalized_left == normalized_right:
-        return True
+        return 1.0
 
-    return _similarity(normalized_left, normalized_right) >= threshold
+    return _similarity(normalized_left, normalized_right)
 
 
 def _normalize_text(text: str) -> str:
@@ -207,6 +279,30 @@ def _is_similar_bbox(
         and abs(left.w - right.w) <= tolerance
         and abs(left.h - right.h) <= tolerance
     )
+
+
+def _bbox_iou(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> float:
+    left_x2 = left.x + left.w
+    left_y2 = left.y + left.h
+    right_x2 = right.x + right.w
+    right_y2 = right.y + right.h
+
+    intersection_w = max(0.0, min(left_x2, right_x2) - max(left.x, right.x))
+    intersection_h = max(0.0, min(left_y2, right_y2) - max(left.y, right.y))
+    intersection_area = intersection_w * intersection_h
+    if intersection_area <= 0:
+        return 0.0
+
+    left_area = left.w * left.h
+    right_area = right.w * right.h
+    union_area = left_area + right_area - intersection_area
+    if union_area <= 0:
+        return 0.0
+
+    return intersection_area / union_area
 
 
 def _average_bbox(
