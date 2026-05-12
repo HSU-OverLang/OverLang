@@ -45,6 +45,27 @@ public class OcrItem extends BaseTimeEntity {
 
   @Column private Double confidence;
 
+  @Column(name = "background_color", length = 20)
+  private String backgroundColor;
+
+  @Column(name = "dominant_background_color", length = 20)
+  private String dominantBackgroundColor;
+
+  @Column(name = "text_color", length = 20)
+  private String textColor;
+
+  @Column(name = "blur_x")
+  private Double blurX;
+
+  @Column(name = "blur_y")
+  private Double blurY;
+
+  @Column(name = "blur_w")
+  private Double blurW;
+
+  @Column(name = "blur_h")
+  private Double blurH;
+
   public OcrItem(
       Job job,
       Double startTime,
@@ -55,7 +76,14 @@ public class OcrItem extends BaseTimeEntity {
       Double y,
       Double w,
       Double h,
-      Double confidence) {
+      Double confidence,
+      String backgroundColor,
+      String dominantBackgroundColor,
+      String textColor,
+      Double blurX,
+      Double blurY,
+      Double blurW,
+      Double blurH) {
     this.job = job;
     this.startTime = startTime;
     this.endTime = endTime;
@@ -66,5 +94,12 @@ public class OcrItem extends BaseTimeEntity {
     this.w = w;
     this.h = h;
     this.confidence = confidence;
+    this.backgroundColor = backgroundColor;
+    this.dominantBackgroundColor = dominantBackgroundColor;
+    this.textColor = textColor;
+    this.blurX = blurX;
+    this.blurY = blurY;
+    this.blurW = blurW;
+    this.blurH = blurH;
   }
 }

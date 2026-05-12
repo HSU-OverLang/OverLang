@@ -2,9 +2,11 @@ package com.overlang.domain.job.service;
 
 import com.overlang.api.dto.ocr.OcrItemResponse;
 import com.overlang.api.dto.segment.SegmentResponse;
+import com.overlang.api.dto.segment.SegmentWordResponse;
 import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
 import com.overlang.domain.segment.repository.SegmentRepository;
+import com.overlang.domain.segment.repository.SegmentWordRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class JobResultService {
 
   private final SegmentRepository segmentRepository;
+  private final SegmentWordRepository segmentWordRepository;
   private final OcrItemRepository ocrItemRepository;
   private final JobRepository jobRepository;
 
@@ -22,7 +25,15 @@ public class JobResultService {
   public List<SegmentResponse> getSegments(Long jobId, Long memberId) {
     validateJobOwner(jobId, memberId);
     return segmentRepository.findByJobIdOrderBySeqAsc(jobId).stream()
-        .map(SegmentResponse::from)
+        .map(
+            segment -> {
+              List<SegmentWordResponse> words =
+                  segmentWordRepository.findBySegmentIdOrderBySeqAsc(segment.getId()).stream()
+                      .map(SegmentWordResponse::from)
+                      .toList();
+
+              return SegmentResponse.from(segment, words);
+            })
         .toList();
   }
 
