@@ -4,6 +4,9 @@ import com.overlang.domain.savedword.entity.SavedWord;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface SavedWordRepository extends JpaRepository<SavedWord, Long> {
 
@@ -12,4 +15,12 @@ public interface SavedWordRepository extends JpaRepository<SavedWord, Long> {
   List<SavedWord> findByMemberIdOrderByCreatedAtDesc(Long memberId);
 
   Optional<SavedWord> findByIdAndMemberId(Long id, Long memberId);
+
+  @Modifying
+  @Query(
+      """
+    DELETE FROM SavedWord sw
+    WHERE sw.segmentWord.segment.job.project.id = :projectId
+    """)
+  void deleteByProjectId(@Param("projectId") Long projectId);
 }
