@@ -21,7 +21,9 @@ import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
 import com.overlang.domain.segment.entity.Segment;
+import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.repository.SegmentRepository;
+import com.overlang.domain.segment.repository.SegmentWordRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,7 @@ public class JobService {
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
   private final SegmentRepository segmentRepository;
+  private final SegmentWordRepository segmentWordRepository;
   private final OcrItemRepository ocrItemRepository;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
@@ -237,7 +240,9 @@ public class JobService {
                         s.languageCode()))
             .toList();
 
-    segmentRepository.saveAll(segments);
+    List<Segment> savedSegments = segmentRepository.saveAll(segments);
+
+    createSegmentWords(savedSegments);
   }
 
   private void saveOcrItems(Job job, JobCallbackRequest request) {
@@ -261,5 +266,28 @@ public class JobService {
             .toList();
 
     ocrItemRepository.saveAll(ocrItems);
+  }
+
+  private void createSegmentWords(List<Segment> segments) {
+
+    List<SegmentWord> segmentWords =
+        segments.stream()
+            .flatMap(
+                segment -> {
+                  String[] words = segment.getText().split("\\s+");
+
+                  return java.util.stream.IntStream.range(0, words.length)
+                      .mapToObj(
+                          i ->
+                              new SegmentWord(
+                                  segment,
+                                  i + 1,
+                                  segment.getStartTime(),
+                                  segment.getEndTime(),
+                                  words[i]));
+                })
+            .toList();
+
+    segmentWordRepository.saveAll(segmentWords);
   }
 }
