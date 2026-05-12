@@ -398,12 +398,16 @@ def _run_stt_stage(
     finally:
         stt_service.unload_model()
 
-    return _postprocess_subtitles(
+    subtitles = _postprocess_subtitles(
         _build_subtitles(raw_segments, job.source_language),
         min_duration_seconds=float(runtime_options["stt_min_segment_seconds"]),
         max_duration_seconds=float(runtime_options["stt_max_segment_seconds"]),
         max_text_length=int(runtime_options["stt_max_segment_chars"]),
         min_split_duration_seconds=float(runtime_options["stt_min_split_seconds"]),
+    )
+    return _apply_subtitle_time_offset(
+        subtitles,
+        offset_seconds=float(runtime_options["stt_time_offset_seconds"]),
     )
 
 
@@ -670,6 +674,17 @@ def _build_translated_render_chunks(
     translated_chunks: list[str],
     min_split_duration_seconds: float,
 ) -> list[SubtitleSegment]:
+    word_chunks = _split_words_for_render_chunk_count(
+        subtitle.words,
+        chunk_count=len(translated_chunks),
+    )
+    if word_chunks:
+        return _build_translated_render_chunks_from_words(
+            subtitle,
+            translated_chunks,
+            word_chunks,
+        )
+
     split_subtitles = []
     previous_end_time = subtitle.start_time
 
@@ -706,6 +721,62 @@ def _build_translated_render_chunks(
                 start_time=start_time,
                 end_time=end_time,
                 text=source_text,
+                translated_text=translated_chunk,
+                language_code=subtitle.language_code,
+                words=words,
+            )
+        )
+        previous_end_time = end_time
+
+    return split_subtitles or [subtitle]
+
+
+def _split_words_for_render_chunk_count(
+    words: list[WordTiming],
+    chunk_count: int,
+) -> list[list[WordTiming]]:
+    timed_words = [
+        word
+        for word in words
+        if word.start_time is not None and word.end_time is not None
+    ]
+    if chunk_count <= 1 or len(timed_words) < chunk_count:
+        return []
+
+    word_chunks = []
+    for index in range(chunk_count):
+        start_index = round((len(timed_words) * index) / chunk_count)
+        end_index = round((len(timed_words) * (index + 1)) / chunk_count)
+        chunk = timed_words[start_index:end_index]
+        if not chunk:
+            return []
+
+        word_chunks.append(chunk)
+
+    return word_chunks
+
+
+def _build_translated_render_chunks_from_words(
+    subtitle: SubtitleSegment,
+    translated_chunks: list[str],
+    word_chunks: list[list[WordTiming]],
+) -> list[SubtitleSegment]:
+    split_subtitles = []
+    previous_end_time = subtitle.start_time
+    for translated_chunk, words in zip(translated_chunks, word_chunks):
+        start_time = _round_time(
+            max(words[0].start_time or subtitle.start_time, previous_end_time)
+        )
+        end_time = _round_time(words[-1].end_time or subtitle.end_time)
+        if end_time <= start_time:
+            continue
+
+        split_subtitles.append(
+            SubtitleSegment(
+                seq=subtitle.seq,
+                start_time=start_time,
+                end_time=end_time,
+                text=_join_word_texts(words, subtitle.language_code),
                 translated_text=translated_chunk,
                 language_code=subtitle.language_code,
                 words=words,
@@ -963,6 +1034,40 @@ def _postprocess_subtitles(
         subtitle.seq = index
 
     return split_subtitles
+
+
+def _apply_subtitle_time_offset(
+    subtitles: list[SubtitleSegment],
+    offset_seconds: float,
+) -> list[SubtitleSegment]:
+    if offset_seconds == 0:
+        return subtitles
+
+    adjusted_subtitles: list[SubtitleSegment] = []
+    previous_end_time = 0.0
+    for subtitle in subtitles:
+        start_time = max(0.0, subtitle.start_time + offset_seconds)
+        end_time = max(start_time + 0.001, subtitle.end_time + offset_seconds)
+        start_time = max(start_time, previous_end_time)
+
+        subtitle.start_time = _round_time(start_time)
+        subtitle.end_time = _round_time(max(end_time, subtitle.start_time + 0.001))
+        _apply_word_time_offset(subtitle.words, offset_seconds)
+        adjusted_subtitles.append(subtitle)
+        previous_end_time = subtitle.end_time
+
+    return adjusted_subtitles
+
+
+def _apply_word_time_offset(
+    words: list[WordTiming],
+    offset_seconds: float,
+) -> None:
+    for word in words:
+        if word.start_time is not None:
+            word.start_time = _round_time(max(0.0, word.start_time + offset_seconds))
+        if word.end_time is not None:
+            word.end_time = _round_time(max(0.0, word.end_time + offset_seconds))
 
 
 def _split_long_subtitle(
@@ -1506,19 +1611,25 @@ def _extract_runtime_options(
         "stt_max_segment_seconds": float(
             options.get(
                 "stt_max_segment_seconds",
-                os.getenv("AI_STT_MAX_SEGMENT_SECONDS", "15.0"),
+                os.getenv("AI_STT_MAX_SEGMENT_SECONDS", "7.0"),
             )
         ),
         "stt_max_segment_chars": int(
             options.get(
                 "stt_max_segment_chars",
-                os.getenv("AI_STT_MAX_SEGMENT_CHARS", "220"),
+                os.getenv("AI_STT_MAX_SEGMENT_CHARS", "90"),
             )
         ),
         "stt_min_split_seconds": float(
             options.get(
                 "stt_min_split_seconds",
                 os.getenv("AI_STT_MIN_SPLIT_SECONDS", "1.0"),
+            )
+        ),
+        "stt_time_offset_seconds": float(
+            options.get(
+                "stt_time_offset_seconds",
+                os.getenv("AI_STT_TIME_OFFSET_SECONDS", "0.0"),
             )
         ),
         "translated_subtitle_max_seconds": float(
