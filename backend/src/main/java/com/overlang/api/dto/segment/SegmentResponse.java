@@ -1,6 +1,7 @@
 package com.overlang.api.dto.segment;
 
 import com.overlang.domain.segment.entity.Segment;
+import java.util.List;
 
 public record SegmentResponse(
     Long segmentId,
@@ -10,9 +11,10 @@ public record SegmentResponse(
     Double endTime,
     String text,
     String translatedText,
-    String languageCode) {
+    String languageCode,
+    List<SegmentWordResponse> words) {
 
-  public static SegmentResponse from(Segment segment) {
+  public static SegmentResponse from(Segment segment, List<SegmentWordResponse> words) {
     return new SegmentResponse(
         segment.getId(),
         segment.getJob().getId(),
@@ -21,6 +23,7 @@ public record SegmentResponse(
         segment.getEndTime(),
         segment.getText(),
         segment.getTranslatedText(),
-        segment.getLanguageCode());
+        segment.getLanguageCode(),
+        words);
   }
 }

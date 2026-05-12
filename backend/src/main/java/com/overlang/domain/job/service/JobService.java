@@ -1,11 +1,8 @@
 package com.overlang.domain.job.service;
 
-import com.overlang.api.dto.job.JobCallbackRequest;
-import com.overlang.api.dto.job.JobCallbackResponse;
-import com.overlang.api.dto.job.JobCreateRequest;
-import com.overlang.api.dto.job.JobCreateResponse;
-import com.overlang.api.dto.job.JobDetailResponse;
-import com.overlang.api.dto.job.JobResponse;
+import com.overlang.api.dto.job.*;
+import com.overlang.api.dto.ocr.BlurRegionRequest;
+import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.domain.cache.service.ResultCacheService;
 import com.overlang.domain.cache.service.ResultCopyService;
 import com.overlang.domain.file.service.S3UploadService;
@@ -248,24 +245,33 @@ public class JobService {
   private void saveOcrItems(Job job, JobCallbackRequest request) {
     if (request.ocrItems() == null) return;
 
-    List<OcrItem> ocrItems =
-        request.ocrItems().stream()
-            .map(
-                o ->
-                    new OcrItem(
-                        job,
-                        o.startTime(),
-                        o.endTime(),
-                        o.originText(),
-                        o.translatedText(),
-                        o.boundingBox().x(),
-                        o.boundingBox().y(),
-                        o.boundingBox().w(),
-                        o.boundingBox().h(),
-                        o.confidence()))
-            .toList();
+    List<OcrItem> ocrItems = request.ocrItems().stream().map(o -> toOcrItem(job, o)).toList();
 
     ocrItemRepository.saveAll(ocrItems);
+  }
+
+  private OcrItem toOcrItem(Job job, CallbackOcrItemRequest o) {
+    OcrStyleRequest style = o.style();
+    BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
+
+    return new OcrItem(
+        job,
+        o.startTime(),
+        o.endTime(),
+        o.originText(),
+        o.translatedText(),
+        o.boundingBox().x(),
+        o.boundingBox().y(),
+        o.boundingBox().w(),
+        o.boundingBox().h(),
+        o.confidence(),
+        style != null ? style.backgroundColor() : null,
+        style != null ? style.dominantBackgroundColor() : null,
+        style != null ? style.textColor() : null,
+        blurRegion != null ? blurRegion.x() : null,
+        blurRegion != null ? blurRegion.y() : null,
+        blurRegion != null ? blurRegion.w() : null,
+        blurRegion != null ? blurRegion.h() : null);
   }
 
   private void createSegmentWords(List<Segment> segments) {
