@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-<<<<<<< HEAD
-import { getProjects, getVideoPresignedUrl } from '@/api/video';
-=======
 import { getProjects, getVideoPresignedUrl, updateProjectTitle, deleteProject } from '@/api/video';
 import { getMySavedWords, deleteSavedWord } from '@/api/words';
->>>>>>> main
 import type { ProjectResult } from '@/api/video';
 import { useAuth } from '@/app/providers/AuthProvider';
 
@@ -67,8 +63,6 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [thumbUrls, setThumbUrls] = useState<Record<number, string>>({});
-<<<<<<< HEAD
-=======
 
   // 드롭다운 메뉴
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
@@ -134,7 +128,6 @@ export function DashboardPage() {
       setDeleteLoading(false);
     }
   };
->>>>>>> main
 
   useEffect(() => {
     if (authLoading) return;       // Firebase 초기화 대기
@@ -257,17 +250,6 @@ export function DashboardPage() {
                 <div
                   key={pid ?? idx}
                   onClick={() => {
-<<<<<<< HEAD
-                    if (isYoutube) {
-                      // YouTube: URL + projectId 전달
-                      navigate('/translate', { state: { videoSrc, projectId: pid } });
-                    } else {
-                      // 파일 업로드: projectId를 넘겨서 TranslatePage에서 presigned URL 발급
-                      navigate('/translate', { state: { projectId: pid } });
-                    }
-                  }}
-                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
-=======
                     if (menuOpenId !== null) return; // 드롭다운 열려있으면 카드 클릭 무시
                     saveRecentProject(project);
                     if (isYoutube) {
@@ -277,7 +259,6 @@ export function DashboardPage() {
                     }
                   }}
                   className="bg-white rounded-2xl border border-gray-200 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
->>>>>>> main
                 >
                   {/* 썸네일 */}
                   <div className="aspect-video relative overflow-hidden rounded-t-2xl">

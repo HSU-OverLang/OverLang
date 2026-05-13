@@ -124,8 +124,6 @@ export interface JobSummary {
   createdAt: string;
 }
 
-<<<<<<< HEAD
-=======
 export interface SegmentWord {
   segmentWordId: number;
   seq: number;
@@ -134,7 +132,6 @@ export interface SegmentWord {
   endTime: number;
 }
 
->>>>>>> main
 export interface SegmentResult {
   segmentId: number;
   jobId: number;
@@ -144,10 +141,7 @@ export interface SegmentResult {
   text: string;
   translatedText: string | null;
   languageCode: string;
-<<<<<<< HEAD
-=======
   words: SegmentWord[];
->>>>>>> main
 }
 
 export interface OcrItemResult {
@@ -194,8 +188,6 @@ export async function getOcrItems(jobId: number): Promise<OcrItemResult[]> {
   if (anyData?.content) return anyData.content;
   return [];
 }
-<<<<<<< HEAD
-=======
 
 /** 프로젝트 제목 수정 */
 export async function updateProjectTitle(projectId: number, title: string): Promise<ProjectResult> {
@@ -208,4 +200,3 @@ export async function deleteProject(projectId: number): Promise<void> {
   const res = await apiDelete(`/v1/projects/${projectId}`);
   await unwrap<unknown>(res);
 }
->>>>>>> main
