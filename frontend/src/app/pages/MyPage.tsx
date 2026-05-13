@@ -14,6 +14,14 @@ function formatDate(isoString?: string | null) {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
+function formatStudyTime(minutes: number): string {
+  if (minutes <= 0) return '0분';
+  if (minutes < 60) return `${minutes}분`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
+}
+
 type SubPage = 'main' | 'settings';
 
 type RecentProject = ProjectResult & { clickedAt: string };

@@ -618,7 +618,7 @@ export function TranslatePage() {
   };
 
   // 자막 수정
-  const handleSubtitleChange = (id: number, field: 'original' | 'translation', value: string) => {
+  const handleSubtitleChange = (id: number, field: 'original' | 'translation' | 'paraphrase', value: string) => {
     setSubtitles(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
