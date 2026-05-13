@@ -19,7 +19,10 @@ from ai.api.schemas import (
     WorkerJobPayload,
 )
 from ai.learning import generate_learning_data
-from ai.ocr.frame_change import annotate_frame_changes
+from ai.ocr.frame_change import (
+    annotate_frame_changes,
+    calculate_bounding_box_change_score,
+)
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
 from ai.ocr.postprocess import build_ocr_items
 from ai.pipeline.audio_service import extract_audio_to_wav
@@ -398,12 +401,16 @@ def _run_stt_stage(
     finally:
         stt_service.unload_model()
 
-    return _postprocess_subtitles(
+    subtitles = _postprocess_subtitles(
         _build_subtitles(raw_segments, job.source_language),
         min_duration_seconds=float(runtime_options["stt_min_segment_seconds"]),
         max_duration_seconds=float(runtime_options["stt_max_segment_seconds"]),
         max_text_length=int(runtime_options["stt_max_segment_chars"]),
         min_split_duration_seconds=float(runtime_options["stt_min_split_seconds"]),
+    )
+    return _apply_subtitle_time_offset(
+        subtitles,
+        offset_seconds=float(runtime_options["stt_time_offset_seconds"]),
     )
 
 
@@ -418,16 +425,26 @@ def _run_ocr_stage(
 
     raw_items = []
     latest_detected_items: list[dict[str, Any]] = []
+    previous_ocr_frame_path: Path | None = None
     consecutive_skipped_frames = 0
     for frame in frames:
-        should_skip_frame = (
-            runtime_options["ocr_skip_unchanged_frames"]
-            and not bool(frame.get("hasVisualChange", True))
-            and consecutive_skipped_frames
-            < int(runtime_options["ocr_max_skip_frames"])
+        bbox_change_score = _calculate_latest_ocr_bbox_change_score(
+            previous_ocr_frame_path,
+            Path(str(frame["path"])),
+            latest_detected_items,
+            padding_ratio=float(runtime_options["ocr_bbox_change_padding"]),
+        )
+        should_run_ocr = _should_run_ocr_for_frame(
+            frame,
+            latest_detected_items,
+            consecutive_skipped_frames,
+            bbox_change_score,
+            skip_unchanged_frames=bool(runtime_options["ocr_skip_unchanged_frames"]),
+            max_skip_frames=int(runtime_options["ocr_max_skip_frames"]),
+            bbox_change_threshold=float(runtime_options["ocr_bbox_change_threshold"]),
         )
 
-        if should_skip_frame:
+        if not should_run_ocr:
             raw_items.extend(
                 _carry_forward_ocr_items(
                     latest_detected_items,
@@ -444,11 +461,13 @@ def _run_ocr_stage(
         )
         raw_items.extend(detected_items)
         latest_detected_items = detected_items
+        previous_ocr_frame_path = Path(str(frame["path"]))
         consecutive_skipped_frames = 0
 
     return build_ocr_items(
         raw_items,
         frame_interval_seconds=frame_interval,
+        frame_timestamps=[float(frame["timestamp"]) for frame in frames],
         min_confidence=float(runtime_options["ocr_min_confidence"]),
         min_text_length=int(runtime_options["ocr_min_text_length"]),
         max_special_char_ratio=float(runtime_options["ocr_max_special_char_ratio"]),
@@ -464,11 +483,61 @@ def _carry_forward_ocr_items(
     for item in latest_items:
         carried_item = dict(item)
         carried_item["frameIndex"] = int(frame["frameIndex"])
+        carried_item["framePath"] = str(frame["path"])
         carried_item["timestamp"] = round(float(frame["timestamp"]), 3)
         carried_item["carriedForward"] = True
         carried_items.append(carried_item)
 
     return carried_items
+
+
+def _calculate_latest_ocr_bbox_change_score(
+    previous_frame_path: Path | None,
+    current_frame_path: Path,
+    latest_items: list[dict[str, Any]],
+    padding_ratio: float,
+) -> float:
+    if previous_frame_path is None or not latest_items:
+        return 0.0
+
+    bounding_boxes = [
+        item["boundingBox"]
+        for item in latest_items
+        if item.get("boundingBox") is not None
+    ]
+    if not bounding_boxes:
+        return 0.0
+
+    return calculate_bounding_box_change_score(
+        previous_frame_path,
+        current_frame_path,
+        bounding_boxes,
+        padding_ratio=padding_ratio,
+    )
+
+
+def _should_run_ocr_for_frame(
+    frame: dict[str, object],
+    latest_items: list[dict[str, Any]],
+    consecutive_skipped_frames: int,
+    bbox_change_score: float,
+    skip_unchanged_frames: bool,
+    max_skip_frames: int,
+    bbox_change_threshold: float,
+) -> bool:
+    if not skip_unchanged_frames:
+        return True
+
+    if not latest_items:
+        return True
+
+    if bool(frame.get("hasVisualChange", True)):
+        return True
+
+    if bbox_change_score >= bbox_change_threshold:
+        return True
+
+    return consecutive_skipped_frames >= max_skip_frames
 
 
 def _should_run_translation(
@@ -523,7 +592,7 @@ def _run_translation_stage(
         subtitle.translated_text = translated_text
 
     for ocr_item, translated_text in zip(ocr_items, ocr_translations):
-        ocr_item.translated_text = translated_text
+        ocr_item.translated_text = _normalize_ocr_translation_text(translated_text)
 
     if _enum_value(job.translation_provider) == TranslationProvider.DEFAULT.value:
         return [
@@ -532,6 +601,10 @@ def _run_translation_stage(
         ]
 
     return []
+
+
+def _normalize_ocr_translation_text(translated_text: str) -> str:
+    return " ".join(str(translated_text).split())
 
 
 def _split_translated_subtitles_for_rendering(
@@ -670,6 +743,17 @@ def _build_translated_render_chunks(
     translated_chunks: list[str],
     min_split_duration_seconds: float,
 ) -> list[SubtitleSegment]:
+    word_chunks = _split_words_for_render_chunk_count(
+        subtitle.words,
+        chunk_count=len(translated_chunks),
+    )
+    if word_chunks:
+        return _build_translated_render_chunks_from_words(
+            subtitle,
+            translated_chunks,
+            word_chunks,
+        )
+
     split_subtitles = []
     previous_end_time = subtitle.start_time
 
@@ -706,6 +790,62 @@ def _build_translated_render_chunks(
                 start_time=start_time,
                 end_time=end_time,
                 text=source_text,
+                translated_text=translated_chunk,
+                language_code=subtitle.language_code,
+                words=words,
+            )
+        )
+        previous_end_time = end_time
+
+    return split_subtitles or [subtitle]
+
+
+def _split_words_for_render_chunk_count(
+    words: list[WordTiming],
+    chunk_count: int,
+) -> list[list[WordTiming]]:
+    timed_words = [
+        word
+        for word in words
+        if word.start_time is not None and word.end_time is not None
+    ]
+    if chunk_count <= 1 or len(timed_words) < chunk_count:
+        return []
+
+    word_chunks = []
+    for index in range(chunk_count):
+        start_index = round((len(timed_words) * index) / chunk_count)
+        end_index = round((len(timed_words) * (index + 1)) / chunk_count)
+        chunk = timed_words[start_index:end_index]
+        if not chunk:
+            return []
+
+        word_chunks.append(chunk)
+
+    return word_chunks
+
+
+def _build_translated_render_chunks_from_words(
+    subtitle: SubtitleSegment,
+    translated_chunks: list[str],
+    word_chunks: list[list[WordTiming]],
+) -> list[SubtitleSegment]:
+    split_subtitles = []
+    previous_end_time = subtitle.start_time
+    for translated_chunk, words in zip(translated_chunks, word_chunks):
+        start_time = _round_time(
+            max(words[0].start_time or subtitle.start_time, previous_end_time)
+        )
+        end_time = _round_time(words[-1].end_time or subtitle.end_time)
+        if end_time <= start_time:
+            continue
+
+        split_subtitles.append(
+            SubtitleSegment(
+                seq=subtitle.seq,
+                start_time=start_time,
+                end_time=end_time,
+                text=_join_word_texts(words, subtitle.language_code),
                 translated_text=translated_chunk,
                 language_code=subtitle.language_code,
                 words=words,
@@ -963,6 +1103,40 @@ def _postprocess_subtitles(
         subtitle.seq = index
 
     return split_subtitles
+
+
+def _apply_subtitle_time_offset(
+    subtitles: list[SubtitleSegment],
+    offset_seconds: float,
+) -> list[SubtitleSegment]:
+    if offset_seconds == 0:
+        return subtitles
+
+    adjusted_subtitles: list[SubtitleSegment] = []
+    previous_end_time = 0.0
+    for subtitle in subtitles:
+        start_time = max(0.0, subtitle.start_time + offset_seconds)
+        end_time = max(start_time + 0.001, subtitle.end_time + offset_seconds)
+        start_time = max(start_time, previous_end_time)
+
+        subtitle.start_time = _round_time(start_time)
+        subtitle.end_time = _round_time(max(end_time, subtitle.start_time + 0.001))
+        _apply_word_time_offset(subtitle.words, offset_seconds)
+        adjusted_subtitles.append(subtitle)
+        previous_end_time = subtitle.end_time
+
+    return adjusted_subtitles
+
+
+def _apply_word_time_offset(
+    words: list[WordTiming],
+    offset_seconds: float,
+) -> None:
+    for word in words:
+        if word.start_time is not None:
+            word.start_time = _round_time(max(0.0, word.start_time + offset_seconds))
+        if word.end_time is not None:
+            word.end_time = _round_time(max(0.0, word.end_time + offset_seconds))
 
 
 def _split_long_subtitle(
@@ -1506,19 +1680,25 @@ def _extract_runtime_options(
         "stt_max_segment_seconds": float(
             options.get(
                 "stt_max_segment_seconds",
-                os.getenv("AI_STT_MAX_SEGMENT_SECONDS", "15.0"),
+                os.getenv("AI_STT_MAX_SEGMENT_SECONDS", "7.0"),
             )
         ),
         "stt_max_segment_chars": int(
             options.get(
                 "stt_max_segment_chars",
-                os.getenv("AI_STT_MAX_SEGMENT_CHARS", "220"),
+                os.getenv("AI_STT_MAX_SEGMENT_CHARS", "90"),
             )
         ),
         "stt_min_split_seconds": float(
             options.get(
                 "stt_min_split_seconds",
                 os.getenv("AI_STT_MIN_SPLIT_SECONDS", "1.0"),
+            )
+        ),
+        "stt_time_offset_seconds": float(
+            options.get(
+                "stt_time_offset_seconds",
+                os.getenv("AI_STT_TIME_OFFSET_SECONDS", "0.0"),
             )
         ),
         "translated_subtitle_max_seconds": float(
@@ -1540,22 +1720,62 @@ def _extract_runtime_options(
             )
         ),
         "frame_interval": float(
-            options.get("frame_interval", os.getenv("AI_DEFAULT_FRAME_INTERVAL", "1.0"))
+            options.get("frame_interval", os.getenv("AI_DEFAULT_FRAME_INTERVAL", "0.5"))
         ),
         "ocr_gpu": _to_bool(
             options.get("ocr_gpu", os.getenv("AI_DEFAULT_OCR_GPU", "true"))
         ),
-        "ocr_change_threshold": float(options.get("ocr_change_threshold", 0.015)),
-        "ocr_skip_unchanged_frames": bool(
-            options.get("ocr_skip_unchanged_frames", True)
+        "ocr_change_threshold": float(
+            options.get(
+                "ocr_change_threshold",
+                os.getenv("AI_OCR_CHANGE_THRESHOLD", "0.015"),
+            )
         ),
-        "ocr_max_skip_frames": int(options.get("ocr_max_skip_frames", 1)),
-        "ocr_min_confidence": float(options.get("ocr_min_confidence", 0.3)),
-        "ocr_min_text_length": int(options.get("ocr_min_text_length", 2)),
+        "ocr_skip_unchanged_frames": _to_bool(
+            options.get(
+                "ocr_skip_unchanged_frames",
+                os.getenv("AI_OCR_SKIP_UNCHANGED_FRAMES", "true"),
+            )
+        ),
+        "ocr_max_skip_frames": int(
+            options.get(
+                "ocr_max_skip_frames",
+                os.getenv("AI_OCR_MAX_SKIP_FRAMES", "1"),
+            )
+        ),
+        "ocr_min_confidence": float(
+            options.get(
+                "ocr_min_confidence",
+                os.getenv("AI_OCR_MIN_CONFIDENCE", "0.3"),
+            )
+        ),
+        "ocr_min_text_length": int(
+            options.get(
+                "ocr_min_text_length",
+                os.getenv("AI_OCR_MIN_TEXT_LENGTH", "2"),
+            )
+        ),
         "ocr_max_special_char_ratio": float(
-            options.get("ocr_max_special_char_ratio", 0.6)
+            options.get(
+                "ocr_max_special_char_ratio",
+                os.getenv("AI_OCR_MAX_SPECIAL_CHAR_RATIO", "0.6"),
+            )
         ),
-        "ocr_edge_margin": float(options.get("ocr_edge_margin", 0.0)),
+        "ocr_edge_margin": float(
+            options.get("ocr_edge_margin", os.getenv("AI_OCR_EDGE_MARGIN", "0.0"))
+        ),
+        "ocr_bbox_change_threshold": float(
+            options.get(
+                "ocr_bbox_change_threshold",
+                os.getenv("AI_OCR_BBOX_CHANGE_THRESHOLD", "0.01"),
+            )
+        ),
+        "ocr_bbox_change_padding": float(
+            options.get(
+                "ocr_bbox_change_padding",
+                os.getenv("AI_OCR_BBOX_CHANGE_PADDING", "0.02"),
+            )
+        ),
     }
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -119,7 +120,7 @@ def main() -> None:
     parser.add_argument(
         "--frame-interval",
         type=float,
-        default=1.0,
+        default=float(os.getenv("AI_DEFAULT_FRAME_INTERVAL", "0.5")),
         help="Frame extraction interval for OCR jobs",
     )
     parser.add_argument(
@@ -130,7 +131,7 @@ def main() -> None:
     parser.add_argument(
         "--ocr-change-threshold",
         type=float,
-        default=0.015,
+        default=float(os.getenv("AI_OCR_CHANGE_THRESHOLD", "0.015")),
         help="Minimum frame difference score required to run OCR",
     )
     parser.add_argument(
@@ -141,31 +142,31 @@ def main() -> None:
     parser.add_argument(
         "--ocr-max-skip-frames",
         type=int,
-        default=1,
+        default=int(os.getenv("AI_OCR_MAX_SKIP_FRAMES", "1")),
         help="Maximum consecutive unchanged frames to skip before forcing OCR",
     )
     parser.add_argument(
         "--ocr-min-confidence",
         type=float,
-        default=0.3,
+        default=float(os.getenv("AI_OCR_MIN_CONFIDENCE", "0.3")),
         help="Minimum OCR confidence to keep a detected text item",
     )
     parser.add_argument(
         "--ocr-min-text-length",
         type=int,
-        default=2,
+        default=int(os.getenv("AI_OCR_MIN_TEXT_LENGTH", "2")),
         help="Minimum non-space text length to keep a detected text item",
     )
     parser.add_argument(
         "--ocr-max-special-char-ratio",
         type=float,
-        default=0.6,
+        default=float(os.getenv("AI_OCR_MAX_SPECIAL_CHAR_RATIO", "0.6")),
         help="Maximum special character ratio allowed for OCR text",
     )
     parser.add_argument(
         "--ocr-edge-margin",
         type=float,
-        default=0.0,
+        default=float(os.getenv("AI_OCR_EDGE_MARGIN", "0.0")),
         help="Edge margin for filtering tiny OCR noise near image borders",
     )
 

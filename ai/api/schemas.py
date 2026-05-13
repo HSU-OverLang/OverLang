@@ -168,6 +168,13 @@ class BoundingBox(CamelModel):
     h: float
 
 
+class OcrStyle(CamelModel):
+    background_color: str | None = None
+    dominant_background_color: str | None = None
+    text_color: str | None = None
+    blur_region: BoundingBox | None = None
+
+
 class OcrItem(CamelModel):
     start_time: float
     end_time: float
@@ -175,6 +182,7 @@ class OcrItem(CamelModel):
     translated_text: str | None = None
     bounding_box: BoundingBox
     confidence: float | None = None
+    style: OcrStyle | None = None
 
 
 class LearningContent(CamelModel):

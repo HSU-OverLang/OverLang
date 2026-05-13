@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+from ai.api.schemas import BoundingBox, OcrStyle
+
+BLUR_PADDING_RATIO = 0.01
+BACKGROUND_SAMPLE_PADDING_RATIO = 0.015
+
+
+def build_ocr_style(
+    frame_path: str | None,
+    bounding_box: BoundingBox,
+) -> OcrStyle | None:
+    if not frame_path:
+        return None
+
+    source_path = Path(frame_path)
+    if not source_path.exists():
+        return None
+
+    with Image.open(source_path) as image:
+        rgb_image = image.convert("RGB")
+        image_width, image_height = rgb_image.size
+        background_region = _expand_box(
+            bounding_box,
+            padding_ratio=BACKGROUND_SAMPLE_PADDING_RATIO,
+        )
+        crop_box = _to_pixel_box(background_region, image_width, image_height)
+        if crop_box is None:
+            return None
+
+        pixels = np.asarray(rgb_image.crop(crop_box), dtype=np.uint8)
+
+    if pixels.size == 0:
+        return None
+
+    background_color = _mean_color(pixels)
+    dominant_background_color = _dominant_color(pixels)
+    text_color = _readable_text_color(background_color)
+
+    return OcrStyle(
+        background_color=background_color,
+        dominant_background_color=dominant_background_color,
+        text_color=text_color,
+        blur_region=_expand_box(
+            bounding_box,
+            padding_ratio=BLUR_PADDING_RATIO,
+        ),
+    )
+
+
+def _expand_box(
+    bounding_box: BoundingBox,
+    padding_ratio: float,
+) -> BoundingBox:
+    x = max(0.0, bounding_box.x - padding_ratio)
+    y = max(0.0, bounding_box.y - padding_ratio)
+    right = min(1.0, bounding_box.x + bounding_box.w + padding_ratio)
+    bottom = min(1.0, bounding_box.y + bounding_box.h + padding_ratio)
+
+    return BoundingBox(
+        x=round(x, 6),
+        y=round(y, 6),
+        w=round(max(0.0, right - x), 6),
+        h=round(max(0.0, bottom - y), 6),
+    )
+
+
+def _to_pixel_box(
+    bounding_box: BoundingBox,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, int, int, int] | None:
+    left = int(bounding_box.x * image_width)
+    top = int(bounding_box.y * image_height)
+    right = int((bounding_box.x + bounding_box.w) * image_width)
+    bottom = int((bounding_box.y + bounding_box.h) * image_height)
+
+    left = max(0, min(left, image_width - 1))
+    top = max(0, min(top, image_height - 1))
+    right = max(left + 1, min(right, image_width))
+    bottom = max(top + 1, min(bottom, image_height))
+
+    if right <= left or bottom <= top:
+        return None
+
+    return left, top, right, bottom
+
+
+def _mean_color(pixels: np.ndarray) -> str:
+    rgb = pixels.reshape(-1, 3).mean(axis=0)
+    return _rgb_to_hex(rgb)
+
+
+def _dominant_color(pixels: np.ndarray) -> str:
+    flattened_pixels = pixels.reshape(-1, 3)
+    quantized_pixels = (flattened_pixels // 32) * 32
+    colors, counts = np.unique(quantized_pixels, axis=0, return_counts=True)
+    dominant_color = colors[int(counts.argmax())] + 16
+    return _rgb_to_hex(dominant_color)
+
+
+def _readable_text_color(background_color: str) -> str:
+    red = int(background_color[1:3], 16)
+    green = int(background_color[3:5], 16)
+    blue = int(background_color[5:7], 16)
+    luminance = (0.299 * red) + (0.587 * green) + (0.114 * blue)
+    return "#000000" if luminance >= 160 else "#FFFFFF"
+
+
+def _rgb_to_hex(rgb: np.ndarray) -> str:
+    red, green, blue = [max(0, min(255, int(round(value)))) for value in rgb]
+    return f"#{red:02X}{green:02X}{blue:02X}"
