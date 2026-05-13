@@ -40,6 +40,7 @@ type AuthContextValue = AuthState & {
   clearError: () => void;
   changePassword: (currentPw: string, newPw: string) => Promise<void>;
   deleteAccount: (currentPw: string) => Promise<void>;
+  updateUserProfile: (name: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,14 +50,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // React state 타이밍과 무관하게 Firebase SDK의 currentUser를 직접 참조
+  useEffect(() => {
+    setAuthTokenGetter(async (forceRefresh = false) => {
+      return auth.currentUser ? auth.currentUser.getIdToken(forceRefresh) : null;
+    });
+  }, []);
+
   const getIdToken = useCallback(
     async (forceRefresh = false) => (user ? user.getIdToken(forceRefresh) : null),
     [user]
   );
-
-  useEffect(() => {
-    setAuthTokenGetter(getIdToken);
-  }, [getIdToken]);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
@@ -147,6 +151,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user]
   );
   
+  const updateUserProfile = useCallback(
+    async (name: string) => {
+      if (!user) throw new Error('로그인이 필요합니다.');
+      await updateProfile(user, { displayName: name });
+      await user.reload();
+      setUser(auth.currentUser);
+    },
+    [user]
+  );
+
   const deleteAccount = useCallback(
     async (currentPw: string) => {
       setError(null);
@@ -178,8 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       getIdToken,
       clearError,
-      changePassword,   
-      deleteAccount,    
+      changePassword,
+      deleteAccount,
+      updateUserProfile,
     }),
     [
       user,
@@ -193,6 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearError,
       changePassword,
       deleteAccount,
+      updateUserProfile,
     ]
   );
 

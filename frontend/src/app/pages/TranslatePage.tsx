@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getVideoPresignedUrl, getProjectJobs, getSegments, getOcrItems } from '@/api/video';
-import type { SegmentResult, OcrItemResult } from '@/api/video';
+import type { SegmentResult, OcrItemResult, SegmentWord } from '@/api/video';
+import { explainWord, saveWord, getMySavedWords } from '@/api/words';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 // ── 유튜브 URL 파싱 ────────────────────────────────────
 function extractYoutubeId(url: string): string | null {
@@ -20,12 +22,57 @@ function extractYoutubeId(url: string): string | null {
   return null;
 }
 
+// ── 언어 코드 → BCP47 매핑 ────────────────────────────
+const LANG_TO_BCP47: Record<string, string> = {
+  EN: 'en-US',
+  KO: 'ko-KR',
+  ZH: 'zh-CN',
+  JA: 'ja-JP',
+  ES: 'es-ES',
+  FR: 'fr-FR',
+};
+
 // ── 유틸 ───────────────────────────────────────────────
 function secToTimecode(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
   return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+}
+
+// ── 자동 높이 조절 Textarea ────────────────────────────
+interface AutoTextareaProps {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onMouseUp?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+function AutoTextarea({ value, onChange, onMouseUp, onClick, placeholder, className }: AutoTextareaProps) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      onMouseUp={onMouseUp}
+      onClick={onClick}
+      placeholder={placeholder}
+      rows={1}
+      style={{ overflow: 'hidden', resize: 'none' }}
+      className={className}
+    />
+  );
 }
 
 // [en->ko] 같은 접두사 제거 + 원문과 동일하거나 의미없는 번역 필터링
@@ -52,6 +99,8 @@ interface SubtitleItem {
   endSec: number;
   original: string;
   translation: string;
+  paraphrase: string;
+  words: SegmentWord[];
 }
 
 interface OcrOverlay {
@@ -70,11 +119,11 @@ interface OcrOverlay {
 const DEMO_VIDEO = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
 const MOCK_SUBTITLES: SubtitleItem[] = [
-  { id: 1, start: '00:00:00', end: '00:00:03', startSec: 0,  endSec: 3,  original: 'Hello, everyone! Welcome to our English learning session.', translation: '안녕하세요, 여러분! 영어 학습 세션에 오신 것을 환영합니다.' },
-  { id: 2, start: '00:00:03', end: '00:00:07', startSec: 3,  endSec: 7,  original: "Today, we're going to dive into some essential business idioms.", translation: '오늘은 필수적인 비즈니스 관용구들을 본격적으로 배워보겠습니다.' },
-  { id: 3, start: '00:00:07', end: '00:00:12', startSec: 7,  endSec: 12, original: 'These phrases will help you sound more natural in professional settings.', translation: '이 표현들은 전문적인 환경에서 더 자연스럽게 들리는 데 도움이 될 것입니다.' },
-  { id: 4, start: '00:00:12', end: '00:00:16', startSec: 12, endSec: 16, original: 'Remember, practice makes perfect!', translation: '기억하세요, 연습이 완벽함을 만듭니다!' },
-  { id: 5, start: '00:00:16', end: '00:00:20', startSec: 16, endSec: 20, original: "Let's get the ball rolling with our first idiom.", translation: '첫 번째 관용구로 시작해 봅시다.' },
+  { id: 1, start: '00:00:00', end: '00:00:03', startSec: 0,  endSec: 3,  original: 'Hello, everyone! Welcome to our English learning session.', translation: '안녕하세요, 여러분! 영어 학습 세션에 오신 것을 환영합니다.', paraphrase: '여러분, 반갑습니다! 오늘 영어를 같이 배워볼게요.', words: [] },
+  { id: 2, start: '00:00:03', end: '00:00:07', startSec: 3,  endSec: 7,  original: "Today, we're going to dive into some essential business idioms.", translation: '오늘은 필수적인 비즈니스 관용구들을 본격적으로 배워보겠습니다.', paraphrase: '오늘은 업무 현장에서 꼭 필요한 영어 표현들을 알아볼 거예요.', words: [] },
+  { id: 3, start: '00:00:07', end: '00:00:12', startSec: 7,  endSec: 12, original: 'These phrases will help you sound more natural in professional settings.', translation: '이 표현들은 전문적인 환경에서 더 자연스럽게 들리는 데 도움이 될 것입니다.', paraphrase: '이 표현들을 익히면 직장에서 훨씬 자연스럽게 영어를 쓸 수 있어요.', words: [] },
+  { id: 4, start: '00:00:12', end: '00:00:16', startSec: 12, endSec: 16, original: 'Remember, practice makes perfect!', translation: '기억하세요, 연습이 완벽함을 만듭니다!', paraphrase: '꾸준히 연습하면 반드시 잘 할 수 있어요!', words: [] },
+  { id: 5, start: '00:00:16', end: '00:00:20', startSec: 16, endSec: 20, original: "Let's get the ball rolling with our first idiom.", translation: '첫 번째 관용구로 시작해 봅시다.', paraphrase: '그럼 첫 번째 표현부터 바로 시작해 볼까요?', words: [] },
 ];
 
 const MOCK_OCR: OcrOverlay[] = [
@@ -85,6 +134,7 @@ const MOCK_OCR: OcrOverlay[] = [
 type RightPanel = 'word' | 'sentence' | null;
 
 const SAVED_WORDS_KEY = 'overlang_saved_words';
+const STUDY_TIME_KEY = 'overlang_study_minutes';
 
 interface SavedWord {
   id: string;
@@ -93,12 +143,20 @@ interface SavedWord {
   translatedSentence: string;
   timestamp: string;
   date: string;
+  lang: string;
+  // API 연동 필드
+  segmentId?: number;
+  textType?: 'ORIGINAL' | 'TRANSLATED';
+  meaning?: string;
+  relatedWords?: string[];
+  savedWordId?: number; // API 저장 후 받는 ID
 }
 
 // ── 컴포넌트 ───────────────────────────────────────────
 export function TranslatePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
   const { videoSrc, projectId, targetLanguage } =
     (location.state as { videoSrc?: string; projectId?: number; targetLanguage?: string }) ?? {};
 
@@ -140,12 +198,17 @@ export function TranslatePage() {
         events: {
           onReady: () => {
             ytPlayerRef.current = player;
-            // 500ms마다 현재 시간 업데이트
+            // 250ms마다 현재 시간 업데이트 + 구간 반복 처리
             ytTimerRef.current = setInterval(() => {
               if (player && typeof player.getCurrentTime === 'function') {
-                setCurrentTime(player.getCurrentTime());
+                const t = player.getCurrentTime();
+                setCurrentTime(t);
+                const range = repeatRangeRef.current;
+                if (range && t >= range.endSec) {
+                  player.seekTo(range.startSec, true);
+                }
               }
-            }, 500);
+            }, 250);
           },
         },
       });
@@ -174,18 +237,71 @@ export function TranslatePage() {
       .finally(() => setVideoLoading(false));
   }, [projectId]);
 
+  // 학습 시간 추적 (진입~이탈 경과 시간 누적)
+  useEffect(() => {
+    const startTime = Date.now();
+    return () => {
+      const elapsed = Math.floor((Date.now() - startTime) / 60000);
+      if (elapsed > 0) {
+        try {
+          const prev = parseInt(localStorage.getItem(STUDY_TIME_KEY) ?? '0', 10);
+          localStorage.setItem(STUDY_TIME_KEY, String(prev + elapsed));
+        } catch { /* ignore */ }
+      }
+    };
+  }, []);
+
+  // API에서 저장된 단어 수 로드 (auth 준비 후)
+  useEffect(() => {
+    if (authLoading || !user) return;
+    getMySavedWords()
+      .then(words => {
+        setSavedWordsCount(words.length);
+        savedWordSetRef.current = new Set(words.map(w => w.word));
+      })
+      .catch(() => {
+        // API 실패 시 localStorage 폴백
+        try {
+          const local = JSON.parse(localStorage.getItem(SAVED_WORDS_KEY) ?? '[]');
+          setSavedWordsCount(local.length);
+          savedWordSetRef.current = new Set(local.map((w: SavedWord) => w.word));
+        } catch { /* ignore */ }
+      });
+  }, [authLoading, user]);
+
+  // 구간 반복
+  const [repeatRange, setRepeatRange] = useState<{ startSec: number; endSec: number } | null>(null);
+  const repeatRangeRef = useRef<{ startSec: number; endSec: number } | null>(null);
+  useEffect(() => { repeatRangeRef.current = repeatRange; }, [repeatRange]);
+
+  // 저장 토스트
+  const [saveToast, setSaveToast] = useState(false);
+
   const [showOcr, setShowOcr] = useState(true);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
-  const [savedWords, setSavedWords] = useState<SavedWord[]>(() => {
-    try { return JSON.parse(localStorage.getItem(SAVED_WORDS_KEY) ?? '[]'); } catch { return []; }
-  });
+  const [wordLoading, setWordLoading] = useState(false);
+  const [wordError, setWordError] = useState<string | null>(null);
+  const [savedWordsCount, setSavedWordsCount] = useState<number>(0);
+  // 저장 중복 방지용: 저장된 단어 ID 셋
+  const savedWordSetRef = useRef<Set<string>>(new Set());
+  // 레이스 컨디션 방지: 가장 최신 요청 ID만 결과를 반영
+  const explainRequestIdRef = useRef(0);
   const [sentenceData, setSentenceData] = useState<{ sentence: string; parts: { text: string; meaning: string; color: string }[]; grammar: string } | null>(null);
-  const [subtitles, setSubtitles] = useState<SubtitleItem[]>(MOCK_SUBTITLES);
+  const [subtitles, setSubtitles] = useState<SubtitleItem[]>(() => {
+    // demo 모드: projectId 없을 때 localStorage 확인
+    try {
+      const saved = JSON.parse(localStorage.getItem('overlang_subtitles_demo') ?? 'null');
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+    } catch { /* ignore */ }
+    return MOCK_SUBTITLES;
+  });
   const [ocrData, setOcrData] = useState<OcrOverlay[]>(MOCK_OCR);
   const [dataLoading, setDataLoading] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [sourceLang, setSourceLang] = useState<string>('en-US');
+  const [targetLang, setTargetLang] = useState<string>('ko-KR');
 
   // 실제 자막/OCR 데이터 로드
   useEffect(() => {
@@ -202,6 +318,12 @@ export function TranslatePage() {
 
         console.log('[OverLang] 사용할 Job:', targetJob ?? '없음');
         if (!targetJob) return;
+
+        // sourceLanguage / targetLanguage → BCP47 매핑 저장
+        const bcp47 = LANG_TO_BCP47[targetJob.sourceLanguage?.toUpperCase()] ?? 'en-US';
+        setSourceLang(bcp47);
+        const tBcp47 = LANG_TO_BCP47[targetJob.targetLanguage?.toUpperCase()] ?? 'ko-KR';
+        setTargetLang(tBcp47);
 
         const { jobId } = targetJob;
 
@@ -221,7 +343,7 @@ export function TranslatePage() {
           const segments = segResult.value;
           console.log('[OverLang] STT 세그먼트:', segments);
           if (segments.length > 0) {
-            setSubtitles(segments.map((seg: SegmentResult) => ({
+            const apiSubtitles: SubtitleItem[] = segments.map((seg: SegmentResult) => ({
               id: seg.segmentId,
               start: secToTimecode(seg.startTime),
               end: secToTimecode(seg.endTime),
@@ -229,7 +351,21 @@ export function TranslatePage() {
               endSec: seg.endTime,
               original: seg.text,
               translation: cleanTranslation(seg.translatedText, seg.text),
-            })));
+              words: seg.words ?? [],
+              paraphrase: '',
+            }));
+            // localStorage에 저장된 수정 내역이 있으면 우선 사용
+            const storageKey = `overlang_subtitles_${projectId}`;
+            try {
+              const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+              if (Array.isArray(saved) && saved.length > 0) {
+                setSubtitles(saved);
+              } else {
+                setSubtitles(apiSubtitles);
+              }
+            } catch {
+              setSubtitles(apiSubtitles);
+            }
           } else {
             console.warn('[OverLang] STT 세그먼트가 비어있음');
           }
@@ -283,11 +419,27 @@ export function TranslatePage() {
     }
   }, [activeSubtitle?.id]);
 
-  // 비디오 시간 업데이트 핸들러
+  // 비디오 시간 업데이트 핸들러 (구간 반복 포함)
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      const t = videoRef.current.currentTime;
+      setCurrentTime(t);
+      const range = repeatRangeRef.current;
+      if (range && t >= range.endSec) {
+        videoRef.current.currentTime = range.startSec;
+        videoRef.current.play();
+      }
     }
+  };
+
+  // 저장 핸들러
+  const handleSaveSubtitles = () => {
+    try {
+      const key = projectId ? `overlang_subtitles_${projectId}` : 'overlang_subtitles_demo';
+      localStorage.setItem(key, JSON.stringify(subtitles));
+    } catch { /* ignore */ }
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2000);
   };
 
   // 자막 클릭 시 해당 시간으로 이동
@@ -298,38 +450,115 @@ export function TranslatePage() {
     }
   };
 
-  // 단어 드래그 선택
-  const handleTextSelect = (subtitle: SubtitleItem) => {
+  // 드래그한 단어와 세그먼트 words 배열을 매칭해 segmentWordId 반환
+  const findSegmentWordId = (subtitle: SubtitleItem, selectedText: string): number | null => {
+    if (!subtitle.words || subtitle.words.length === 0) return null;
+    const normalized = selectedText.toLowerCase().trim();
+    // 완전 일치 우선
+    const exact = subtitle.words.find(w => w.word.toLowerCase() === normalized);
+    if (exact) return exact.segmentWordId;
+    // 포함 관계로 폴백 (드래그 범위가 단어 경계와 다를 수 있음)
+    const contains = subtitle.words.find(
+      w => w.word.toLowerCase().includes(normalized) || normalized.includes(w.word.toLowerCase())
+    );
+    return contains ? contains.segmentWordId : null;
+  };
+
+  // 단어 드래그 선택 (lang: 드래그한 텍스트의 언어, textType: 원문/번역 구분, fieldText: 실제 드래그한 필드의 전체 텍스트)
+  const handleTextSelect = async (
+    subtitle: SubtitleItem,
+    lang: string,
+    textType: 'ORIGINAL' | 'TRANSLATED' = 'ORIGINAL',
+    fieldText?: string,
+  ) => {
     const selection = window.getSelection();
     const word = selection?.toString().trim();
     if (!word || word.length < 2) return;
+
+    // translatedSentence: 실제 드래그한 필드 텍스트 우선, 없으면 translation 폴백
+    const translatedSentence = fieldText ?? subtitle.translation ?? '';
+
+    // words 배열에서 실제 segmentWordId 찾기 (원문 드래그 시에만 매칭)
+    const segmentWordId = textType === 'ORIGINAL'
+      ? (findSegmentWordId(subtitle, word) ?? undefined)
+      : undefined;
 
     const wordData: SavedWord = {
       id: `${Date.now()}_${word}`,
       word,
       originalSentence: subtitle.original,
-      translatedSentence: subtitle.translation,
+      translatedSentence,
       timestamp: subtitle.start,
       date: new Date().toLocaleDateString('ko-KR'),
+      lang,
+      segmentId: segmentWordId,
+      textType,
     };
     setSelectedWord(wordData);
+    setWordError(null);
     setRightPanel('word');
+
+    // TRANSLATED 타입인데 translatedSentence가 비어있으면 API 호출 불가
+    if (textType === 'TRANSLATED' && !translatedSentence.trim()) {
+      setWordError('번역문이 없어 분석할 수 없습니다. 찜하기는 여전히 가능합니다.');
+      setWordLoading(false);
+      return;
+    }
+
+    // API: 단어 뜻 + 관련 단어 분석
+    const requestId = ++explainRequestIdRef.current;
+    setWordLoading(true);
+    try {
+      const result = await explainWord({
+        word,
+        selectedTextType: textType,
+        originalSentence: subtitle.original,
+        translatedSentence,
+        sourceLanguage: sourceLang.split('-')[0].toUpperCase(),
+        targetLanguage: targetLang.split('-')[0].toUpperCase(),
+      });
+      // 이 요청이 가장 최신인 경우에만 결과 반영 (레이스 컨디션 방지)
+      if (requestId !== explainRequestIdRef.current) return;
+      setSelectedWord(prev =>
+        prev ? { ...prev, meaning: result.meaning, relatedWords: result.relatedWords } : prev,
+      );
+    } catch (err) {
+      if (requestId !== explainRequestIdRef.current) return;
+      console.error('[OverLang] 단어 분석 실패:', err);
+      setWordError('단어 분석에 실패했습니다. 찜하기는 여전히 가능합니다.');
+    } finally {
+      if (requestId === explainRequestIdRef.current) setWordLoading(false);
+    }
   };
 
-  // 단어 localStorage 저장
-  const handleSaveWord = () => {
+  // 단어 API 저장
+  const handleSaveWord = async () => {
     if (!selectedWord) return;
-    const existing: SavedWord[] = JSON.parse(localStorage.getItem(SAVED_WORDS_KEY) ?? '[]');
-    const isDup = existing.some(w => w.word === selectedWord.word && w.timestamp === selectedWord.timestamp);
-    if (isDup) {
+    if (savedWordSetRef.current.has(selectedWord.word)) {
       alert('이미 저장된 단어입니다.');
       return;
     }
-    const updated = [selectedWord, ...existing];
-    localStorage.setItem(SAVED_WORDS_KEY, JSON.stringify(updated));
-    setSavedWords(updated);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
+    if (!selectedWord.segmentId) {
+      alert('단어를 정확히 드래그해 주세요. (단어 단위로 선택)');
+      return;
+    }
+    setSavedSuccess(false);
+    try {
+      const result = await saveWord({
+        segmentWordId: selectedWord.segmentId ?? 0,
+        meaning: selectedWord.meaning ?? '',
+        contextMeaning: selectedWord.originalSentence,
+        memo: '',
+      });
+      savedWordSetRef.current.add(selectedWord.word);
+      setSelectedWord(prev => prev ? { ...prev, savedWordId: result.savedWordId } : prev);
+      setSavedWordsCount(prev => prev + 1);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2000);
+    } catch (err) {
+      console.error('[OverLang] 단어 저장 실패:', err);
+      alert('단어 저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
   };
 
   // 문장 구조 분석
@@ -366,7 +595,7 @@ export function TranslatePage() {
   };
 
   // 자막 수정
-  const handleSubtitleChange = (id: number, field: 'original' | 'translation', value: string) => {
+  const handleSubtitleChange = (id: number, field: 'original' | 'translation' | 'paraphrase', value: string) => {
     setSubtitles(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
@@ -385,6 +614,7 @@ export function TranslatePage() {
       endSec: startSec + 3,
       original: '',
       translation: '',
+      paraphrase: '',
     }]);
   };
 
@@ -394,7 +624,7 @@ export function TranslatePage() {
       {/* ── 상단 헤더 ── */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+          <button onClick={() => navigate('/dashboard')} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
             <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -422,13 +652,29 @@ export function TranslatePage() {
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            학습 노트 ({savedWords.length})
+            학습 노트 ({savedWordsCount})
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-            저장
+          <button
+            onClick={handleSaveSubtitles}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              saveToast ? 'text-emerald-600 bg-emerald-50' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {saveToast ? (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                저장됨
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                저장
+              </>
+            )}
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-violet-600 text-white hover:bg-violet-500 transition-colors">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -485,6 +731,22 @@ export function TranslatePage() {
                 </div>
               ) : null
             ))}
+
+            {/* 구간 반복 표시 */}
+            {repeatRange && (
+              <div className="absolute bottom-14 left-0 right-0 flex justify-center pointer-events-none">
+                <div className="flex items-center gap-1.5 bg-blue-600/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm pointer-events-auto">
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                  </svg>
+                  <span>반복 구간: {secToTimecode(repeatRange.startSec)} ~ {secToTimecode(repeatRange.endSec)}</span>
+                  <button
+                    onClick={() => setRepeatRange(null)}
+                    className="ml-1 hover:text-blue-200 transition-colors"
+                  >×</button>
+                </div>
+              </div>
+            )}
 
             {/* 자막 오버레이 - 번역문만 */}
             {showSubtitle && activeSubtitle?.translation && (
@@ -643,13 +905,12 @@ export function TranslatePage() {
 
                   {/* 원문 */}
                   <p className="text-[10px] font-semibold text-slate-400 mb-1">원문</p>
-                  <textarea
+                  <AutoTextarea
                     value={sub.original}
                     onChange={e => handleSubtitleChange(sub.id, 'original', e.target.value)}
-                    onMouseUp={() => handleTextSelect(sub)}
+                    onMouseUp={() => handleTextSelect(sub, sourceLang, 'ORIGINAL', sub.original)}
                     onClick={e => e.stopPropagation()}
-                    rows={2}
-                    className={`w-full text-xs border rounded-lg px-2 py-1.5 resize-none focus:outline-none mb-2 transition-colors ${
+                    className={`w-full text-xs border rounded-lg px-2 py-1.5 focus:outline-none mb-2 transition-colors ${
                       isActive
                         ? 'text-slate-800 border-violet-200 bg-white focus:border-violet-400'
                         : 'text-slate-700 border-slate-200 bg-white focus:border-violet-400'
@@ -658,28 +919,94 @@ export function TranslatePage() {
 
                   {/* 번역 */}
                   <p className="text-[10px] font-semibold text-slate-400 mb-1">번역</p>
-                  <textarea
+                  <AutoTextarea
                     value={sub.translation}
                     onChange={e => handleSubtitleChange(sub.id, 'translation', e.target.value)}
+                    onMouseUp={() => handleTextSelect(sub, targetLang, 'TRANSLATED', sub.translation)}
                     onClick={e => e.stopPropagation()}
-                    rows={2}
-                    className={`w-full text-xs border rounded-lg px-2 py-1.5 resize-none focus:outline-none mb-2 transition-colors ${
+                    className={`w-full text-xs border rounded-lg px-2 py-1.5 focus:outline-none mb-2 transition-colors ${
                       isActive
                         ? 'text-slate-800 border-violet-200 bg-white focus:border-violet-400'
                         : 'text-slate-700 border-slate-200 bg-white focus:border-violet-400'
                     }`}
                   />
 
-                  {/* 문장 구조 분석 버튼 */}
-                  <button
-                    onClick={e => { e.stopPropagation(); handleSentenceAnalysis(sub); }}
-                    className="flex items-center gap-1.5 text-xs font-medium text-violet-500 hover:text-violet-700 transition-colors"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                    </svg>
-                    문장 구조 분석
-                  </button>
+                  {/* 번역 (의역) */}
+                  <p className="text-[10px] font-semibold text-emerald-400 mb-1">번역 (의역)</p>
+                  <AutoTextarea
+                    value={sub.paraphrase}
+                    onChange={e => handleSubtitleChange(sub.id, 'paraphrase', e.target.value)}
+                    onMouseUp={() => handleTextSelect(sub, targetLang, 'TRANSLATED', sub.paraphrase)}
+                    onClick={e => e.stopPropagation()}
+                    placeholder="의역을 입력하거나 AI 분석을 기다려주세요"
+                    className={`w-full text-xs border rounded-lg px-2 py-1.5 focus:outline-none mb-2 transition-colors placeholder-slate-300 ${
+                      isActive
+                        ? 'text-slate-800 border-emerald-200 bg-emerald-50/30 focus:border-emerald-400'
+                        : 'text-slate-700 border-emerald-100 bg-emerald-50/20 focus:border-emerald-400'
+                    }`}
+                  />
+
+                  {/* 하단 버튼 그룹 */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* 구간 반복 버튼 */}
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        const isActive = repeatRange?.startSec === sub.startSec;
+                        setRepeatRange(isActive ? null : { startSec: sub.startSec, endSec: sub.endSec });
+                        // 비디오를 해당 구간 시작점으로 이동
+                        if (!isActive) {
+                          if (videoRef.current) {
+                            videoRef.current.currentTime = sub.startSec;
+                            videoRef.current.play();
+                          } else if (ytPlayerRef.current) {
+                            ytPlayerRef.current.seekTo(sub.startSec, true);
+                          }
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                        repeatRange?.startSec === sub.startSec
+                          ? 'text-blue-600'
+                          : 'text-blue-400 hover:text-blue-600'
+                      }`}
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {repeatRange?.startSec === sub.startSec ? '반복 중' : '구간 반복'}
+                    </button>
+
+                    {/* 문장 구조 분석 버튼 */}
+                    <button
+                      onClick={e => { e.stopPropagation(); handleSentenceAnalysis(sub); }}
+                      className="flex items-center gap-1.5 text-xs font-medium text-violet-500 hover:text-violet-700 transition-colors"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
+                      원문 분석
+                    </button>
+                    {sub.translation && (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setSentenceData({
+                            sentence: sub.translation,
+                            parts: getMockSentenceParts(sub.translation),
+                            grammar: getMockGrammar(sub.translation),
+                          });
+                          setRightPanel('sentence');
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 hover:text-emerald-700 transition-colors"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                        번역 분석
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -757,11 +1084,69 @@ export function TranslatePage() {
                   돌아가기
                 </button>
 
-                {/* 단어 */}
+                {/* 단어 + TTS */}
                 <div className="rounded-xl bg-violet-50 border border-violet-100 p-5 text-center">
                   <p className="text-2xl font-extrabold text-violet-700">{selectedWord.word}</p>
                   <p className="text-xs text-violet-400 mt-1 font-mono">{selectedWord.timestamp}</p>
+                  <button
+                    onClick={() => {
+                      const utter = new SpeechSynthesisUtterance(selectedWord.word);
+                      utter.lang = selectedWord.lang;
+                      utter.rate = 0.9;
+                      window.speechSynthesis.cancel();
+                      window.speechSynthesis.speak(utter);
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 text-violet-600 transition-colors text-xs font-medium"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                    </svg>
+                    발음 듣기
+                  </button>
                 </div>
+
+                {/* AI 분석 결과: 뜻 + 관련 단어 */}
+                {wordLoading ? (
+                  <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full border-2 border-violet-200 border-t-violet-500 animate-spin shrink-0" />
+                    <p className="text-xs text-slate-400">AI가 단어를 분석하고 있습니다...</p>
+                  </div>
+                ) : wordError ? (
+                  <div className="rounded-xl bg-red-50 border border-red-100 p-3">
+                    <p className="text-xs text-red-500">{wordError}</p>
+                  </div>
+                ) : selectedWord.meaning ? (
+                  <div className="space-y-3">
+                    {/* 뜻 */}
+                    <div className="rounded-xl bg-amber-50 border border-amber-100 p-4">
+                      <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1.5">AI 분석 뜻</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{selectedWord.meaning}</p>
+                    </div>
+                    {/* 관련 단어 */}
+                    {selectedWord.relatedWords && selectedWord.relatedWords.length > 0 && (
+                      <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">관련 단어</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedWord.relatedWords.map((rw, i) => (
+                            <span
+                              key={i}
+                              onClick={() => {
+                                const utter = new SpeechSynthesisUtterance(rw);
+                                utter.lang = selectedWord.lang;
+                                utter.rate = 0.9;
+                                window.speechSynthesis.cancel();
+                                window.speechSynthesis.speak(utter);
+                              }}
+                              className="cursor-pointer text-xs px-2.5 py-1 rounded-full bg-violet-50 border border-violet-100 text-violet-600 hover:bg-violet-100 transition-colors"
+                            >
+                              {rw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
                 {/* 원문 문장 */}
                 <div className="rounded-xl bg-slate-50 p-4 space-y-2">
@@ -783,7 +1168,8 @@ export function TranslatePage() {
                 {/* 찜 버튼 */}
                 <button
                   onClick={handleSaveWord}
-                  className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  disabled={savedSuccess}
+                  className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-70 ${
                     savedSuccess
                       ? 'bg-emerald-500 text-white'
                       : 'bg-orange-500 hover:bg-orange-400 text-white'
@@ -801,14 +1187,10 @@ export function TranslatePage() {
                       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                       </svg>
-                      찜하기
+                      학습 노트에 저장
                     </>
                   )}
                 </button>
-
-                <p className="text-center text-xs text-slate-400">
-                  단어 뜻·예문은 추후 AI 분석으로 자동 추가될 예정이에요
-                </p>
               </div>
             )}
 
