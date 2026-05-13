@@ -15,6 +15,8 @@ import org.springframework.data.repository.query.Param;
 public interface JobRepository extends JpaRepository<Job, Long> {
   List<Job> findByProjectIdOrderByCreatedAtDesc(Long projectId);
 
+  Optional<Job> findTopByProjectIdOrderByCreatedAtDesc(Long projectId);
+
   Optional<Job> findByIdAndProjectMemberId(Long jobId, Long memberId);
 
   boolean existsByIdAndProjectMemberId(Long jobId, Long memberId);

@@ -8,6 +8,7 @@ import com.overlang.domain.cache.service.ResultCopyService;
 import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.job.entity.CurrentStage;
 import com.overlang.domain.job.entity.Job;
+import com.overlang.domain.job.entity.JobStatus;
 import com.overlang.domain.job.queue.JobQueuePayload;
 import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
@@ -154,6 +155,45 @@ public class JobService {
             .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
 
     return JobDetailResponse.from(job);
+  }
+
+  @Transactional
+  public JobRetryResponse retryJob(Long projectId, Long memberId) {
+    Project project =
+        projectRepository
+            .findByIdAndMemberId(projectId, memberId)
+            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+
+    Job latestJob =
+        jobRepository
+            .findTopByProjectIdOrderByCreatedAtDesc(project.getId())
+            .orElseThrow(() -> new IllegalArgumentException("재처리할 작업이 없습니다."));
+
+    if (latestJob.getStatus() != JobStatus.FAILED) {
+      throw new IllegalArgumentException("FAILED 상태의 작업만 재처리할 수 있습니다.");
+    }
+
+    Job retryJob =
+        new Job(
+            project,
+            latestJob.getJobType(),
+            latestJob.getSourceLanguage(),
+            latestJob.getTargetLanguage(),
+            latestJob.getTranslationProvider());
+
+    Job savedJob = jobRepository.save(retryJob);
+
+    project.updateStatus(ProjectStatus.PROCESSING);
+
+    JobQueuePayload payload = createQueuePayload(project, savedJob);
+    jobQueueProducer.enqueue(payload);
+
+    return new JobRetryResponse(
+        project.getId(),
+        savedJob.getId(),
+        savedJob.getStatus(),
+        project.getStatus(),
+        "분석 재처리 요청이 생성되었습니다.");
   }
 
   private void validateWorkerSecret(String requestWorkerSecret) {
