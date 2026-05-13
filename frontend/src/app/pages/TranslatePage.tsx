@@ -314,6 +314,38 @@ export function TranslatePage() {
     };
     setSelectedWord(wordData);
     setRightPanel('word');
+
+    // TRANSLATED 타입인데 translatedSentence가 비어있으면 API 호출 불가
+    if (textType === 'TRANSLATED' && !translatedSentence.trim()) {
+      setWordError('번역문이 없어 분석할 수 없습니다. 찜하기는 여전히 가능합니다.');
+      setWordLoading(false);
+      return;
+    }
+
+    // API: 단어 뜻 + 관련 단어 분석
+    const requestId = ++explainRequestIdRef.current;
+    setWordLoading(true);
+    try {
+      const result = await explainWord({
+        word,
+        selectedTextType: textType,
+        originalSentence: subtitle.original,
+        translatedSentence,
+        sourceLanguage: sourceLang.split('-')[0].toUpperCase(),
+        targetLanguage: targetLang.split('-')[0].toUpperCase(),
+      });
+      // 이 요청이 가장 최신인 경우에만 결과 반영 (레이스 컨디션 방지)
+      if (requestId !== explainRequestIdRef.current) return;
+      setSelectedWord(prev =>
+        prev ? { ...prev, meaning: result.meaning, relatedWords: result.relatedWords } : prev,
+      );
+    } catch (err) {
+      if (requestId !== explainRequestIdRef.current) return;
+      console.error('[OverLang] 단어 분석 실패:', err);
+      setWordError('단어 분석에 실패했습니다. 찜하기는 여전히 가능합니다.');
+    } finally {
+      if (requestId === explainRequestIdRef.current) setWordLoading(false);
+    }
   };
 
   // 단어 localStorage 저장
@@ -366,7 +398,7 @@ export function TranslatePage() {
   };
 
   // 자막 수정
-  const handleSubtitleChange = (id: number, field: 'original' | 'translation', value: string) => {
+  const handleSubtitleChange = (id: number, field: 'original' | 'translation' | 'paraphrase', value: string) => {
     setSubtitles(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
@@ -385,6 +417,7 @@ export function TranslatePage() {
       endSec: startSec + 3,
       original: '',
       translation: '',
+      paraphrase: '',
     }]);
   };
 
@@ -394,7 +427,7 @@ export function TranslatePage() {
       {/* ── 상단 헤더 ── */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+          <button onClick={() => navigate('/dashboard')} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
             <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -422,7 +455,7 @@ export function TranslatePage() {
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            학습 노트 ({savedWords.length})
+            학습 노트 ({savedWordsCount})
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

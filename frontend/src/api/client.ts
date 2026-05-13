@@ -52,3 +52,25 @@ export async function apiPost(path: string, body?: unknown, init?: RequestInit) 
   });
   return res;
 }
+
+export async function apiPatch(path: string, body?: unknown, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  if (body && typeof body === 'object') {
+    headers.set('Content-Type', 'application/json');
+  }
+  const res = await fetchWithAuth(`${API_BASE}${path}`, {
+    ...init,
+    method: 'PATCH',
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res;
+}
+
+export async function apiDelete(path: string, init?: RequestInit) {
+  const res = await fetchWithAuth(`${API_BASE}${path}`, {
+    ...init,
+    method: 'DELETE',
+  });
+  return res;
+}

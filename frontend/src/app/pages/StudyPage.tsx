@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getMySavedWords, deleteSavedWord, explainWord } from '@/api/words';
+import type { SavedWordResult } from '@/api/words';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 const SAVED_WORDS_KEY = 'overlang_saved_words';
 

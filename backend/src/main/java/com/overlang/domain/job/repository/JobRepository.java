@@ -19,6 +19,10 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
   boolean existsByIdAndProjectMemberId(Long jobId, Long memberId);
 
+  List<Job> findByProjectId(Long projectId);
+
+  void deleteByProjectId(Long projectId);
+
   @Query(
       """
       SELECT j

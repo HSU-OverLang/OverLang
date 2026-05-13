@@ -1,11 +1,8 @@
 package com.overlang.domain.job.service;
 
-import com.overlang.api.dto.job.JobCallbackRequest;
-import com.overlang.api.dto.job.JobCallbackResponse;
-import com.overlang.api.dto.job.JobCreateRequest;
-import com.overlang.api.dto.job.JobCreateResponse;
-import com.overlang.api.dto.job.JobDetailResponse;
-import com.overlang.api.dto.job.JobResponse;
+import com.overlang.api.dto.job.*;
+import com.overlang.api.dto.ocr.BlurRegionRequest;
+import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.domain.cache.service.ResultCacheService;
 import com.overlang.domain.cache.service.ResultCopyService;
 import com.overlang.domain.file.service.S3UploadService;
@@ -21,7 +18,9 @@ import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
 import com.overlang.domain.segment.entity.Segment;
+import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.repository.SegmentRepository;
+import com.overlang.domain.segment.repository.SegmentWordRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +36,7 @@ public class JobService {
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
   private final SegmentRepository segmentRepository;
+  private final SegmentWordRepository segmentWordRepository;
   private final OcrItemRepository ocrItemRepository;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
@@ -237,29 +237,63 @@ public class JobService {
                         s.languageCode()))
             .toList();
 
-    segmentRepository.saveAll(segments);
+    List<Segment> savedSegments = segmentRepository.saveAll(segments);
+
+    createSegmentWords(savedSegments);
   }
 
   private void saveOcrItems(Job job, JobCallbackRequest request) {
     if (request.ocrItems() == null) return;
 
-    List<OcrItem> ocrItems =
-        request.ocrItems().stream()
-            .map(
-                o ->
-                    new OcrItem(
-                        job,
-                        o.startTime(),
-                        o.endTime(),
-                        o.originText(),
-                        o.translatedText(),
-                        o.boundingBox().x(),
-                        o.boundingBox().y(),
-                        o.boundingBox().w(),
-                        o.boundingBox().h(),
-                        o.confidence()))
-            .toList();
+    List<OcrItem> ocrItems = request.ocrItems().stream().map(o -> toOcrItem(job, o)).toList();
 
     ocrItemRepository.saveAll(ocrItems);
+  }
+
+  private OcrItem toOcrItem(Job job, CallbackOcrItemRequest o) {
+    OcrStyleRequest style = o.style();
+    BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
+
+    return new OcrItem(
+        job,
+        o.startTime(),
+        o.endTime(),
+        o.originText(),
+        o.translatedText(),
+        o.boundingBox().x(),
+        o.boundingBox().y(),
+        o.boundingBox().w(),
+        o.boundingBox().h(),
+        o.confidence(),
+        style != null ? style.backgroundColor() : null,
+        style != null ? style.dominantBackgroundColor() : null,
+        style != null ? style.textColor() : null,
+        blurRegion != null ? blurRegion.x() : null,
+        blurRegion != null ? blurRegion.y() : null,
+        blurRegion != null ? blurRegion.w() : null,
+        blurRegion != null ? blurRegion.h() : null);
+  }
+
+  private void createSegmentWords(List<Segment> segments) {
+
+    List<SegmentWord> segmentWords =
+        segments.stream()
+            .flatMap(
+                segment -> {
+                  String[] words = segment.getText().split("\\s+");
+
+                  return java.util.stream.IntStream.range(0, words.length)
+                      .mapToObj(
+                          i ->
+                              new SegmentWord(
+                                  segment,
+                                  i + 1,
+                                  segment.getStartTime(),
+                                  segment.getEndTime(),
+                                  words[i]));
+                })
+            .toList();
+
+    segmentWordRepository.saveAll(segmentWords);
   }
 }

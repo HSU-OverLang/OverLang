@@ -1,6 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { getProjects } from '@/api/video';
+import type { ProjectResult } from '@/api/video';
 import { cn } from '@/utils/cn';
 
 const MOCK_PROJECTS = [
@@ -16,14 +18,52 @@ function formatDate(isoString?: string | null) {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
+function formatStudyTime(minutes: number): string {
+  if (minutes <= 0) return '0분';
+  if (minutes < 60) return `${minutes}분`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
+}
+
 type SubPage = 'main' | 'settings';
+
+type RecentProject = ProjectResult & { clickedAt: string };
 
 export function MyPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [subPage, setSubPage] = useState<SubPage>('main');
+  const [totalProjects, setTotalProjects] = useState<number>(0);
+  const [savedWordsCount, setSavedWordsCount] = useState<number>(0);
+  const [studyMinutes, setStudyMinutes] = useState<number>(0);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || '사용자';
+
+  useEffect(() => {
+    // 저장된 단어 수
+    try {
+      const words = JSON.parse(localStorage.getItem(SAVED_WORDS_KEY) ?? '[]');
+      setSavedWordsCount(Array.isArray(words) ? words.length : 0);
+    } catch { setSavedWordsCount(0); }
+
+    // 학습 시간
+    try {
+      setStudyMinutes(parseInt(localStorage.getItem(STUDY_TIME_KEY) ?? '0', 10));
+    } catch { setStudyMinutes(0); }
+
+    // 최근 방문 프로젝트
+    try {
+      const recent: RecentProject[] = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
+      setRecentProjects(recent.slice(0, 4));
+    } catch { setRecentProjects([]); }
+
+    // 총 프로젝트 수 (API)
+    getProjects()
+      .then(data => setTotalProjects(data.length))
+      .catch(() => setTotalProjects(0));
+  }, []);
 
   if (subPage === 'settings') {
     return (
@@ -147,6 +187,8 @@ export function MyPage() {
   );
 }
 
+const PROFILE_PHOTO_KEY = 'overlang_profile_photo';
+
 // ── 계정 설정 서브페이지 ──────────────────────────────
 function SettingsPage({
   onBack,
@@ -155,15 +197,18 @@ function SettingsPage({
   onBack: () => void;
   onDeleteSuccess: () => void;
 }) {
-  const { user, changePassword, deleteAccount, clearError } = useAuth();
+  const { user, changePassword, deleteAccount, clearError, updateUserProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [profileImage, setProfileImage] = useState<string | null>(user?.photoURL ?? null);
+  const [profileImage, setProfileImage] = useState<string | null>(
+    localStorage.getItem(PROFILE_PHOTO_KEY) || user?.photoURL || null
+  );
   const [name, setName] = useState(user?.displayName ?? '');
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPwConfirm, setNewPwConfirm] = useState('');
   const [pwError, setPwError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
@@ -171,14 +216,24 @@ function SettingsPage({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => setProfileImage(reader.result as string);
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        setProfileImage(base64);
+        localStorage.setItem(PROFILE_PHOTO_KEY, base64);
+      };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaveError('');
+    try {
+      await updateUserProfile(name.trim() || (user?.displayName ?? ''));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaveError('저장에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
   const handlePwChange = async () => {
@@ -295,6 +350,7 @@ function SettingsPage({
             <p className="text-xs text-slate-400">이메일은 변경할 수 없습니다.</p>
           </div>
 
+          {saveError && <p className="text-xs text-red-500">{saveError}</p>}
           <button
             onClick={handleSave}
             className={cn(

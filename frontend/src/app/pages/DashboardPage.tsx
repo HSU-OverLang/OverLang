@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
 import { getProjects, getVideoPresignedUrl } from '@/api/video';
+=======
+import { getProjects, getVideoPresignedUrl, updateProjectTitle, deleteProject } from '@/api/video';
+import { getMySavedWords, deleteSavedWord } from '@/api/words';
+>>>>>>> main
 import type { ProjectResult } from '@/api/video';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 function extractYoutubeId(url: string): string | null {
   try {
@@ -17,6 +23,19 @@ function extractYoutubeId(url: string): string | null {
     }
   } catch { /* ignore */ }
   return null;
+}
+
+const RECENT_PROJECTS_KEY = 'overlang_recent_projects';
+
+function saveRecentProject(project: ProjectResult) {
+  const pid = project.id ?? project.projectId;
+  try {
+    const existing: (ProjectResult & { clickedAt: string })[] =
+      JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
+    const filtered = existing.filter(p => (p.id ?? p.projectId) !== pid);
+    const updated = [{ ...project, clickedAt: new Date().toISOString() }, ...filtered].slice(0, 10);
+    localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+  } catch { /* ignore */ }
 }
 
 const CARD_COLORS = [
@@ -43,12 +62,87 @@ function formatDate(iso: string) {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState<ProjectResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [thumbUrls, setThumbUrls] = useState<Record<number, string>>({});
+<<<<<<< HEAD
+=======
+
+  // 드롭다운 메뉴
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 제목 수정 모달
+  const [renameProject, setRenameProject] = useState<ProjectResult | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
+
+  // 삭제 확인 모달
+  const [deleteTarget, setDeleteTarget] = useState<ProjectResult | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+      }
+    };
+    if (menuOpenId !== null) document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [menuOpenId]);
+
+  const handleRenameSubmit = async () => {
+    if (!renameProject || !renameValue.trim()) return;
+    const pid = renameProject.id ?? renameProject.projectId;
+    if (!pid) return;
+    setRenameLoading(true);
+    try {
+      const updated = await updateProjectTitle(pid, renameValue.trim());
+      setProjects(prev => prev.map(p =>
+        (p.id ?? p.projectId) === pid ? { ...p, title: updated.title ?? renameValue.trim() } : p
+      ));
+      setRenameProject(null);
+    } catch (e) {
+      alert('제목 수정에 실패했습니다.');
+    } finally {
+      setRenameLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    const pid = deleteTarget.id ?? deleteTarget.projectId;
+    if (!pid) return;
+    setDeleteLoading(true);
+    try {
+      // 해당 프로젝트에 연결된 저장 단어 먼저 삭제
+      try {
+        const savedWords = await getMySavedWords();
+        const projectWords = savedWords.filter(w => w.projectId === pid);
+        await Promise.allSettled(projectWords.map(w => deleteSavedWord(w.savedWordId)));
+      } catch { /* 단어 삭제 실패해도 프로젝트 삭제는 진행 */ }
+
+      await deleteProject(pid);
+      setProjects(prev => prev.filter(p => (p.id ?? p.projectId) !== pid));
+      setDeleteTarget(null);
+    } catch (e) {
+      alert('삭제에 실패했습니다.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+>>>>>>> main
 
   useEffect(() => {
+    if (authLoading) return;       // Firebase 초기화 대기
+    if (!user) {                   // 비로그인 시 빈 상태
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     getProjects()
       .then(data => {
         setProjects(data);
@@ -64,7 +158,7 @@ export function DashboardPage() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [authLoading, user]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -163,6 +257,7 @@ export function DashboardPage() {
                 <div
                   key={pid ?? idx}
                   onClick={() => {
+<<<<<<< HEAD
                     if (isYoutube) {
                       // YouTube: URL + projectId 전달
                       navigate('/translate', { state: { videoSrc, projectId: pid } });
@@ -172,9 +267,20 @@ export function DashboardPage() {
                     }
                   }}
                   className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
+=======
+                    if (menuOpenId !== null) return; // 드롭다운 열려있으면 카드 클릭 무시
+                    saveRecentProject(project);
+                    if (isYoutube) {
+                      navigate('/translate', { state: { videoSrc, projectId: pid } });
+                    } else {
+                      navigate('/translate', { state: { projectId: pid } });
+                    }
+                  }}
+                  className="bg-white rounded-2xl border border-gray-200 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
+>>>>>>> main
                 >
                   {/* 썸네일 */}
-                  <div className="aspect-video relative overflow-hidden">
+                  <div className="aspect-video relative overflow-hidden rounded-t-2xl">
                     {youtubeId ? (
                       /* YouTube 썸네일 이미지 */
                       <img
@@ -235,7 +341,60 @@ export function DashboardPage() {
 
                   {/* 카드 정보 */}
                   <div className="p-4">
-                    <h3 className="font-semibold text-slate-800 text-sm truncate mb-2">{project.title}</h3>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-semibold text-slate-800 text-sm truncate flex-1">{project.title}</h3>
+
+                      {/* ⋮ 메뉴 버튼 */}
+                      {pid && (
+                        <div className="relative shrink-0" ref={menuOpenId === pid ? menuRef : undefined}>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setMenuOpenId(menuOpenId === pid ? null : pid);
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                          >
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                              <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                            </svg>
+                          </button>
+
+                          {menuOpenId === pid && (
+                            <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-white shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden z-20">
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setMenuOpenId(null);
+                                  setRenameValue(project.title);
+                                  setRenameProject(project);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                              >
+                                <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                제목 수정
+                              </button>
+                              <div className="mx-3 border-t border-slate-100" />
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setMenuOpenId(null);
+                                  setDeleteTarget(project);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors text-left"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                삭제
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-slate-400">{formatDate(project.createdAt)}</p>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -251,6 +410,75 @@ export function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* ── 제목 수정 모달 ── */}
+      {renameProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6">
+            <h2 className="text-base font-bold text-slate-800 mb-1">제목 수정</h2>
+            <p className="text-xs text-slate-400 mb-4 truncate">{renameProject.title}</p>
+            <input
+              autoFocus
+              type="text"
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRenameSubmit(); if (e.key === 'Escape') setRenameProject(null); }}
+              maxLength={100}
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+              placeholder="새 프로젝트 제목"
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setRenameProject(null)}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleRenameSubmit}
+                disabled={renameLoading || !renameValue.trim()}
+                className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+              >
+                {renameLoading ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 삭제 확인 모달 ── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+              <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h2 className="text-base font-bold text-slate-800 mb-1">프로젝트 삭제</h2>
+            <p className="text-sm text-slate-500 mb-1">
+              <span className="font-semibold text-slate-700">"{deleteTarget.title}"</span>을(를) 삭제할까요?
+            </p>
+            <p className="text-xs text-slate-400 mb-5">삭제된 프로젝트는 복구할 수 없습니다.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleteLoading}
+                className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-50 transition-colors"
+              >
+                {deleteLoading ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
