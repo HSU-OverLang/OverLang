@@ -9,6 +9,7 @@ import urllib.request
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_OPENAI_MODEL = "gpt-5.2"
 DEFAULT_BATCH_SIZE = 20
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 180
 
 
 class TranslationService(Protocol):
@@ -40,10 +41,12 @@ class OpenAiTranslationService:
         api_key: str,
         model: str = DEFAULT_OPENAI_MODEL,
         batch_size: int = DEFAULT_BATCH_SIZE,
+        request_timeout_seconds: int = DEFAULT_REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.batch_size = batch_size
+        self.request_timeout_seconds = request_timeout_seconds
 
     def translate_batch(
         self,
@@ -101,6 +104,7 @@ class OpenAiTranslationService:
                     }
                 },
             },
+            timeout_seconds=self.request_timeout_seconds,
         )
         output_text = _extract_response_text(response_data)
 
@@ -131,10 +135,17 @@ def create_translation_service(
 
         model = os.getenv("OPENAI_TRANSLATION_MODEL", DEFAULT_OPENAI_MODEL)
         batch_size = int(os.getenv("OPENAI_TRANSLATION_BATCH_SIZE", DEFAULT_BATCH_SIZE))
+        request_timeout_seconds = int(
+            os.getenv(
+                "OPENAI_REQUEST_TIMEOUT_SECONDS",
+                DEFAULT_REQUEST_TIMEOUT_SECONDS,
+            )
+        )
         return OpenAiTranslationService(
             api_key=api_key,
             model=model,
             batch_size=batch_size,
+            request_timeout_seconds=request_timeout_seconds,
         )
 
     raise NotImplementedError(f"{provider_value} translation provider is not implemented")
@@ -203,6 +214,7 @@ def _language_native_name(language_code: str | None) -> str:
 def _post_openai_response(
     api_key: str,
     payload: dict,
+    timeout_seconds: int,
 ) -> dict:
     request = urllib.request.Request(
         OPENAI_RESPONSES_URL,
@@ -215,13 +227,17 @@ def _post_openai_response(
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         error_body = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"OpenAI translation request failed: {error_body}") from error
     except urllib.error.URLError as error:
         raise RuntimeError(f"OpenAI translation request failed: {error}") from error
+    except TimeoutError as error:
+        raise RuntimeError(
+            f"OpenAI translation request timed out after {timeout_seconds}s"
+        ) from error
 
 
 def _extract_response_text(response_data: dict) -> str:
