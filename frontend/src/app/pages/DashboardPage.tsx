@@ -77,6 +77,13 @@ export function DashboardPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectResult | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // 분석 중 클릭 시 안내 토스트
+  const [processingToast, setProcessingToast] = useState(false);
+  const showProcessingToast = () => {
+    setProcessingToast(true);
+    setTimeout(() => setProcessingToast(false), 2500);
+  };
+
   // 드롭다운 외부 클릭 닫기
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -250,7 +257,11 @@ export function DashboardPage() {
                 <div
                   key={pid ?? idx}
                   onClick={() => {
-                    if (menuOpenId !== null) return; // 드롭다운 열려있으면 카드 클릭 무시
+                    if (menuOpenId !== null) return;
+                    if (project.status === 'CREATED' || project.status === 'PROCESSING') {
+                      showProcessingToast();
+                      return;
+                    }
                     saveRecentProject(project);
                     if (isYoutube) {
                       navigate('/translate', { state: { videoSrc, projectId: pid } });
@@ -258,7 +269,11 @@ export function DashboardPage() {
                       navigate('/translate', { state: { projectId: pid } });
                     }
                   }}
-                  className="bg-white rounded-2xl border border-gray-200 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
+                  className={`bg-white rounded-2xl border border-gray-200 transition-all group ${
+                    project.status === 'CREATED' || project.status === 'PROCESSING'
+                      ? 'cursor-not-allowed opacity-75'
+                      : 'hover:shadow-md hover:border-emerald-300 cursor-pointer'
+                  }`}
                 >
                   {/* 썸네일 */}
                   <div className="aspect-video relative overflow-hidden rounded-t-2xl">
@@ -457,6 +472,17 @@ export function DashboardPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 분석 중 토스트 */}
+      {processingToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 rounded-xl bg-slate-800 px-5 py-3 text-sm text-white shadow-xl">
+          <svg className="h-4 w-4 text-blue-400 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          AI가 영상을 분석하는 중이에요. 완료 후 다시 시도해주세요.
         </div>
       )}
 

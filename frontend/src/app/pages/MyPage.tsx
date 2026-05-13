@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { getProjects } from '@/api/video';
 import type { ProjectResult } from '@/api/video';
+import { getMySavedWords } from '@/api/words';
 import { cn } from '@/utils/cn';
 
 const RECENT_PROJECTS_KEY = 'overlang_recent_projects';
-const SAVED_WORDS_KEY = 'overlang_saved_words';
-const STUDY_TIME_KEY = 'overlang_study_minutes';
 
 function formatDate(isoString?: string | null) {
   if (!isoString) return '알 수 없음';
@@ -15,52 +14,51 @@ function formatDate(isoString?: string | null) {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
-function formatStudyTime(minutes: number): string {
-  if (minutes <= 0) return '0분';
-  if (minutes < 60) return `${minutes}분`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
-}
-
 type SubPage = 'main' | 'settings';
 
 type RecentProject = ProjectResult & { clickedAt: string };
 
 export function MyPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [subPage, setSubPage] = useState<SubPage>('main');
   const [totalProjects, setTotalProjects] = useState<number>(0);
   const [savedWordsCount, setSavedWordsCount] = useState<number>(0);
-  const [studyMinutes, setStudyMinutes] = useState<number>(0);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || '사용자';
 
   useEffect(() => {
-    // 저장된 단어 수
-    try {
-      const words = JSON.parse(localStorage.getItem(SAVED_WORDS_KEY) ?? '[]');
-      setSavedWordsCount(Array.isArray(words) ? words.length : 0);
-    } catch { setSavedWordsCount(0); }
+    if (authLoading || !user) return;
 
-    // 학습 시간
-    try {
-      setStudyMinutes(parseInt(localStorage.getItem(STUDY_TIME_KEY) ?? '0', 10));
-    } catch { setStudyMinutes(0); }
-
-    // 최근 방문 프로젝트
-    try {
-      const recent: RecentProject[] = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
-      setRecentProjects(recent.slice(0, 4));
-    } catch { setRecentProjects([]); }
-
-    // 총 프로젝트 수 (API)
+    // 총 프로젝트 수 + 최근 프로젝트 교차 검증 (삭제된 항목 제거)
     getProjects()
-      .then(data => setTotalProjects(data.length))
-      .catch(() => setTotalProjects(0));
-  }, []);
+      .then(data => {
+        setTotalProjects(data.length);
+        const existingIds = new Set(data.map(p => p.id ?? p.projectId));
+
+        // localStorage 최근 프로젝트에서 삭제된 것 제거
+        try {
+          const recent: RecentProject[] = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
+          const filtered = recent.filter(p => existingIds.has(p.id ?? p.projectId));
+          localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(filtered));
+          setRecentProjects(filtered.slice(0, 4));
+        } catch { setRecentProjects([]); }
+      })
+      .catch(() => {
+        setTotalProjects(0);
+        // API 실패 시 localStorage 그대로 사용
+        try {
+          const recent: RecentProject[] = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
+          setRecentProjects(recent.slice(0, 4));
+        } catch { setRecentProjects([]); }
+      });
+
+    // 저장된 단어 수 (API)
+    getMySavedWords()
+      .then(words => setSavedWordsCount(words.length))
+      .catch(() => setSavedWordsCount(0));
+  }, [authLoading, user]);
 
   if (subPage === 'settings') {
     return (
@@ -114,7 +112,7 @@ export function MyPage() {
       <div className="mx-auto max-w-5xl px-6 -mt-10 pb-12 space-y-5">
 
         {/* 통계 카드 */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="rounded-2xl bg-white p-5 shadow-sm text-center">
             <p className="text-2xl mb-1">🎬</p>
             <p className="text-2xl font-extrabold text-slate-800">{totalProjects}</p>
@@ -127,11 +125,6 @@ export function MyPage() {
             <p className="text-2xl mb-1">📖</p>
             <p className="text-2xl font-extrabold text-slate-800">{savedWordsCount}</p>
             <p className="text-xs text-emerald-500 mt-0.5 font-medium">저장된 단어 →</p>
-          </div>
-          <div className="rounded-2xl bg-white p-5 shadow-sm text-center">
-            <p className="text-2xl mb-1">⏱</p>
-            <p className="text-2xl font-extrabold text-slate-800">{formatStudyTime(studyMinutes)}</p>
-            <p className="text-xs text-slate-400 mt-0.5">학습 시간</p>
           </div>
         </div>
 

@@ -99,7 +99,6 @@ interface SubtitleItem {
   endSec: number;
   original: string;
   translation: string;
-  paraphrase: string;
   words: SegmentWord[];
 }
 
@@ -119,11 +118,11 @@ interface OcrOverlay {
 const DEMO_VIDEO = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
 const MOCK_SUBTITLES: SubtitleItem[] = [
-  { id: 1, start: '00:00:00', end: '00:00:03', startSec: 0,  endSec: 3,  original: 'Hello, everyone! Welcome to our English learning session.', translation: '안녕하세요, 여러분! 영어 학습 세션에 오신 것을 환영합니다.', paraphrase: '여러분, 반갑습니다! 오늘 영어를 같이 배워볼게요.', words: [] },
-  { id: 2, start: '00:00:03', end: '00:00:07', startSec: 3,  endSec: 7,  original: "Today, we're going to dive into some essential business idioms.", translation: '오늘은 필수적인 비즈니스 관용구들을 본격적으로 배워보겠습니다.', paraphrase: '오늘은 업무 현장에서 꼭 필요한 영어 표현들을 알아볼 거예요.', words: [] },
-  { id: 3, start: '00:00:07', end: '00:00:12', startSec: 7,  endSec: 12, original: 'These phrases will help you sound more natural in professional settings.', translation: '이 표현들은 전문적인 환경에서 더 자연스럽게 들리는 데 도움이 될 것입니다.', paraphrase: '이 표현들을 익히면 직장에서 훨씬 자연스럽게 영어를 쓸 수 있어요.', words: [] },
-  { id: 4, start: '00:00:12', end: '00:00:16', startSec: 12, endSec: 16, original: 'Remember, practice makes perfect!', translation: '기억하세요, 연습이 완벽함을 만듭니다!', paraphrase: '꾸준히 연습하면 반드시 잘 할 수 있어요!', words: [] },
-  { id: 5, start: '00:00:16', end: '00:00:20', startSec: 16, endSec: 20, original: "Let's get the ball rolling with our first idiom.", translation: '첫 번째 관용구로 시작해 봅시다.', paraphrase: '그럼 첫 번째 표현부터 바로 시작해 볼까요?', words: [] },
+  { id: 1, start: '00:00:00', end: '00:00:03', startSec: 0,  endSec: 3,  original: 'Hello, everyone! Welcome to our English learning session.', translation: '안녕하세요, 여러분! 영어 학습 세션에 오신 것을 환영합니다.', words: [] },
+  { id: 2, start: '00:00:03', end: '00:00:07', startSec: 3,  endSec: 7,  original: "Today, we're going to dive into some essential business idioms.", translation: '오늘은 필수적인 비즈니스 관용구들을 본격적으로 배워보겠습니다.', words: [] },
+  { id: 3, start: '00:00:07', end: '00:00:12', startSec: 7,  endSec: 12, original: 'These phrases will help you sound more natural in professional settings.', translation: '이 표현들은 전문적인 환경에서 더 자연스럽게 들리는 데 도움이 될 것입니다.', words: [] },
+  { id: 4, start: '00:00:12', end: '00:00:16', startSec: 12, endSec: 16, original: 'Remember, practice makes perfect!', translation: '기억하세요, 연습이 완벽함을 만듭니다!', words: [] },
+  { id: 5, start: '00:00:16', end: '00:00:20', startSec: 16, endSec: 20, original: "Let's get the ball rolling with our first idiom.", translation: '첫 번째 관용구로 시작해 봅시다.', words: [] },
 ];
 
 const MOCK_OCR: OcrOverlay[] = [
@@ -169,9 +168,11 @@ export function TranslatePage() {
 
   // 영상 재생 시간 추적
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 자막 목록 자동 스크롤
   const subtitleListRef = useRef<HTMLDivElement>(null);
@@ -352,7 +353,6 @@ export function TranslatePage() {
               original: seg.text,
               translation: cleanTranslation(seg.translatedText, seg.text),
               words: seg.words ?? [],
-              paraphrase: '',
             }));
             // localStorage에 저장된 수정 내역이 있으면 우선 사용
             const storageKey = `overlang_subtitles_${projectId}`;
@@ -418,6 +418,29 @@ export function TranslatePage() {
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [activeSubtitle?.id]);
+
+  // 전체화면 인터셉트: video.requestFullscreen을 오버라이드해서
+  // 컨테이너 fullscreen으로 리디렉트 (사용자 제스처 컨텍스트 내에서 처리)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const original = video.requestFullscreen.bind(video);
+    video.requestFullscreen = (options?: FullscreenOptions) => {
+      return videoContainerRef.current?.requestFullscreen(options) ?? original(options);
+    };
+    return () => {
+      video.requestFullscreen = original;
+    };
+  }, []);
+
+  // fullscreen 상태 추적
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(document.fullscreenElement === videoContainerRef.current);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   // 비디오 시간 업데이트 핸들러 (구간 반복 포함)
   const handleTimeUpdate = () => {
@@ -595,7 +618,7 @@ export function TranslatePage() {
   };
 
   // 자막 수정
-  const handleSubtitleChange = (id: number, field: 'original' | 'translation' | 'paraphrase', value: string) => {
+  const handleSubtitleChange = (id: number, field: 'original' | 'translation', value: string) => {
     setSubtitles(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
@@ -614,7 +637,7 @@ export function TranslatePage() {
       endSec: startSec + 3,
       original: '',
       translation: '',
-      paraphrase: '',
+      words: [],
     }]);
   };
 
@@ -630,7 +653,7 @@ export function TranslatePage() {
             </svg>
           </button>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
               <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
@@ -656,8 +679,8 @@ export function TranslatePage() {
           </button>
           <button
             onClick={handleSaveSubtitles}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              saveToast ? 'text-emerald-600 bg-emerald-50' : 'text-slate-600 hover:bg-slate-100'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+              saveToast ? 'bg-emerald-500 text-white' : 'bg-emerald-600 text-white hover:bg-emerald-500'
             }`}
           >
             {saveToast ? (
@@ -665,7 +688,7 @@ export function TranslatePage() {
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                저장됨
+                저장 완료
               </>
             ) : (
               <>
@@ -676,11 +699,11 @@ export function TranslatePage() {
               </>
             )}
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-violet-600 text-white hover:bg-violet-500 transition-colors">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
             </svg>
-            다운로드
+            공유하기
           </button>
         </div>
       </header>
@@ -691,7 +714,14 @@ export function TranslatePage() {
         {/* ── 왼쪽: 영상 영역 ── */}
         <div className="flex flex-col w-[55%] border-r border-slate-200 overflow-y-auto">
           {/* 영상 플레이어 */}
-          <div className="relative bg-black">
+          {/* 외부 컨테이너: fullscreen 시 화면 전체 + 중앙 정렬 */}
+          <div
+            ref={videoContainerRef}
+            className={`bg-black${isFullscreen ? ' flex items-center justify-center' : ' relative'}`}
+          >
+            {/* 내부 래퍼: 비디오와 OCR이 항상 같은 크기를 공유 */}
+            {/* fullscreen 시 aspect-ratio + max 제약으로 contain 동작 */}
+            <div className={`relative${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ''}`}>
             {videoLoading ? (
               <div className="w-full aspect-video flex items-center justify-center">
                 <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" />
@@ -701,7 +731,7 @@ export function TranslatePage() {
             ) : (
               <video
                 ref={videoRef}
-                className="w-full aspect-video"
+                className={isFullscreen ? 'w-full h-full object-contain' : 'w-full aspect-video'}
                 controls
                 src={activeVideo}
                 onTimeUpdate={handleTimeUpdate}
@@ -748,14 +778,6 @@ export function TranslatePage() {
               </div>
             )}
 
-            {/* 자막 오버레이 - 번역문만 */}
-            {showSubtitle && activeSubtitle?.translation && (
-              <div className="absolute bottom-10 left-0 right-0 flex justify-center px-4 pointer-events-none">
-                <span className="bg-black/70 text-white px-4 py-1.5 rounded text-sm text-center max-w-[90%] leading-snug">
-                  {activeSubtitle.translation}
-                </span>
-              </div>
-            )}
 
             {/* 토글 버튼 그룹 */}
             <div className="absolute top-3 right-3 flex flex-col gap-1.5">
@@ -808,7 +830,8 @@ export function TranslatePage() {
                 {secToTimecode(currentTime)}
               </div>
             )}
-          </div>
+            </div>{/* 내부 래퍼 끝 */}
+          </div>{/* 외부 컨테이너 끝 */}
 
           {/* 안내 카드 */}
           <div className="flex gap-3 px-4 py-2.5 border-t border-slate-100 shrink-0">
@@ -829,6 +852,18 @@ export function TranslatePage() {
               <p className="text-xs text-slate-600">단어 드래그로 즉시 의미 확인</p>
             </div>
           </div>
+
+          {/* 자막 표시 영역 */}
+          <div className={`shrink-0 border-t border-slate-100 transition-all ${showSubtitle && activeSubtitle?.translation ? 'py-3 px-4' : 'py-0'}`}>
+            {showSubtitle && activeSubtitle?.translation && (
+              <div className="flex items-start gap-2.5 rounded-xl bg-slate-800 px-4 py-3">
+                <span className="mt-0.5 shrink-0 text-[10px] font-bold text-slate-400 font-mono">
+                  {activeSubtitle.start}
+                </span>
+                <p className="text-sm text-white leading-snug">{activeSubtitle.translation}</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── 가운데: 자막 목록 ── */}
@@ -843,7 +878,7 @@ export function TranslatePage() {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={handleAddSubtitle}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -856,7 +891,7 @@ export function TranslatePage() {
           <div ref={subtitleListRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
             {dataLoading && (
               <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-                <div className="w-8 h-8 rounded-full border-4 border-violet-200 border-t-violet-600 animate-spin" />
+                <div className="w-8 h-8 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
                 <p className="text-xs text-slate-400">AI 자막 불러오는 중...</p>
               </div>
             )}
@@ -879,18 +914,18 @@ export function TranslatePage() {
                   }}
                   className={`rounded-xl border p-3 transition-all cursor-pointer ${
                     isActive
-                      ? 'border-violet-400 bg-violet-50 shadow-sm'
-                      : 'border-slate-200 hover:border-violet-200 hover:bg-slate-50'
+                      ? 'border-emerald-400 bg-emerald-50 shadow-sm'
+                      : 'border-slate-200 hover:border-emerald-200 hover:bg-slate-50'
                   }`}
                   onClick={() => handleSubtitleClick(sub)}
                 >
                   {/* 타임코드 */}
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`text-xs font-mono px-2 py-0.5 rounded ${isActive ? 'bg-violet-200 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className={`text-xs font-mono px-2 py-0.5 rounded ${isActive ? 'bg-emerald-200 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                       {sub.start}
                     </span>
                     <span className="text-xs text-slate-400">→</span>
-                    <span className={`text-xs font-mono px-2 py-0.5 rounded ${isActive ? 'bg-violet-200 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className={`text-xs font-mono px-2 py-0.5 rounded ${isActive ? 'bg-emerald-200 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                       {sub.end}
                     </span>
                     <button
@@ -903,46 +938,31 @@ export function TranslatePage() {
                     </button>
                   </div>
 
-                  {/* 원문 */}
+                  {/* 원문 (읽기전용) */}
                   <p className="text-[10px] font-semibold text-slate-400 mb-1">원문</p>
-                  <AutoTextarea
-                    value={sub.original}
-                    onChange={e => handleSubtitleChange(sub.id, 'original', e.target.value)}
+                  <p
                     onMouseUp={() => handleTextSelect(sub, sourceLang, 'ORIGINAL', sub.original)}
-                    onClick={e => e.stopPropagation()}
-                    className={`w-full text-xs border rounded-lg px-2 py-1.5 focus:outline-none mb-2 transition-colors ${
+                    className={`w-full text-xs border rounded-lg px-2 py-1.5 mb-2 leading-relaxed select-text cursor-text ${
                       isActive
-                        ? 'text-slate-800 border-violet-200 bg-white focus:border-violet-400'
-                        : 'text-slate-700 border-slate-200 bg-white focus:border-violet-400'
+                        ? 'text-slate-600 border-slate-100 bg-slate-50'
+                        : 'text-slate-500 border-slate-100 bg-slate-50'
                     }`}
-                  />
+                  >
+                    {sub.original || <span className="text-slate-300">원문 없음</span>}
+                  </p>
 
-                  {/* 번역 */}
-                  <p className="text-[10px] font-semibold text-slate-400 mb-1">번역</p>
+                  {/* 번역 (편집 가능) */}
+                  <p className="text-[10px] font-semibold text-emerald-600 mb-1">번역</p>
                   <AutoTextarea
                     value={sub.translation}
                     onChange={e => handleSubtitleChange(sub.id, 'translation', e.target.value)}
                     onMouseUp={() => handleTextSelect(sub, targetLang, 'TRANSLATED', sub.translation)}
                     onClick={e => e.stopPropagation()}
-                    className={`w-full text-xs border rounded-lg px-2 py-1.5 focus:outline-none mb-2 transition-colors ${
-                      isActive
-                        ? 'text-slate-800 border-violet-200 bg-white focus:border-violet-400'
-                        : 'text-slate-700 border-slate-200 bg-white focus:border-violet-400'
-                    }`}
-                  />
-
-                  {/* 번역 (의역) */}
-                  <p className="text-[10px] font-semibold text-emerald-400 mb-1">번역 (의역)</p>
-                  <AutoTextarea
-                    value={sub.paraphrase}
-                    onChange={e => handleSubtitleChange(sub.id, 'paraphrase', e.target.value)}
-                    onMouseUp={() => handleTextSelect(sub, targetLang, 'TRANSLATED', sub.paraphrase)}
-                    onClick={e => e.stopPropagation()}
-                    placeholder="의역을 입력하거나 AI 분석을 기다려주세요"
+                    placeholder="번역문을 입력하세요"
                     className={`w-full text-xs border rounded-lg px-2 py-1.5 focus:outline-none mb-2 transition-colors placeholder-slate-300 ${
                       isActive
-                        ? 'text-slate-800 border-emerald-200 bg-emerald-50/30 focus:border-emerald-400'
-                        : 'text-slate-700 border-emerald-100 bg-emerald-50/20 focus:border-emerald-400'
+                        ? 'text-slate-800 border-emerald-200 bg-white focus:border-emerald-400'
+                        : 'text-slate-700 border-slate-200 bg-white focus:border-emerald-400'
                     }`}
                   />
 
@@ -980,7 +1000,7 @@ export function TranslatePage() {
                     {/* 문장 구조 분석 버튼 */}
                     <button
                       onClick={e => { e.stopPropagation(); handleSentenceAnalysis(sub); }}
-                      className="flex items-center gap-1.5 text-xs font-medium text-violet-500 hover:text-violet-700 transition-colors"
+                      className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 hover:text-emerald-700 transition-colors"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
@@ -1019,14 +1039,14 @@ export function TranslatePage() {
             <div className="flex items-center gap-2">
               {rightPanel === 'sentence' ? (
                 <>
-                  <svg className="h-4 w-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                   </svg>
                   <p className="text-sm font-bold text-slate-800">문장 구조 분석</p>
                 </>
               ) : (
                 <>
-                  <svg className="h-4 w-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                   <p className="text-sm font-bold text-slate-800">단어 해설</p>
@@ -1047,8 +1067,8 @@ export function TranslatePage() {
             {/* 아무것도 선택 안 한 상태 */}
             {!rightPanel && (
               <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-100">
-                  <svg className="h-7 w-7 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+                  <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
@@ -1056,12 +1076,12 @@ export function TranslatePage() {
                 <p className="text-xs text-slate-400 leading-relaxed">
                   자막 텍스트에서 궁금한 단어나 표현을 드래그 하면<br />
                   뜻, 발음, 예문과 함께<br />
-                  <span className="text-violet-500">영상에서의 맥락적 의미</span>까지<br />
+                  <span className="text-emerald-500">영상에서의 맥락적 의미</span>까지<br />
                   확인할 수 있습니다.
                 </p>
                 {activeSubtitle && (
-                  <div className="mt-4 w-full rounded-xl bg-violet-50 border border-violet-200 p-4 text-left">
-                    <p className="text-xs font-semibold text-violet-500 mb-1">현재 재생 중인 자막</p>
+                  <div className="mt-4 w-full rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-left">
+                    <p className="text-xs font-semibold text-emerald-500 mb-1">현재 재생 중인 자막</p>
                     <p className="text-sm text-slate-700">{activeSubtitle.original}</p>
                     {activeSubtitle.translation && (
                       <p className="text-xs text-slate-500 mt-1">{activeSubtitle.translation}</p>
@@ -1085,9 +1105,9 @@ export function TranslatePage() {
                 </button>
 
                 {/* 단어 + TTS */}
-                <div className="rounded-xl bg-violet-50 border border-violet-100 p-5 text-center">
-                  <p className="text-2xl font-extrabold text-violet-700">{selectedWord.word}</p>
-                  <p className="text-xs text-violet-400 mt-1 font-mono">{selectedWord.timestamp}</p>
+                <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-5 text-center">
+                  <p className="text-2xl font-extrabold text-emerald-700">{selectedWord.word}</p>
+                  <p className="text-xs text-emerald-400 mt-1 font-mono">{selectedWord.timestamp}</p>
                   <button
                     onClick={() => {
                       const utter = new SpeechSynthesisUtterance(selectedWord.word);
@@ -1096,7 +1116,7 @@ export function TranslatePage() {
                       window.speechSynthesis.cancel();
                       window.speechSynthesis.speak(utter);
                     }}
-                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 text-violet-600 transition-colors text-xs font-medium"
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors text-xs font-medium"
                   >
                     <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
@@ -1108,7 +1128,7 @@ export function TranslatePage() {
                 {/* AI 분석 결과: 뜻 + 관련 단어 */}
                 {wordLoading ? (
                   <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full border-2 border-violet-200 border-t-violet-500 animate-spin shrink-0" />
+                    <div className="w-5 h-5 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin shrink-0" />
                     <p className="text-xs text-slate-400">AI가 단어를 분석하고 있습니다...</p>
                   </div>
                 ) : wordError ? (
@@ -1137,7 +1157,7 @@ export function TranslatePage() {
                                 window.speechSynthesis.cancel();
                                 window.speechSynthesis.speak(utter);
                               }}
-                              className="cursor-pointer text-xs px-2.5 py-1 rounded-full bg-violet-50 border border-violet-100 text-violet-600 hover:bg-violet-100 transition-colors"
+                              className="cursor-pointer text-xs px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 transition-colors"
                             >
                               {rw}
                             </span>

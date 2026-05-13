@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getJobDetail } from '@/api/video';
+import { useAuth } from '@/app/providers/AuthProvider';
 
-// ── 단계 라벨 (설계서 Stage Enum 기준) ──────────────────
-const STAGE_LABELS: Record<string, string> = {
-  QUEUED: '대기열에서 기다리는 중',
-  AUDIO_EXTRACTION: '오디오 추출 중',
-  STT_TRANSCRIPTION: '음성 인식 중 (WhisperX)',
-  WHISPER_ALIGNMENT: '타임스탬프 정렬 중',
-  OCR_FRAME_EXTRACTION: '프레임 샘플링 중',
-  OCR_TEXT_DETECTION: '화면 텍스트 추출 중 (OCR)',
-  LLM_ANALYSIS: 'AI 문장 분석 중',
-  MERGING_RESULTS: '결과 병합 중',
-  FINALIZING: '최종 저장 중',
-};
+// ── 단계 정의 ─────────────────────────────────────────────
+const STAGES = [
+  { key: 'QUEUED',               label: '대기열 진입',      desc: '분석 순서를 기다리고 있어요' },
+  { key: 'AUDIO_EXTRACTION',     label: '오디오 추출',      desc: '영상에서 음성 트랙을 분리해요' },
+  { key: 'STT_TRANSCRIPTION',    label: '음성 인식',        desc: 'WhisperX가 말소리를 텍스트로 변환해요' },
+  { key: 'WHISPER_ALIGNMENT',    label: '타임스탬프 정렬',  desc: '각 단어의 정확한 시간 위치를 맞춰요' },
+  { key: 'OCR_FRAME_EXTRACTION', label: '프레임 샘플링',    desc: '자막이 포함된 장면을 골라내요' },
+  { key: 'OCR_TEXT_DETECTION',   label: '화면 텍스트 추출', desc: 'OCR 엔진으로 화면 글자를 읽어요' },
+  { key: 'LLM_ANALYSIS',         label: 'AI 문장 분석',     desc: '문장 구조와 의미를 심층 분석해요' },
+  { key: 'MERGING_RESULTS',      label: '결과 병합',        desc: '음성·화면 데이터를 하나로 합쳐요' },
+  { key: 'FINALIZING',           label: '최종 저장',        desc: '분석 결과를 저장하고 마무리해요' },
+];
 
-// ── 에러 코드 메시지 (설계서 6. 에러 코드 기준) ──────────
 const ERROR_MESSAGES: Record<string, string> = {
   WORKER_001: 'GPU 메모리가 부족합니다. 잠시 후 다시 시도해 주세요.',
   WORKER_002: '영상 처리(FFmpeg) 중 오류가 발생했습니다.',
@@ -29,22 +29,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   WORKER_010: '파일 다운로드에 실패했습니다.',
 };
 
-const STAGES_ORDER = [
-  'QUEUED',
-  'AUDIO_EXTRACTION',
-  'STT_TRANSCRIPTION',
-  'WHISPER_ALIGNMENT',
-  'OCR_FRAME_EXTRACTION',
-  'OCR_TEXT_DETECTION',
-  'LLM_ANALYSIS',
-  'MERGING_RESULTS',
-  'FINALIZING',
-];
-
 // ── 컴포넌트 ─────────────────────────────────────────────
 export function ProcessingPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { loading: authLoading, user } = useAuth();
   const { jobId, videoSrc, projectId, targetLanguage } =
     (location.state as {
       jobId?: number;
@@ -54,7 +43,6 @@ export function ProcessingPage() {
     }) ?? {};
 
   const [status, setStatus] = useState<'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'>('PENDING');
-  const [progress, setProgress] = useState(0);
   const [currentStage, setCurrentStage] = useState('QUEUED');
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -73,7 +61,6 @@ export function ProcessingPage() {
     try {
       const detail = await getJobDetail(jobId);
       setStatus(detail.status);
-      setProgress(detail.progress);
       if (detail.currentStage) setCurrentStage(detail.currentStage);
 
       if (detail.status === 'COMPLETED') {
@@ -92,6 +79,11 @@ export function ProcessingPage() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      navigate('/login', { replace: true });
+      return;
+    }
     if (!jobId) {
       navigate('/upload', { replace: true });
       return;
@@ -99,15 +91,22 @@ export function ProcessingPage() {
     poll();
     intervalRef.current = setInterval(poll, 3000);
     return stopPolling;
-  }, [jobId]);
+  }, [authLoading, user, jobId]);
 
-  const stageIndex = STAGES_ORDER.indexOf(currentStage);
+  const stageIndex = STAGES.findIndex(s => s.key === currentStage);
   const isFailed = status === 'FAILED';
   const isCompleted = status === 'COMPLETED';
 
+  const getStageState = (idx: number): 'done' | 'active' | 'pending' => {
+    if (isCompleted) return 'done';
+    if (idx < stageIndex) return 'done';
+    if (idx === stageIndex) return 'active';
+    return 'pending';
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50/30 flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
 
         {/* 로고 */}
         <div className="flex items-center justify-center gap-2 mb-8">
@@ -120,11 +119,11 @@ export function ProcessingPage() {
           <span className="text-lg font-bold text-slate-800">OverLang</span>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
 
           {/* ── 실패 상태 ── */}
           {isFailed ? (
-            <>
+            <div className="p-8">
               <div className="text-center mb-6">
                 <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -152,89 +151,109 @@ export function ProcessingPage() {
               >
                 다시 업로드하기
               </button>
-            </>
+            </div>
+
           ) : (
-            /* ── 처리 중 / 완료 상태 ── */
+            /* ── 처리 중 / 완료 ── */
             <>
-              <div className="text-center mb-8">
+              {/* 헤더 */}
+              <div className="px-8 pt-8 pb-6 text-center border-b border-slate-100">
                 {isCompleted ? (
                   <>
-                    <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-7 h-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
                     <h2 className="text-xl font-bold text-gray-900">분석 완료!</h2>
-                    <p className="text-gray-500 mt-1 text-sm">자막 편집 화면으로 이동합니다...</p>
+                    <p className="text-gray-400 mt-1 text-sm">자막 편집 화면으로 이동합니다...</p>
                   </>
                 ) : (
                   <>
-                    <div className="w-16 h-16 rounded-full border-4 border-emerald-100 border-t-emerald-500 animate-spin mx-auto mb-4" />
+                    <div className="relative w-14 h-14 mx-auto mb-3">
+                      <div className="absolute inset-0 rounded-full border-4 border-emerald-100 border-t-emerald-500 animate-spin" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </div>
+                    </div>
                     <h2 className="text-xl font-bold text-gray-900">AI가 분석 중입니다</h2>
-                    <p className="text-gray-500 mt-1 text-sm">음성 인식과 화면 텍스트를 처리하고 있어요</p>
+                    <p className="text-gray-400 mt-1 text-sm">음성 인식과 화면 텍스트를 처리하고 있어요</p>
                   </>
                 )}
               </div>
 
-              {/* 진행률 바 */}
-              <div className="mb-6">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium text-gray-700">
-                    {STAGE_LABELS[currentStage] ?? '처리 중'}
-                  </span>
-                  <span className="text-emerald-600 font-bold">{Math.round(progress)}%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2.5">
-                  <div
-                    className="bg-emerald-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
+              {/* 스텝 목록 */}
+              <div className="px-8 py-6">
+                <div className="relative">
+                  {/* 세로 연결선 */}
+                  <div className="absolute left-[17px] top-5 bottom-5 w-[2px] bg-slate-100" />
+
+                  <div className="space-y-0">
+                    {STAGES.map((stage, idx) => {
+                      const state = getStageState(idx);
+                      return (
+                        <div key={stage.key} className="relative flex items-start gap-4 py-2.5">
+                          {/* 원형 아이콘 */}
+                          <div className="relative z-10 shrink-0">
+                            {state === 'done' ? (
+                              <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
+                                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            ) : state === 'active' ? (
+                              <div className="w-9 h-9 rounded-full bg-white border-2 border-emerald-400 flex items-center justify-center shadow-md">
+                                <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
+                              </div>
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+                                <div className="w-2 h-2 rounded-full bg-slate-300" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 텍스트 */}
+                          <div className="flex-1 min-w-0 pt-1.5">
+                            <p className={`text-sm font-semibold leading-tight transition-colors ${
+                              state === 'done'
+                                ? 'text-emerald-600'
+                                : state === 'active'
+                                ? 'text-slate-900'
+                                : 'text-slate-300'
+                            }`}>
+                              {stage.label}
+                            </p>
+                            {state === 'active' && (
+                              <p className="text-xs text-slate-400 mt-0.5 leading-snug">{stage.desc}</p>
+                            )}
+                          </div>
+
+                          {/* 진행 중 배지 */}
+                          {state === 'active' && (
+                            <div className="shrink-0 pt-1.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                진행 중
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              {/* 단계 리스트 */}
-              <div className="space-y-2.5">
-                {STAGES_ORDER.map((stage, idx) => {
-                  const isDone = idx < stageIndex || isCompleted;
-                  const isCurrent = idx === stageIndex && !isCompleted;
-                  return (
-                    <div key={stage} className="flex items-center gap-3">
-                      {/* 상태 아이콘 */}
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                        isDone
-                          ? 'bg-emerald-500'
-                          : isCurrent
-                          ? 'border-2 border-emerald-500 bg-emerald-50'
-                          : 'bg-gray-100'
-                      }`}>
-                        {isDone && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                        {isCurrent && (
-                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        )}
-                      </div>
-                      {/* 단계 이름 */}
-                      <span className={`text-sm transition-colors ${
-                        isDone
-                          ? 'text-emerald-600 font-medium'
-                          : isCurrent
-                          ? 'text-gray-900 font-semibold'
-                          : 'text-gray-400'
-                      }`}>
-                        {STAGE_LABELS[stage]}
-                      </span>
-                    </div>
-                  );
-                })}
+              {/* 하단 안내 */}
+              <div className="px-8 pb-7 text-center">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  영상 길이에 따라 최대 15분 정도 소요될 수 있습니다.<br />
+                  이 페이지를 닫지 마세요.
+                </p>
               </div>
-
-              <p className="text-xs text-gray-400 text-center mt-6 leading-relaxed">
-                영상 길이에 따라 최대 15분 정도 소요될 수 있습니다.<br />
-                이 페이지를 닫지 마세요.
-              </p>
             </>
           )}
         </div>

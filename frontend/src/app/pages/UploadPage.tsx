@@ -57,6 +57,12 @@ export function UploadPage() {
       return;
     }
     setUploadedFile(file);
+    // 오류 상태 초기화
+    if (uploadPhase === "error") {
+      setUploadPhase("idle");
+      setUploadError(null);
+      setUploadStep("");
+    }
     // 제목이 비어있으면 파일명(확장자 제외)으로 자동 채움
     if (!title.trim()) {
       setTitle(file.name.replace(/\.[^/.]+$/, ""));
@@ -82,42 +88,63 @@ export function UploadPage() {
 
     try {
       if (uploadMethod === "file" && uploadedFile) {
-        // 1단계: S3 파일 업로드
-        setUploadStep("영상을 서버에 업로드하는 중... (1/3)");
-        const fileResult = await uploadVideoFile(uploadedFile);
+        let fileResult;
+        try {
+          setUploadStep("영상을 서버에 업로드하는 중... (1/3)");
+          fileResult = await uploadVideoFile(uploadedFile);
+        } catch (err) {
+          console.error("[OverLang] 파일 업로드 실패:", err);
+          throw new Error("영상 파일 업로드에 실패했습니다. 파일 크기(최대 2GB)와 형식을 확인하고 다시 시도해주세요.");
+        }
 
-        // 2단계: 프로젝트 생성
-        setUploadStep("프로젝트를 생성하는 중... (2/3)");
-        const project = await createProject({
-          title: title.trim(),
-          sourceType: "UPLOAD",
-          fileUrl: fileResult.fileUrl,
-          fileKey: fileResult.fileKey,
-        });
+        let project;
+        try {
+          setUploadStep("프로젝트를 생성하는 중... (2/3)");
+          project = await createProject({
+            title: title.trim(),
+            sourceType: "UPLOAD",
+            fileUrl: fileResult.fileUrl,
+            fileKey: fileResult.fileKey,
+          });
+        } catch (err) {
+          console.error("[OverLang] 프로젝트 생성 실패:", err);
+          throw new Error("프로젝트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        }
 
-        // 3단계: AI Job 등록
-        setUploadStep("AI 분석 작업을 등록하는 중... (3/3)");
-        const job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+        let job;
+        try {
+          setUploadStep("AI 분석 작업을 등록하는 중... (3/3)");
+          job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+        } catch (err) {
+          console.error("[OverLang] AI Job 생성 실패:", err);
+          throw new Error("AI 분석 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        }
 
         navigate("/processing", {
-          state: {
-            jobId: job.jobId,
-            projectId: project.projectId,
-            targetLanguage,
-          },
+          state: { jobId: job.jobId, projectId: project.projectId, targetLanguage },
         });
       } else {
-        // 1단계: 프로젝트 생성 (YouTube)
-        setUploadStep("프로젝트를 생성하는 중... (1/2)");
-        const project = await createProject({
-          title: title.trim(),
-          sourceType: "YOUTUBE",
-          sourceUrl: videoLink.trim(),
-        });
+        let project;
+        try {
+          setUploadStep("프로젝트를 생성하는 중... (1/2)");
+          project = await createProject({
+            title: title.trim(),
+            sourceType: "YOUTUBE",
+            sourceUrl: videoLink.trim(),
+          });
+        } catch (err) {
+          console.error("[OverLang] 프로젝트 생성 실패:", err);
+          throw new Error("프로젝트 생성에 실패했습니다. YouTube 링크가 올바른지 확인하고 다시 시도해주세요.");
+        }
 
-        // 2단계: AI Job 등록
-        setUploadStep("AI 분석 작업을 등록하는 중... (2/2)");
-        const job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+        let job;
+        try {
+          setUploadStep("AI 분석 작업을 등록하는 중... (2/2)");
+          job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+        } catch (err) {
+          console.error("[OverLang] AI Job 생성 실패:", err);
+          throw new Error("AI 분석 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        }
 
         navigate("/processing", {
           state: {
@@ -131,7 +158,7 @@ export function UploadPage() {
     } catch (err) {
       setUploadPhase("error");
       setUploadError(
-        err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다."
+        err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
       );
     }
   };
@@ -293,7 +320,14 @@ export function UploadPage() {
                   <input
                     type="text"
                     value={videoLink}
-                    onChange={(e) => setVideoLink(e.target.value)}
+                    onChange={(e) => {
+                      setVideoLink(e.target.value);
+                      if (uploadPhase === "error") {
+                        setUploadPhase("idle");
+                        setUploadError(null);
+                        setUploadStep("");
+                      }
+                    }}
                     placeholder="YouTube 링크를 입력하세요 (예: https://youtube.com/watch?v=...)"
                     disabled={isDisabled}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
