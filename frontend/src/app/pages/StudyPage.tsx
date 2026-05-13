@@ -496,7 +496,7 @@ export function StudyPage() {
                       {/* 단어망 */}
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">관련 단어망</p>
+                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">관련 단어</p>
                         </div>
 
                         {!relations ? (
