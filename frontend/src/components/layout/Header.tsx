@@ -1,22 +1,15 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 
-const PROFILE_PHOTO_KEY = 'overlang_profile_photo';
-
 export function Header() {
-  const { user, logout } = useAuth();
+  const { user, logout, profileImageUrl } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // localStorage 프로필 사진 우선, 없으면 Firebase photoURL
-  const profilePhoto = useMemo(() => {
-    const local = localStorage.getItem(PROFILE_PHOTO_KEY);
-    return local || user?.photoURL || null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.photoURL, dropdownOpen]); // dropdownOpen dep으로 저장 후 즉시 반영
+  const profilePhoto = profileImageUrl || null;
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || '';
 

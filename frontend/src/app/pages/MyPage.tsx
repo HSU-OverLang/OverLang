@@ -27,7 +27,7 @@ type SubPage = 'main' | 'settings';
 type RecentProject = ProjectResult & { clickedAt: string };
 
 export function MyPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, profileImageUrl } = useAuth();
   const navigate = useNavigate();
   const [subPage, setSubPage] = useState<SubPage>('main');
   const [totalProjects, setTotalProjects] = useState<number>(0);
@@ -86,8 +86,8 @@ export function MyPage() {
           <div className="flex items-center gap-5">
             <div className="relative">
               <div className="h-20 w-20 rounded-2xl overflow-hidden ring-4 ring-white/30 shadow-lg bg-white/20">
-                {user?.photoURL ? (
-                  <img src={user.photoURL} className="h-full w-full object-cover" alt="프로필" />
+                {profileImageUrl ? (
+                  <img src={profileImageUrl} className="h-full w-full object-cover" alt="프로필" />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center">
                     <svg className="h-10 w-10 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -228,11 +228,13 @@ function SettingsPage({
   onBack: () => void;
   onDeleteSuccess: () => void;
 }) {
-  const { user, changePassword, deleteAccount, clearError, updateUserProfile } = useAuth();
+  const { user, changePassword, deleteAccount, clearError, updateUserProfile, profileImageUrl, uploadProfileImage } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profileImage, setProfileImage] = useState<string | null>(
-    localStorage.getItem(PROFILE_PHOTO_KEY) || user?.photoURL || null
+    profileImageUrl ?? null
   );
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
   const [name, setName] = useState(user?.displayName ?? '');
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -243,16 +245,21 @@ function SettingsPage({
   const [confirmPw, setConfirmPw] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    setImageError('');
+    setImageUploading(true);
+    try {
+      await uploadProfileImage(file);
+      // 업로드 성공 시 미리보기도 즉시 갱신
       const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setProfileImage(base64);
-        localStorage.setItem(PROFILE_PHOTO_KEY, base64);
-      };
+      reader.onload = () => setProfileImage(reader.result as string);
       reader.readAsDataURL(file);
+    } catch (e: any) {
+      setImageError(e?.message ?? '이미지 업로드에 실패했습니다.');
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -338,13 +345,18 @@ function SettingsPage({
                 )}
               </div>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-500 shadow"
+                onClick={() => !imageUploading && fileInputRef.current?.click()}
+                disabled={imageUploading}
+                className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white hover:bg-emerald-500 shadow disabled:opacity-60"
               >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                {imageUploading ? (
+                  <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                ) : (
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                )}
               </button>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </div>
@@ -352,11 +364,13 @@ function SettingsPage({
               <p className="text-sm font-semibold text-slate-700">프로필 사진</p>
               <p className="text-xs text-slate-400 mt-0.5">JPG, PNG (최대 5MB)</p>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-500 transition-colors"
+                onClick={() => !imageUploading && fileInputRef.current?.click()}
+                disabled={imageUploading}
+                className="mt-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-500 transition-colors disabled:opacity-50"
               >
-                사진 변경
+                {imageUploading ? '업로드 중...' : '사진 변경'}
               </button>
+              {imageError && <p className="mt-1 text-xs text-red-500">{imageError}</p>}
             </div>
           </div>
 

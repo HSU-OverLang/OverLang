@@ -22,7 +22,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { setAuthTokenGetter } from '@/api/client';
-import { registerWithFirebase } from '@/api/auth';
+import { registerWithFirebase, getMe, uploadProfileImage as apiUploadProfileImage } from '@/api/auth';
 import { updateProfile } from 'firebase/auth';
 
 type AuthState = {
@@ -41,6 +41,8 @@ type AuthContextValue = AuthState & {
   changePassword: (currentPw: string, newPw: string) => Promise<void>;
   deleteAccount: (currentPw: string) => Promise<void>;
   updateUserProfile: (name: string) => Promise<void>;
+  profileImageUrl: string | null;
+  uploadProfileImage: (file: File) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   // React state 타이밍과 무관하게 Firebase SDK의 currentUser를 직접 참조
   useEffect(() => {
@@ -66,6 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
+      // 로그인 시 백엔드에서 profileImageUrl 가져오기
+      if (u) {
+        getMe().then(data => setProfileImageUrl(data.profileImageUrl)).catch(() => {});
+      } else {
+        setProfileImageUrl(null);
+      }
     });
   }, []);
 
@@ -161,6 +170,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user]
   );
 
+  const uploadProfileImage = useCallback(
+    async (file: File) => {
+      const url = await apiUploadProfileImage(file);
+      setProfileImageUrl(url);
+    },
+    []
+  );
+
   const deleteAccount = useCallback(
     async (currentPw: string) => {
       setError(null);
@@ -195,6 +212,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       deleteAccount,
       updateUserProfile,
+      profileImageUrl,
+      uploadProfileImage,
     }),
     [
       user,
@@ -209,6 +228,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       deleteAccount,
       updateUserProfile,
+      profileImageUrl,
+      uploadProfileImage,
     ]
   );
 
