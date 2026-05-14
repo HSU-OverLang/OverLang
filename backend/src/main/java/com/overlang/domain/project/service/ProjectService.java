@@ -155,6 +155,9 @@ public class ProjectService {
     }
 
     jobRepository.deleteByProjectId(projectId);
+    if (project.getSourceType() == SourceType.UPLOAD) {
+      s3UploadService.deleteFile(project.getFileKey());
+    }
     projectRepository.delete(project);
 
     return new ProjectDeleteResponse(projectId, true);

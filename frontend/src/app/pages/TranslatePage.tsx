@@ -211,6 +211,10 @@ export function TranslatePage() {
               }
             }, 250);
           },
+          onStateChange: (event: any) => {
+            // YT.PlayerState.PLAYING = 1, 나머지는 정지로 간주
+            setIsPlaying(event.data === 1);
+          },
         },
       });
     };
@@ -278,6 +282,7 @@ export function TranslatePage() {
   // 저장 토스트
   const [saveToast, setSaveToast] = useState(false);
 
+  const [isPlaying, setIsPlaying] = useState(false);
   const [showOcr, setShowOcr] = useState(true);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
@@ -735,11 +740,13 @@ export function TranslatePage() {
                 controls
                 src={activeVideo}
                 onTimeUpdate={handleTimeUpdate}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
               />
             )}
 
-            {/* OCR 오버레이 - 번역문만, 원본 크기에 맞게, 반투명 */}
-            {showOcr && activeOcr.map(ocr => (
+            {/* OCR 오버레이 - 재생 중일 때만 표시 */}
+            {showOcr && isPlaying && activeOcr.map(ocr => (
               ocr.translation ? (
                 <div
                   key={ocr.id}

@@ -200,3 +200,17 @@ export async function deleteProject(projectId: number): Promise<void> {
   const res = await apiDelete(`/v1/projects/${projectId}`);
   await unwrap<unknown>(res);
 }
+
+export interface RetryJobResult {
+  projectId: number;
+  jobId: number;
+  jobStatus: string;
+  projectStatus: string;
+  message: string;
+}
+
+/** 실패한 분석 재처리 요청 */
+export async function retryJob(projectId: number): Promise<RetryJobResult> {
+  const res = await apiPost(`/v1/projects/${projectId}/jobs/retry`, {});
+  return unwrap<RetryJobResult>(res);
+}
