@@ -51,6 +51,10 @@ public class AuthController {
 
     return ApiResponse.success(
         new AuthMeResponse(
-            member.getId(), member.getFirebaseUid(), member.getEmail(), member.getName()));
+            member.getId(),
+            member.getFirebaseUid(),
+            member.getEmail(),
+            member.getName(),
+            member.getProfileImageUrl()));
   }
 }
