@@ -1,12 +1,14 @@
 package com.overlang.api.dto.savedword;
 
 import com.overlang.domain.savedword.entity.SavedWord;
+import com.overlang.domain.word.entity.SelectedTextType;
 import java.time.Instant;
 
 public record SavedWordResponse(
     Long savedWordId,
     Long segmentWordId,
     String word,
+    SelectedTextType selectedTextType,
     String meaning,
     String contextMeaning,
     String memo,
@@ -28,6 +30,7 @@ public record SavedWordResponse(
         savedWord.getId(),
         segmentWord.getId(),
         segmentWord.getWord(),
+        SelectedTextType.valueOf(segmentWord.getWordType().name()),
         savedWord.getMeaning(),
         savedWord.getContextMeaning(),
         savedWord.getMemo(),
