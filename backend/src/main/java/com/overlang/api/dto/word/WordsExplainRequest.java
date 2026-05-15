@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record WordsExplainRequest(
+    @NotNull(message = "세그먼트 ID는 필수입니다.") Long segmentId,
     @NotBlank(message = "단어는 필수입니다.") String word,
     @NotNull(message = "선택한 텍스트 타입은 필수입니다.") SelectedTextType selectedTextType,
     @NotBlank(message = "원문 문장은 필수입니다.") String originalSentence,
