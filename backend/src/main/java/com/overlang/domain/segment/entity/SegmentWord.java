@@ -29,11 +29,22 @@ public class SegmentWord {
   @Column(nullable = false, length = 255)
   private String word;
 
-  public SegmentWord(Segment segment, Integer seq, Double startTime, Double endTime, String word) {
+  @Enumerated(EnumType.STRING)
+  @Column(name = "word_type", nullable = false, length = 20)
+  private SegmentWordType wordType;
+
+  public SegmentWord(
+      Segment segment,
+      Integer seq,
+      Double startTime,
+      Double endTime,
+      String word,
+      SegmentWordType wordType) {
     this.segment = segment;
     this.seq = seq;
     this.startTime = startTime;
     this.endTime = endTime;
     this.word = word;
+    this.wordType = wordType;
   }
 }

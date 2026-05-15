@@ -20,8 +20,10 @@ import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.entity.SegmentWord;
+import com.overlang.domain.segment.entity.SegmentWordType;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -320,20 +322,46 @@ public class JobService {
         segments.stream()
             .flatMap(
                 segment -> {
-                  String[] words = segment.getText().split("\\s+");
+                  List<SegmentWord> words = new ArrayList<>();
 
-                  return java.util.stream.IntStream.range(0, words.length)
-                      .mapToObj(
-                          i ->
-                              new SegmentWord(
-                                  segment,
-                                  i + 1,
-                                  segment.getStartTime(),
-                                  segment.getEndTime(),
-                                  words[i]));
+                  // ORIGINAL words
+                  if (segment.getText() != null && !segment.getText().isBlank()) {
+
+                    String[] originalWords = segment.getText().split("\\s+");
+
+                    for (int i = 0; i < originalWords.length; i++) {
+                      words.add(
+                          new SegmentWord(
+                              segment,
+                              i + 1,
+                              segment.getStartTime(),
+                              segment.getEndTime(),
+                              originalWords[i],
+                              SegmentWordType.ORIGINAL));
+                    }
+                  }
+
+                  // TRANSLATION words
+                  if (segment.getTranslatedText() != null
+                      && !segment.getTranslatedText().isBlank()) {
+
+                    String[] translatedWords = segment.getTranslatedText().split("\\s+");
+
+                    for (int i = 0; i < translatedWords.length; i++) {
+                      words.add(
+                          new SegmentWord(
+                              segment,
+                              i + 1,
+                              segment.getStartTime(),
+                              segment.getEndTime(),
+                              translatedWords[i],
+                              SegmentWordType.TRANSLATION));
+                    }
+                  }
+
+                  return words.stream();
                 })
             .toList();
-
     segmentWordRepository.saveAll(segmentWords);
   }
 }
