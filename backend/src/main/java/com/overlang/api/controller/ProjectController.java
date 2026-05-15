@@ -87,14 +87,16 @@ public class ProjectController {
     return ApiResponse.success(new PresignedUrlResponse(presignedUrl));
   }
 
-  @Operation(summary = "번역문 수정 저장", description = "사용자가 수정한 번역문을 저장하고 TRANSLATION SegmentWord를 재생성합니다.")
+  @Operation(
+      summary = "번역문 수정 저장",
+      description = "사용자가 수정한 번역문을 저장하고 TRANSLATION SegmentWord를 재생성합니다.")
   @PatchMapping("/{projectId}/results")
   public ApiResponse<ProjectResultUpdateResponse> updateProjectResults(
-          @PathVariable Long projectId,
-          @RequestAttribute(AuthInterceptor.AUTH_MEMBER_ID) Long memberId,
-          @Valid @RequestBody ProjectResultUpdateRequest request) {
+      @PathVariable Long projectId,
+      @RequestAttribute(AuthInterceptor.AUTH_MEMBER_ID) Long memberId,
+      @Valid @RequestBody ProjectResultUpdateRequest request) {
     ProjectResultUpdateResponse response =
-            projectService.updateProjectResults(projectId, memberId, request);
+        projectService.updateProjectResults(projectId, memberId, request);
 
     return ApiResponse.success(response);
   }

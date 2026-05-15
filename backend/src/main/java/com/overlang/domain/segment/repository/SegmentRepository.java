@@ -8,4 +8,6 @@ public interface SegmentRepository extends JpaRepository<Segment, Long> {
   List<Segment> findByJobIdOrderBySeqAsc(Long jobId);
 
   void deleteByJobId(Long jobId);
+
+  List<Segment> findByIdIn(List<Long> segmentIds);
 }

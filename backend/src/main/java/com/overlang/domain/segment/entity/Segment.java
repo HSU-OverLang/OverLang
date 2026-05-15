@@ -53,4 +53,8 @@ public class Segment extends BaseTimeEntity {
     this.translatedText = translatedText;
     this.languageCode = languageCode;
   }
+
+  public void updateTranslatedText(String translatedText) {
+    this.translatedText = translatedText;
+  }
 }
