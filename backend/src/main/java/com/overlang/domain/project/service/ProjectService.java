@@ -1,12 +1,6 @@
 package com.overlang.domain.project.service;
 
-import com.overlang.api.dto.project.ProjectCreateRequest;
-import com.overlang.api.dto.project.ProjectCreateResponse;
-import com.overlang.api.dto.project.ProjectDeleteResponse;
-import com.overlang.api.dto.project.ProjectDetailResponse;
-import com.overlang.api.dto.project.ProjectResponse;
-import com.overlang.api.dto.project.ProjectUpdateRequest;
-import com.overlang.api.dto.project.ProjectUpdateResponse;
+import com.overlang.api.dto.project.*;
 import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.repository.JobRepository;
@@ -17,10 +11,16 @@ import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
 import com.overlang.domain.savedword.repository.SavedWordRepository;
+import com.overlang.domain.segment.entity.Segment;
+import com.overlang.domain.segment.entity.SegmentWord;
+import com.overlang.domain.segment.entity.SegmentWordType;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
 import com.overlang.global.util.YoutubeUrlUtils;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class ProjectService {
+
+  private static final String WORD_SPLIT_REGEX = "\\s+";
 
   private final ProjectRepository projectRepository;
   private final MemberRepository memberRepository;
@@ -161,5 +163,109 @@ public class ProjectService {
     projectRepository.delete(project);
 
     return new ProjectDeleteResponse(projectId, true);
+  }
+
+  @Transactional
+  public ProjectResultUpdateResponse updateProjectResults(
+      Long projectId, Long memberId, ProjectResultUpdateRequest request) {
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
+    List<Long> segmentIds =
+        request.segments().stream().map(ProjectResultSegmentUpdateRequest::segmentId).toList();
+
+    List<Segment> segments = segmentRepository.findByIdIn(segmentIds);
+
+    if (segments.size() != segmentIds.size()) {
+      throw new IllegalArgumentException("존재하지 않는 segment가 포함되어 있습니다.");
+    }
+    boolean hasInvalidSegment =
+        segments.stream()
+            .anyMatch(segment -> !segment.getJob().getProject().getId().equals(projectId));
+
+    if (hasInvalidSegment) {
+      throw new IllegalArgumentException("다른 프로젝트의 segment는 수정할 수 없습니다.");
+    }
+    savedWordRepository.deleteBySegmentIdsAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+
+    segmentWordRepository.deleteBySegmentIdInAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+    Map<Long, String> translatedTextBySegmentId =
+        request.segments().stream()
+            .collect(
+                Collectors.toMap(
+                    ProjectResultSegmentUpdateRequest::segmentId,
+                    ProjectResultSegmentUpdateRequest::translatedText));
+
+    segments.forEach(
+        segment -> segment.updateTranslatedText(translatedTextBySegmentId.get(segment.getId())));
+    List<SegmentWord> newTranslatedWords = createTranslationSegmentWords(segments);
+
+    List<SegmentWord> savedTranslatedWords = segmentWordRepository.saveAll(newTranslatedWords);
+
+    Map<Long, List<ProjectResultSegmentResponse.ProjectResultSegmentWordResponse>>
+        translatedWordsBySegmentId =
+            savedTranslatedWords.stream()
+                .collect(
+                    Collectors.groupingBy(
+                        segmentWord -> segmentWord.getSegment().getId(),
+                        Collectors.mapping(
+                            segmentWord ->
+                                new ProjectResultSegmentResponse.ProjectResultSegmentWordResponse(
+                                    segmentWord.getId(),
+                                    segmentWord.getWord(),
+                                    segmentWord.getWordType(),
+                                    segmentWord.getStartTime(),
+                                    segmentWord.getEndTime()),
+                            Collectors.toList())));
+
+    List<ProjectResultSegmentResponse> segmentResponses =
+        segments.stream()
+            .map(
+                segment ->
+                    new ProjectResultSegmentResponse(
+                        segment.getId(),
+                        segment.getTranslatedText(),
+                        translatedWordsBySegmentId.getOrDefault(segment.getId(), List.of())))
+            .toList();
+
+    return new ProjectResultUpdateResponse(project.getId(), segmentResponses);
+  }
+
+  private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
+    return projectRepository
+        .findByIdAndMemberId(projectId, memberId)
+        .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+  }
+
+  private List<SegmentWord> createTranslationSegmentWords(List<Segment> segments) {
+    List<SegmentWord> segmentWords = new ArrayList<>();
+
+    for (Segment segment : segments) {
+      String translatedText = segment.getTranslatedText();
+
+      if (translatedText == null || translatedText.isBlank()) {
+        continue;
+      }
+
+      String[] words = translatedText.split(WORD_SPLIT_REGEX);
+
+      int seq = 1;
+
+      for (String rawWord : words) {
+        String cleanedWord = rawWord.replaceAll("^[\\p{Punct}]+|[\\p{Punct}]+$", "");
+
+        if (cleanedWord.isBlank()) {
+          continue;
+        }
+
+        segmentWords.add(
+            new SegmentWord(
+                segment,
+                seq++,
+                segment.getStartTime(),
+                segment.getEndTime(),
+                cleanedWord,
+                SegmentWordType.TRANSLATION));
+      }
+    }
+    return segmentWords;
   }
 }
