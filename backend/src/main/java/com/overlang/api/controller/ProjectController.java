@@ -1,13 +1,7 @@
 package com.overlang.api.controller;
 
 import com.overlang.api.dto.file.PresignedUrlResponse;
-import com.overlang.api.dto.project.ProjectCreateRequest;
-import com.overlang.api.dto.project.ProjectCreateResponse;
-import com.overlang.api.dto.project.ProjectDeleteResponse;
-import com.overlang.api.dto.project.ProjectDetailResponse;
-import com.overlang.api.dto.project.ProjectResponse;
-import com.overlang.api.dto.project.ProjectUpdateRequest;
-import com.overlang.api.dto.project.ProjectUpdateResponse;
+import com.overlang.api.dto.project.*;
 import com.overlang.domain.project.service.ProjectService;
 import com.overlang.global.auth.AuthInterceptor;
 import com.overlang.global.response.ApiResponse;
@@ -91,5 +85,17 @@ public class ProjectController {
     String presignedUrl = projectService.getVideoPresignedUrl(memberId, projectId);
 
     return ApiResponse.success(new PresignedUrlResponse(presignedUrl));
+  }
+
+  @Operation(summary = "번역문 수정 저장", description = "사용자가 수정한 번역문을 저장하고 TRANSLATION SegmentWord를 재생성합니다.")
+  @PatchMapping("/{projectId}/results")
+  public ApiResponse<ProjectResultUpdateResponse> updateProjectResults(
+          @PathVariable Long projectId,
+          @RequestAttribute(AuthInterceptor.AUTH_MEMBER_ID) Long memberId,
+          @Valid @RequestBody ProjectResultUpdateRequest request) {
+    ProjectResultUpdateResponse response =
+            projectService.updateProjectResults(projectId, memberId, request);
+
+    return ApiResponse.success(response);
   }
 }

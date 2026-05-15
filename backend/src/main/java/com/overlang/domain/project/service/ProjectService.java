@@ -1,12 +1,6 @@
 package com.overlang.domain.project.service;
 
-import com.overlang.api.dto.project.ProjectCreateRequest;
-import com.overlang.api.dto.project.ProjectCreateResponse;
-import com.overlang.api.dto.project.ProjectDeleteResponse;
-import com.overlang.api.dto.project.ProjectDetailResponse;
-import com.overlang.api.dto.project.ProjectResponse;
-import com.overlang.api.dto.project.ProjectUpdateRequest;
-import com.overlang.api.dto.project.ProjectUpdateResponse;
+import com.overlang.api.dto.project.*;
 import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.repository.JobRepository;
@@ -162,4 +156,12 @@ public class ProjectService {
 
     return new ProjectDeleteResponse(projectId, true);
   }
+  @Transactional
+  public ProjectResultUpdateResponse updateProjectResults(
+          Long projectId,
+          Long memberId,
+          ProjectResultUpdateRequest request) {
+    throw new UnsupportedOperationException("아직 구현되지 않았습니다.");
+  }
+
 }
