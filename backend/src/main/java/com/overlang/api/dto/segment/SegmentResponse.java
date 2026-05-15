@@ -12,9 +12,13 @@ public record SegmentResponse(
     String text,
     String translatedText,
     String languageCode,
-    List<SegmentWordResponse> words) {
+    List<SegmentWordResponse> originalWords,
+    List<SegmentWordResponse> translatedWords) {
 
-  public static SegmentResponse from(Segment segment, List<SegmentWordResponse> words) {
+  public static SegmentResponse from(
+      Segment segment,
+      List<SegmentWordResponse> originalWords,
+      List<SegmentWordResponse> translatedWords) {
     return new SegmentResponse(
         segment.getId(),
         segment.getJob().getId(),
@@ -24,6 +28,7 @@ public record SegmentResponse(
         segment.getText(),
         segment.getTranslatedText(),
         segment.getLanguageCode(),
-        words);
+        originalWords,
+        translatedWords);
   }
 }
