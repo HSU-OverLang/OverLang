@@ -12,6 +12,8 @@ import com.overlang.domain.job.entity.JobStatus;
 import com.overlang.domain.job.queue.JobQueuePayload;
 import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
+import com.overlang.domain.learning.entity.LearningContent;
+import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.ocr.entity.OcrItem;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
 import com.overlang.domain.project.entity.Project;
@@ -34,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class JobService {
 
+  private static final String WORD_SPLIT_REGEX = "\\s+";
+
   private final ProjectRepository projectRepository;
   private final JobRepository jobRepository;
   private final S3UploadService s3UploadService;
@@ -43,6 +47,7 @@ public class JobService {
   private final OcrItemRepository ocrItemRepository;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
+  private final LearningContentRepository learningContentRepository;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -246,13 +251,16 @@ public class JobService {
     deletePreviousResults(job.getId());
     saveSegments(job, request);
     saveOcrItems(job, request);
+    saveLearningContents(job, request.learningData());
 
     job.getProject().markCompleted();
   }
 
   private void deletePreviousResults(Long jobId) {
+    segmentWordRepository.deleteBySegmentJobId(jobId);
     segmentRepository.deleteByJobId(jobId);
     ocrItemRepository.deleteByJobId(jobId);
+    learningContentRepository.deleteByJobId(jobId);
   }
 
   private void handleFailedCallback(Job job, JobCallbackRequest request) {
@@ -317,51 +325,59 @@ public class JobService {
   }
 
   private void createSegmentWords(List<Segment> segments) {
-
     List<SegmentWord> segmentWords =
-        segments.stream()
-            .flatMap(
-                segment -> {
-                  List<SegmentWord> words = new ArrayList<>();
+        segments.stream().flatMap(segment -> createSegmentWords(segment).stream()).toList();
 
-                  // ORIGINAL words
-                  if (segment.getText() != null && !segment.getText().isBlank()) {
-
-                    String[] originalWords = segment.getText().split("\\s+");
-
-                    for (int i = 0; i < originalWords.length; i++) {
-                      words.add(
-                          new SegmentWord(
-                              segment,
-                              i + 1,
-                              segment.getStartTime(),
-                              segment.getEndTime(),
-                              originalWords[i],
-                              SegmentWordType.ORIGINAL));
-                    }
-                  }
-
-                  // TRANSLATION words
-                  if (segment.getTranslatedText() != null
-                      && !segment.getTranslatedText().isBlank()) {
-
-                    String[] translatedWords = segment.getTranslatedText().split("\\s+");
-
-                    for (int i = 0; i < translatedWords.length; i++) {
-                      words.add(
-                          new SegmentWord(
-                              segment,
-                              i + 1,
-                              segment.getStartTime(),
-                              segment.getEndTime(),
-                              translatedWords[i],
-                              SegmentWordType.TRANSLATION));
-                    }
-                  }
-
-                  return words.stream();
-                })
-            .toList();
     segmentWordRepository.saveAll(segmentWords);
+  }
+
+  private List<SegmentWord> createSegmentWords(Segment segment) {
+    List<SegmentWord> words = new ArrayList<>();
+
+    words.addAll(createSegmentWords(segment, segment.getText(), SegmentWordType.ORIGINAL));
+
+    words.addAll(
+        createSegmentWords(segment, segment.getTranslatedText(), SegmentWordType.TRANSLATION));
+
+    return words;
+  }
+
+  private List<SegmentWord> createSegmentWords(
+      Segment segment, String text, SegmentWordType wordType) {
+    if (text == null || text.isBlank()) {
+      return List.of();
+    }
+
+    String[] words = text.split(WORD_SPLIT_REGEX);
+    List<SegmentWord> segmentWords = new ArrayList<>();
+
+    for (int i = 0; i < words.length; i++) {
+      segmentWords.add(
+          new SegmentWord(
+              segment, i + 1, segment.getStartTime(), segment.getEndTime(), words[i], wordType));
+    }
+
+    return segmentWords;
+  }
+
+  private void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
+    if (learningData == null || learningData.contents() == null) {
+      return;
+    }
+
+    List<LearningContent> learningContents =
+        learningData.contents().stream()
+            .map(
+                content ->
+                    new LearningContent(
+                        job,
+                        content.contentType(),
+                        content.title(),
+                        content.content(),
+                        content.startTime(),
+                        content.endTime()))
+            .toList();
+
+    learningContentRepository.saveAll(learningContents);
   }
 }

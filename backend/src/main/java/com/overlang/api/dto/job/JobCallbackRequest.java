@@ -11,6 +11,6 @@ public record JobCallbackRequest(
     CurrentStage currentStage,
     List<CallbackSegmentRequest> segments,
     List<CallbackOcrItemRequest> ocrItems,
-    Object learningData,
+    CallbackLearningDataRequest learningData,
     String errorCode,
     String errorMessage) {}

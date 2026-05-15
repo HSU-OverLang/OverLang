@@ -33,41 +33,58 @@ public class InternalJobController {
                               name = "콜백 예시",
                               value =
                                   """
-                {
-                  "jobId": 2,
-                  "status": "COMPLETED",
-                  "progress": 100,
-                  "currentStage": "FINALIZING",
-                  "segments": [
-                    {
-                      "seq": 1,
-                      "startTime": 0.0,
-                      "endTime": 2.0,
-                      "text": "Hello",
-                      "translatedText": "안녕",
-                      "languageCode": "en"
-                    }
-                  ],
-                  "ocrItems": [
-                    {
-                      "startTime": 1.0,
-                      "endTime": 2.0,
-                      "originText": "EXIT",
-                      "translatedText": "출구",
-                      "boundingBox": {
-                        "x": 0.1,
-                        "y": 0.2,
-                        "w": 0.3,
-                        "h": 0.4
-                      },
-                      "confidence": 0.95
-                    }
-                  ],
-                  "learningData": null,
-                  "errorCode": null,
-                  "errorMessage": null
-                }
-                """)))
+                        {
+                          "jobId": 2,
+                          "status": "COMPLETED",
+                          "progress": 100,
+                          "currentStage": "FINALIZING",
+                          "segments": [
+                            {
+                              "seq": 1,
+                              "startTime": 0.0,
+                              "endTime": 2.0,
+                              "text": "Hello",
+                              "translatedText": "안녕",
+                              "languageCode": "en"
+                            }
+                          ],
+                          "ocrItems": [
+                            {
+                              "startTime": 1.0,
+                              "endTime": 2.0,
+                              "originText": "EXIT",
+                              "translatedText": "출구",
+                              "boundingBox": {
+                                "x": 0.1,
+                                "y": 0.2,
+                                "w": 0.3,
+                                "h": 0.4
+                              },
+                              "confidence": 0.95
+                            }
+                          ],
+                          "learningData": {
+                            "contents": [
+                              {
+                                "contentType": "SUMMARY",
+                                "title": "Summary",
+                                "content": "이 영상은 영어 표현을 설명합니다.",
+                                "startTime": null,
+                                "endTime": null
+                              },
+                              {
+                                "contentType": "EXPRESSION",
+                                "title": "step by step",
+                                "content": "직역: 단계별로. 실제 의미: 차근차근.",
+                                "startTime": 0,
+                                "endTime": 2
+                              }
+                            ]
+                          },
+                          "errorCode": null,
+                          "errorMessage": null
+                        }
+                        """)))
           @org.springframework.web.bind.annotation.RequestBody
           JobCallbackRequest request) {
 
