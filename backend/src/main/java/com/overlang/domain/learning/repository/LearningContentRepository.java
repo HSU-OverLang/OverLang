@@ -9,4 +9,6 @@ public interface LearningContentRepository extends JpaRepository<LearningContent
   List<LearningContent> findByJobIdAndContentType(Long jobId, LearningContentType contentType);
 
   void deleteByJobId(Long jobId);
+
+  List<LearningContent> findByJobIdOrderByStartTimeAscIdAsc(Long jobId);
 }
