@@ -26,6 +26,9 @@ public class SavedWordService {
     if (request.segmentWordId() == null) {
       throw new IllegalArgumentException("segmentWordId는 필수입니다.");
     }
+    if (request.word() == null || request.word().isBlank()) {
+      throw new IllegalArgumentException("word는 필수입니다.");
+    }
 
     Member member =
         memberRepository
@@ -43,7 +46,13 @@ public class SavedWordService {
 
     SavedWord savedWord =
         new SavedWord(
-            member, segmentWord, request.meaning(), request.contextMeaning(), request.memo());
+            member,
+            segmentWord,
+            request.word(),
+            request.meaning(),
+            request.contextMeaning(),
+            request.memo(),
+            request.matchedExpression());
 
     return SavedWordResponse.from(savedWordRepository.save(savedWord));
   }

@@ -26,6 +26,9 @@ public class SavedWord extends BaseTimeEntity {
   @JoinColumn(name = "segment_word_id", nullable = false)
   private SegmentWord segmentWord;
 
+  @Column(nullable = false, length = 255)
+  private String word;
+
   @Column(columnDefinition = "TEXT")
   private String meaning;
 
@@ -35,13 +38,24 @@ public class SavedWord extends BaseTimeEntity {
   @Column(columnDefinition = "TEXT")
   private String memo;
 
+  @Column(name = "matched_expression", nullable = false)
+  private boolean matchedExpression;
+
   public SavedWord(
-      Member member, SegmentWord segmentWord, String meaning, String contextMeaning, String memo) {
+      Member member,
+      SegmentWord segmentWord,
+      String word,
+      String meaning,
+      String contextMeaning,
+      String memo,
+      boolean matchedExpression) {
     this.member = member;
     this.segmentWord = segmentWord;
+    this.word = word;
     this.meaning = meaning;
     this.contextMeaning = contextMeaning;
     this.memo = memo;
+    this.matchedExpression = matchedExpression;
   }
 
   public void updateMemo(String memo) {
