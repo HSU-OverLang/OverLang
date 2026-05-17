@@ -178,6 +178,13 @@ def _generate_with_openai(
                                                 "EXPRESSION",
                                             ],
                                         },
+                                        "textType": {
+                                            "type": "string",
+                                            "enum": [
+                                                "ORIGINAL",
+                                                "TRANSLATION",
+                                            ],
+                                        },
                                         "title": {"type": "string"},
                                         "content": {"type": "string"},
                                         "startTime": {
@@ -189,6 +196,7 @@ def _generate_with_openai(
                                     },
                                     "required": [
                                         "contentType",
+                                        "textType",
                                         "title",
                                         "content",
                                         "startTime",
@@ -230,6 +238,7 @@ def _build_learning_instructions(
         "Use EXPRESSION for idioms, natural phrases, repeated sentence patterns, or expressions that need context. "
         "For EXPRESSION content, include literal meaning, actual meaning, natural translation, and usage context when relevant. "
         "Use KEYWORD only for a small number of repeated or theme-critical words, not every vocabulary item. "
+        "Set textType to ORIGINAL because the generated learning contents are matched against the original subtitle text. "
         "For KEYWORD and EXPRESSION, set title to the original word or phrase from the source text, "
         "and use startTime and endTime from the most relevant segment. "
         "For SUMMARY, use title 'Summary' and set startTime and endTime to null. "
@@ -249,16 +258,20 @@ def _parse_learning_data(data: dict) -> LearningData:
             continue
 
         content_type = item.get("contentType")
+        text_type = item.get("textType") or "ORIGINAL"
         title = str(item.get("title", "")).strip()
         content = str(item.get("content", "")).strip()
         if content_type not in {content_type.value for content_type in LearningContentType}:
             continue
+        if text_type not in {"ORIGINAL", "TRANSLATION"}:
+            text_type = "ORIGINAL"
         if not title or not content:
             continue
 
         contents.append(
             LearningContent(
                 content_type=LearningContentType(content_type),
+                text_type=text_type,
                 title=title,
                 content=content,
                 start_time=_optional_round_time(item.get("startTime")),
@@ -283,6 +296,7 @@ def _build_fallback_summary(subtitles: list[SubtitleSegment]) -> LearningContent
 
     return LearningContent(
         content_type=LearningContentType.SUMMARY,
+        text_type="ORIGINAL",
         title="Summary",
         content=preview_text or "Generated a learning summary from the video subtitles.",
         start_time=None,
@@ -319,6 +333,7 @@ def _build_fallback_keywords(subtitles: list[SubtitleSegment]) -> list[LearningC
         keywords.append(
             LearningContent(
                 content_type=LearningContentType.KEYWORD,
+                text_type="ORIGINAL",
                 title=original_text[word],
                 content=(
                     "Core video keyword selected from repetition and learning relevance. "
@@ -403,6 +418,7 @@ def _build_fallback_expressions(subtitles: list[SubtitleSegment]) -> list[Learni
         expressions.append(
             LearningContent(
                 content_type=LearningContentType.EXPRESSION,
+                text_type="ORIGINAL",
                 title=text[:80],
                 content=(
                     "Useful sentence-level expression for video study. "
