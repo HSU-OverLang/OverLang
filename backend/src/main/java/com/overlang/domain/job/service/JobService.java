@@ -20,6 +20,7 @@ import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
+import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.entity.SegmentWordType;
@@ -48,6 +49,7 @@ public class JobService {
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
   private final LearningContentRepository learningContentRepository;
+  private final SavedWordRepository savedWordRepository;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -257,6 +259,7 @@ public class JobService {
   }
 
   private void deletePreviousResults(Long jobId) {
+    savedWordRepository.deleteByJobId(jobId);
     segmentWordRepository.deleteBySegmentJobId(jobId);
     segmentRepository.deleteByJobId(jobId);
     ocrItemRepository.deleteByJobId(jobId);
@@ -372,6 +375,7 @@ public class JobService {
                     new LearningContent(
                         job,
                         content.contentType(),
+                        content.textType(),
                         content.title(),
                         content.content(),
                         content.startTime(),
