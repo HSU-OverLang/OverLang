@@ -53,6 +53,11 @@ class LearningContentType(str, Enum):
     EXPRESSION = "EXPRESSION"
 
 
+class SelectedTextType(str, Enum):
+    ORIGINAL = "ORIGINAL"
+    TRANSLATION = "TRANSLATION"
+
+
 class ErrorCode(str, Enum):
     GPU_OOM = "WORKER_001"
     FFMPEG_ERROR = "WORKER_002"
@@ -187,7 +192,7 @@ class OcrItem(CamelModel):
 
 class LearningContent(CamelModel):
     content_type: LearningContentType
-    text_type: str = "ORIGINAL"
+    text_type: SelectedTextType = SelectedTextType.ORIGINAL
     title: str
     content: str
     start_time: float | None = None
