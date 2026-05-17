@@ -187,6 +187,7 @@ class OcrItem(CamelModel):
 
 class LearningContent(CamelModel):
     content_type: LearningContentType
+    text_type: str = "ORIGINAL"
     title: str
     content: str
     start_time: float | None = None
