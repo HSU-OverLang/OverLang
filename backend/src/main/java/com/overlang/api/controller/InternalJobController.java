@@ -64,22 +64,32 @@ public class InternalJobController {
                             }
                           ],
                           "learningData": {
-                            "contents": [
-                              {
-                                "contentType": "SUMMARY",
-                                "title": "Summary",
-                                "content": "이 영상은 영어 표현을 설명합니다.",
-                                "startTime": null,
-                                "endTime": null
-                              },
-                              {
-                                "contentType": "EXPRESSION",
-                                "title": "step by step",
-                                "content": "직역: 단계별로. 실제 의미: 차근차근.",
-                                "startTime": 0,
-                                "endTime": 2
-                              }
-                            ]
+                           "contents": [
+                                               {
+                                                 "contentType": "SUMMARY",
+                                                 "textType": "ORIGINAL",
+                                                 "title": "Summary",
+                                                 "content": "이 영상은 영어 표현을 설명합니다.",
+                                                 "startTime": null,
+                                                 "endTime": null
+                                               },
+                                               {
+                                                 "contentType": "KEYWORD",
+                                                 "textType": "ORIGINAL",
+                                                 "title": "subtitles",
+                                                 "content": "자막",
+                                                 "startTime": 0,
+                                                 "endTime": 2
+                                               },
+                                               {
+                                                 "contentType": "EXPRESSION",
+                                                 "textType": "ORIGINAL",
+                                                 "title": "step by step",
+                                                 "content": "직역: 단계별로. 실제 의미: 차근차근.",
+                                                 "startTime": 0,
+                                                 "endTime": 2
+                                               }
+                                             ]
                           },
                           "errorCode": null,
                           "errorMessage": null

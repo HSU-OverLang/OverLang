@@ -2,6 +2,7 @@ package com.overlang.domain.learning.entity;
 
 import com.overlang.domain.common.BaseTimeEntity;
 import com.overlang.domain.job.entity.Job;
+import com.overlang.domain.word.entity.SelectedTextType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,6 +24,10 @@ public class LearningContent extends BaseTimeEntity {
   @Column(name = "content_type", nullable = false, length = 50)
   private LearningContentType contentType;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "text_type", nullable = false, length = 30)
+  private SelectedTextType textType;
+
   @Column(length = 255)
   private String title;
 
@@ -38,12 +43,14 @@ public class LearningContent extends BaseTimeEntity {
   public LearningContent(
       Job job,
       LearningContentType contentType,
+      SelectedTextType textType,
       String title,
       String content,
       Double startTime,
       Double endTime) {
     this.job = job;
     this.contentType = contentType;
+    this.textType = textType;
     this.title = title;
     this.content = content;
     this.startTime = startTime;

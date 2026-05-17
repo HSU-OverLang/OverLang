@@ -129,6 +129,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     return learningContentRepository
         .findByJobIdAndContentType(segment.getJob().getId(), LearningContentType.EXPRESSION)
         .stream()
+        .filter(expression -> expression.getTextType() == request.selectedTextType())
         .filter(expression -> overlapsSegmentTime(segment, expression))
         .filter(expression -> containsClickedWord(expression.getTitle(), clickedWord))
         .max(Comparator.comparingInt(expression -> expression.getTitle().length()));
