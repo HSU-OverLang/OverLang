@@ -11,6 +11,7 @@ from ai.api.schemas import (
     LearningContent,
     LearningContentType,
     LearningData,
+    SelectedTextType,
     SubtitleSegment,
 )
 
@@ -125,6 +126,7 @@ def _generate_with_openai(
 ) -> LearningData:
     max_segments = int(os.getenv("OPENAI_LEARNING_MAX_SEGMENTS", DEFAULT_MAX_SEGMENTS))
     max_contents = int(os.getenv("OPENAI_LEARNING_MAX_CONTENTS", DEFAULT_MAX_CONTENTS))
+    schema_max_contents = max(max_contents, 8)
     model = os.getenv("OPENAI_LEARNING_MODEL", DEFAULT_OPENAI_MODEL)
     api_key = os.environ["OPENAI_API_KEY"]
 
@@ -165,7 +167,7 @@ def _generate_with_openai(
                         "properties": {
                             "contents": {
                                 "type": "array",
-                                "maxItems": max_contents,
+                                "maxItems": schema_max_contents,
                                 "items": {
                                     "type": "object",
                                     "additionalProperties": False,
@@ -234,13 +236,17 @@ def _build_learning_instructions(
         "Create only precomputed video-level learning contents. "
         "Do not create on-click word explanations, pronunciation, related words, or example sentences. "
         "Those are generated later by an on-demand word explanation API. "
-        "Use SUMMARY for one concise video or section summary. "
+        "Use SUMMARY for one concise video or section summary and set textType to ORIGINAL. "
         "Use EXPRESSION for idioms, natural phrases, repeated sentence patterns, or expressions that need context. "
         "For EXPRESSION content, include literal meaning, actual meaning, natural translation, and usage context when relevant. "
-        "Use KEYWORD only for a small number of repeated or theme-critical words, not every vocabulary item. "
-        "Set textType to ORIGINAL because the generated learning contents are matched against the original subtitle text. "
+        "Create ORIGINAL EXPRESSION items from the source text. "
+        "When translatedText is present, you must create at least two EXPRESSION items with textType TRANSLATION using translated phrases from translatedText as title. "
+        "TRANSLATION items are required so learners can select translated sentence words and still receive expression guidance. "
+        "For each TRANSLATION EXPRESSION item, set content to explain the translated phrase and mention the matching original expression. "
+        "Use KEYWORD only for a small number of repeated or theme-critical source words, not every vocabulary item, and set textType to ORIGINAL. "
         "For KEYWORD and EXPRESSION, set title to the original word or phrase from the source text, "
-        "and use startTime and endTime from the most relevant segment. "
+        "except TRANSLATION items must set title to the translated phrase from translatedText. "
+        "Use startTime and endTime from the most relevant segment. "
         "For SUMMARY, use title 'Summary' and set startTime and endTime to null. "
         f"Return at most {max_contents} contents. "
         "Return only JSON that matches the schema. Do not include markdown or extra fields."
@@ -263,15 +269,16 @@ def _parse_learning_data(data: dict) -> LearningData:
         content = str(item.get("content", "")).strip()
         if content_type not in {content_type.value for content_type in LearningContentType}:
             continue
-        if text_type not in {"ORIGINAL", "TRANSLATION"}:
-            text_type = "ORIGINAL"
+        valid_text_types = {selected_type.value for selected_type in SelectedTextType}
+        if text_type not in valid_text_types:
+            text_type = SelectedTextType.ORIGINAL.value
         if not title or not content:
             continue
 
         contents.append(
             LearningContent(
                 content_type=LearningContentType(content_type),
-                text_type=text_type,
+                text_type=SelectedTextType(text_type),
                 title=title,
                 content=content,
                 start_time=_optional_round_time(item.get("startTime")),
@@ -296,7 +303,7 @@ def _build_fallback_summary(subtitles: list[SubtitleSegment]) -> LearningContent
 
     return LearningContent(
         content_type=LearningContentType.SUMMARY,
-        text_type="ORIGINAL",
+        text_type=SelectedTextType.ORIGINAL,
         title="Summary",
         content=preview_text or "Generated a learning summary from the video subtitles.",
         start_time=None,
@@ -333,7 +340,7 @@ def _build_fallback_keywords(subtitles: list[SubtitleSegment]) -> list[LearningC
         keywords.append(
             LearningContent(
                 content_type=LearningContentType.KEYWORD,
-                text_type="ORIGINAL",
+                text_type=SelectedTextType.ORIGINAL,
                 title=original_text[word],
                 content=(
                     "Core video keyword selected from repetition and learning relevance. "
@@ -409,30 +416,66 @@ def _difficulty_score(word: str) -> float:
 
 def _build_fallback_expressions(subtitles: list[SubtitleSegment]) -> list[LearningContent]:
     expressions = []
+    original_count = 0
+    translation_count = 0
     for subtitle in subtitles:
         text = subtitle.text.strip()
         word_count = len(_extract_words(text))
-        if word_count < 4 or len(text) < 16:
-            continue
-
-        expressions.append(
-            LearningContent(
-                content_type=LearningContentType.EXPRESSION,
-                text_type="ORIGINAL",
-                title=text[:80],
-                content=(
-                    "Useful sentence-level expression for video study. "
-                    "Review the sentence meaning, natural phrasing, and usage context. "
-                    f"Translation: {subtitle.translated_text or 'No translation available'}"
-                ),
-                start_time=subtitle.start_time,
-                end_time=subtitle.end_time,
+        if word_count >= 4 and len(text) >= 16 and original_count < 3:
+            expressions.append(
+                LearningContent(
+                    content_type=LearningContentType.EXPRESSION,
+                    text_type=SelectedTextType.ORIGINAL,
+                    title=text[:80],
+                    content=(
+                        "Useful sentence-level expression for video study. "
+                        "Review the sentence meaning, natural phrasing, and usage context. "
+                        f"Translation: {subtitle.translated_text or 'No translation available'}"
+                    ),
+                    start_time=subtitle.start_time,
+                    end_time=subtitle.end_time,
+                )
             )
-        )
-        if len(expressions) >= 3:
+            original_count += 1
+
+        translated_text = (subtitle.translated_text or "").strip()
+        if (
+            translated_text
+            and _is_useful_translated_expression(translated_text)
+            and translation_count < 3
+        ):
+            expressions.append(
+                LearningContent(
+                    content_type=LearningContentType.EXPRESSION,
+                    text_type=SelectedTextType.TRANSLATION,
+                    title=translated_text[:80],
+                    content=(
+                        "Useful translated expression for video study. "
+                        "Review how this translation expresses the meaning in a natural way. "
+                        f"Original: {subtitle.text}"
+                    ),
+                    start_time=subtitle.start_time,
+                    end_time=subtitle.end_time,
+                )
+            )
+            translation_count += 1
+
+        if original_count >= 3 and translation_count >= 3:
             break
 
     return expressions
+
+
+def _is_useful_translated_expression(text: str) -> bool:
+    compact_text = text.strip()
+    if len(compact_text) < 8:
+        return False
+
+    if len(_extract_words(compact_text)) >= 3:
+        return True
+
+    # CJK translations often do not split by spaces, so use character length as a fallback.
+    return len(compact_text) >= 12
 
 
 def _extract_words(text: str) -> list[str]:
