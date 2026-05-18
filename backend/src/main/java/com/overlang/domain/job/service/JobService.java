@@ -56,10 +56,7 @@ public class JobService {
 
   @Transactional
   public JobCreateResponse createJob(Long projectId, Long memberId, JobCreateRequest request) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     validateJobCreateRequest(request);
 
@@ -146,10 +143,7 @@ public class JobService {
 
   @Transactional(readOnly = true)
   public List<JobResponse> getJobsByProject(Long projectId, Long memberId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     return jobRepository.findByProjectIdOrderByCreatedAtDesc(project.getId()).stream()
         .map(JobResponse::from)
@@ -158,25 +152,15 @@ public class JobService {
 
   @Transactional(readOnly = true)
   public JobDetailResponse getJobDetail(Long jobId, Long memberId) {
-    Job job =
-        jobRepository
-            .findByIdAndProjectMemberId(jobId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+    Job job = findJobByIdAndMemberId(jobId, memberId);
 
     return JobDetailResponse.from(job);
   }
 
   @Transactional
   public JobRetryResponse retryJob(Long projectId, Long memberId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
-
-    Job latestJob =
-        jobRepository
-            .findTopByProjectIdOrderByCreatedAtDesc(project.getId())
-            .orElseThrow(() -> new IllegalArgumentException("재처리할 작업이 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
+    Job latestJob = findLatestJobByProjectId(project.getId());
 
     if (latestJob.getStatus() != JobStatus.FAILED) {
       throw new IllegalArgumentException("FAILED 상태의 작업만 재처리할 수 있습니다.");
@@ -383,5 +367,23 @@ public class JobService {
             .toList();
 
     learningContentRepository.saveAll(learningContents);
+  }
+
+  private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
+    return projectRepository
+        .findByIdAndMemberId(projectId, memberId)
+        .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+  }
+
+  private Job findJobByIdAndMemberId(Long jobId, Long memberId) {
+    return jobRepository
+        .findByIdAndProjectMemberId(jobId, memberId)
+        .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+  }
+
+  private Job findLatestJobByProjectId(Long projectId) {
+    return jobRepository
+        .findTopByProjectIdOrderByCreatedAtDesc(projectId)
+        .orElseThrow(() -> new IllegalArgumentException("재처리할 작업이 없습니다."));
   }
 }
