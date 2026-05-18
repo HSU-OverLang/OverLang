@@ -18,6 +18,12 @@ TRACK_START_DELAY_SECONDS = 0.15
 DUPLICATE_TEXT_SIMILARITY_THRESHOLD = 0.85
 DUPLICATE_BBOX_IOU_THRESHOLD = 0.45
 DUPLICATE_CENTER_DISTANCE_RATIO = 1.0
+DUPLICATE_CONTAINMENT_RATIO = 0.8
+DUPLICATE_COVERAGE_RATIO = 0.9
+DUPLICATE_NORMALIZED_TEXT_THRESHOLD = 0.95
+TRACK_TEXT_STABILITY_THRESHOLD = 0.82
+TRACK_CENTER_DISTANCE_RATIO = 2.5
+TRACK_CENTER_DISTANCE_MIN = 0.08
 
 
 def build_ocr_items(
@@ -93,7 +99,9 @@ def build_ocr_items(
 
     finalized_tracks.extend(active_tracks)
     finalized_tracks.sort(key=lambda track: (track["startTime"], track["endTime"]))
-    return [_track_to_ocr_item(track) for track in finalized_tracks]
+    return _deduplicate_ocr_items(
+        [_track_to_ocr_item(track) for track in finalized_tracks]
+    )
 
 
 def _create_track(
@@ -104,6 +112,7 @@ def _create_track(
         "startTime": float(raw_item["timestamp"]),
         "endTime": round(float(raw_item["timestamp"]) + frame_interval_seconds, 3),
         "originText": raw_item["originText"],
+        "textCandidates": [_build_text_candidate(raw_item)],
         "boundingBox": raw_item["boundingBox"],
         "boundingBoxValues": [raw_item["boundingBox"]],
         "confidenceValues": [raw_item.get("confidence")],
@@ -123,6 +132,7 @@ def _extend_track(
     track["lastTimestamp"] = float(raw_item["timestamp"])
     track["missingFrameCount"] = 0
     track["confidenceValues"].append(raw_item.get("confidence"))
+    track["textCandidates"].append(_build_text_candidate(raw_item))
     if not raw_item.get("carriedForward"):
         track["boundingBoxValues"].append(raw_item["boundingBox"])
     track["boundingBox"] = _median_bbox(track["boundingBoxValues"])
@@ -196,7 +206,7 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
     return OcrItem(
         start_time=_resolve_track_start_time(track),
         end_time=round(float(track["endTime"]), 3),
-        origin_text=track["originText"],
+        origin_text=_resolve_track_text(track),
         translated_text=None,
         bounding_box=_coverage_bbox(track["boundingBoxValues"]),
         confidence=confidence,
@@ -264,15 +274,79 @@ def _is_duplicate_frame_item(
     left_item: dict[str, Any],
     right_item: dict[str, Any],
 ) -> bool:
-    if (
-        _text_similarity(left_item["originText"], right_item["originText"])
-        < DUPLICATE_TEXT_SIMILARITY_THRESHOLD
-    ):
+    text_similarity = _text_similarity(
+        left_item["originText"],
+        right_item["originText"],
+    )
+
+
+def _build_text_candidate(raw_item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "text": str(raw_item.get("originText", "")).strip(),
+        "confidence": float(raw_item.get("confidence") or 0.0),
+        "timestamp": float(raw_item.get("timestamp", 0.0)),
+    }
+
+
+def _resolve_track_text(track: dict[str, Any]) -> str:
+    candidates = [
+        candidate
+        for candidate in track.get("textCandidates", [])
+        if str(candidate.get("text", "")).strip()
+    ]
+    if not candidates:
+        return str(track.get("originText", "")).strip()
+
+    grouped_candidates: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        text = str(candidate["text"]).strip()
+        normalized_text = _normalize_text(text)
+        if not normalized_text:
+            continue
+
+        group = grouped_candidates.setdefault(
+            normalized_text,
+            {
+                "text": text,
+                "count": 0,
+                "confidence": 0.0,
+                "lastTimestamp": 0.0,
+            },
+        )
+        group["count"] += 1
+        group["confidence"] += float(candidate.get("confidence") or 0.0)
+        group["lastTimestamp"] = max(
+            float(group["lastTimestamp"]),
+            float(candidate.get("timestamp") or 0.0),
+        )
+        if len(text) > len(str(group["text"])):
+            group["text"] = text
+
+    if not grouped_candidates:
+        return str(track.get("originText", "")).strip()
+
+    best_group = max(
+        grouped_candidates.values(),
+        key=lambda group: (
+            int(group["count"]),
+            float(group["confidence"]),
+            float(group["lastTimestamp"]),
+            len(str(group["text"])),
+        ),
+    )
+    return str(best_group["text"]).strip()
+    if text_similarity < DUPLICATE_TEXT_SIMILARITY_THRESHOLD:
         return False
 
     left_box = left_item["boundingBox"]
     right_box = right_item["boundingBox"]
     if _bbox_iou(left_box, right_box) >= DUPLICATE_BBOX_IOU_THRESHOLD:
+        return True
+
+    if _bbox_containment_ratio(left_box, right_box) >= DUPLICATE_CONTAINMENT_RATIO:
+        return True
+
+    if _bbox_coverage_ratio(left_box, right_box) >= DUPLICATE_COVERAGE_RATIO:
         return True
 
     return _is_near_bbox_center(left_box, right_box)
@@ -429,26 +503,116 @@ def _merge_raw_items(
     separator: str = " ",
 ) -> dict[str, Any]:
     merged_item = dict(raw_items[0])
+    merge_items = _deduplicate_merge_items(raw_items)
     merged_item["originText"] = separator.join(
         str(item["originText"]).strip()
-        for item in raw_items
+        for item in merge_items
         if str(item.get("originText", "")).strip()
     )
     merged_item["boundingBox"] = _union_bbox(
-        [item["boundingBox"] for item in raw_items]
+        [item["boundingBox"] for item in merge_items]
     )
     confidences = [
         float(item["confidence"])
-        for item in raw_items
+        for item in merge_items
         if item.get("confidence") is not None
     ]
     merged_item["confidence"] = (
         round(sum(confidences) / len(confidences), 4) if confidences else None
     )
     merged_item["mergedItemCount"] = sum(
-        int(item.get("mergedItemCount", 1)) for item in raw_items
+        int(item.get("mergedItemCount", 1)) for item in merge_items
     )
     return merged_item
+
+
+def _deduplicate_merge_items(
+    raw_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    deduplicated_items: list[dict[str, Any]] = []
+    for raw_item in raw_items:
+        if any(
+            _is_duplicate_merge_item(raw_item, kept_item)
+            for kept_item in deduplicated_items
+        ):
+            continue
+
+        deduplicated_items.append(raw_item)
+
+    return deduplicated_items
+
+
+def _is_duplicate_merge_item(
+    left_item: dict[str, Any],
+    right_item: dict[str, Any],
+) -> bool:
+    left_text = _normalize_text(left_item.get("originText", ""))
+    right_text = _normalize_text(right_item.get("originText", ""))
+    if not left_text or not right_text:
+        return False
+
+    text_similarity = 1.0 if left_text == right_text else _similarity(left_text, right_text)
+    if text_similarity < DUPLICATE_NORMALIZED_TEXT_THRESHOLD:
+        return False
+
+    left_box = left_item["boundingBox"]
+    right_box = right_item["boundingBox"]
+    return (
+        _bbox_iou(left_box, right_box) >= DUPLICATE_BBOX_IOU_THRESHOLD
+        or _bbox_containment_ratio(left_box, right_box) >= DUPLICATE_CONTAINMENT_RATIO
+        or _bbox_coverage_ratio(left_box, right_box) >= DUPLICATE_COVERAGE_RATIO
+        or _is_near_bbox_center(left_box, right_box)
+    )
+
+
+def _deduplicate_ocr_items(
+    ocr_items: list[OcrItem],
+) -> list[OcrItem]:
+    if len(ocr_items) <= 1:
+        return ocr_items
+
+    sorted_items = sorted(
+        ocr_items,
+        key=lambda item: (
+            float(item.confidence or 0.0),
+            item.end_time - item.start_time,
+        ),
+        reverse=True,
+    )
+    deduplicated_items: list[OcrItem] = []
+    for ocr_item in sorted_items:
+        if any(
+            _is_duplicate_ocr_item(ocr_item, kept_item)
+            for kept_item in deduplicated_items
+        ):
+            continue
+
+        deduplicated_items.append(ocr_item)
+
+    return sorted(
+        deduplicated_items,
+        key=lambda item: (item.start_time, item.end_time, item.bounding_box.y),
+    )
+
+
+def _is_duplicate_ocr_item(
+    left_item: OcrItem,
+    right_item: OcrItem,
+) -> bool:
+    if _text_similarity(left_item.origin_text, right_item.origin_text) < 0.9:
+        return False
+
+    if _time_overlap_ratio(left_item, right_item) < 0.5:
+        return False
+
+    left_box = left_item.bounding_box
+    right_box = right_item.bounding_box
+    return (
+        _bbox_iou(left_box, right_box) >= DUPLICATE_BBOX_IOU_THRESHOLD
+        or _bbox_containment_ratio(left_box, right_box) >= DUPLICATE_CONTAINMENT_RATIO
+        or _bbox_coverage_ratio(left_box, right_box) >= DUPLICATE_COVERAGE_RATIO
+        or _is_near_bbox_center(left_box, right_box)
+    )
 
 
 def _group_raw_items_by_timestamp(
@@ -538,7 +702,7 @@ def _find_best_matching_active_track(
             track["originText"],
             raw_item["originText"],
         )
-        if text_similarity < text_similarity_threshold:
+        if text_similarity < min(text_similarity_threshold, TRACK_TEXT_STABILITY_THRESHOLD):
             continue
 
         bbox_overlap = _bbox_iou(track["boundingBox"], raw_item["boundingBox"])
@@ -546,6 +710,9 @@ def _find_best_matching_active_track(
             track["boundingBox"],
             raw_item["boundingBox"],
             bbox_tolerance,
+        ) and not _is_stable_scaling_match(
+            track["boundingBox"],
+            raw_item["boundingBox"],
         ):
             continue
 
@@ -555,6 +722,36 @@ def _find_best_matching_active_track(
         return None
 
     return max(candidates, key=lambda candidate: candidate[0])[1]
+
+
+def _is_stable_scaling_match(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> bool:
+    center_x_distance = abs(_bbox_center_x(left) - _bbox_center_x(right))
+    center_y_distance = abs(_bbox_center_y(left) - _bbox_center_y(right))
+    max_height = max(left.h, right.h)
+    max_width = max(left.w, right.w)
+    max_center_x_distance = max(
+        TRACK_CENTER_DISTANCE_MIN,
+        max_width * TRACK_CENTER_DISTANCE_RATIO,
+    )
+    max_center_y_distance = max(
+        TRACK_CENTER_DISTANCE_MIN,
+        max_height * TRACK_CENTER_DISTANCE_RATIO,
+    )
+    if (
+        center_x_distance > max_center_x_distance
+        or center_y_distance > max_center_y_distance
+    ):
+        return False
+
+    return (
+        _bbox_containment_ratio(left, right) >= 0.35
+        or _bbox_coverage_ratio(left, right) >= 0.35
+        or _horizontal_overlap_ratio(left, right) >= 0.35
+        or _vertical_overlap_ratio(left, right) >= 0.35
+    )
 
 
 def _is_same_text(
@@ -628,6 +825,65 @@ def _bbox_iou(
         return 0.0
 
     return intersection_area / union_area
+
+
+def _time_overlap_ratio(
+    left: OcrItem,
+    right: OcrItem,
+) -> float:
+    overlap = max(
+        0.0,
+        min(left.end_time, right.end_time) - max(left.start_time, right.start_time),
+    )
+    shorter_duration = min(
+        left.end_time - left.start_time,
+        right.end_time - right.start_time,
+    )
+    if shorter_duration <= 0:
+        return 0.0
+
+    return overlap / shorter_duration
+
+
+def _bbox_intersection_area(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> float:
+    intersection_w = max(
+        0.0,
+        min(left.x + left.w, right.x + right.w) - max(left.x, right.x),
+    )
+    intersection_h = max(
+        0.0,
+        min(left.y + left.h, right.y + right.h) - max(left.y, right.y),
+    )
+    return intersection_w * intersection_h
+
+
+def _bbox_containment_ratio(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> float:
+    left_area = left.w * left.h
+    right_area = right.w * right.h
+    smaller_area = min(left_area, right_area)
+    if smaller_area <= 0:
+        return 0.0
+
+    return _bbox_intersection_area(left, right) / smaller_area
+
+
+def _bbox_coverage_ratio(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> float:
+    left_area = left.w * left.h
+    right_area = right.w * right.h
+    larger_area = max(left_area, right_area)
+    if larger_area <= 0:
+        return 0.0
+
+    return _bbox_intersection_area(left, right) / larger_area
 
 
 def _bbox_center_y(bounding_box: BoundingBox) -> float:
