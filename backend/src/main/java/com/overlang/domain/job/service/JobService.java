@@ -60,15 +60,7 @@ public class JobService {
 
     validateJobCreateRequest(request);
 
-    Job job =
-        new Job(
-            project,
-            request.jobType(),
-            request.sourceLanguage(),
-            request.targetLanguage(),
-            request.translationProvider());
-
-    Job savedJob = jobRepository.save(job);
+    Job savedJob = jobRepository.save(createJobEntity(project, request));
 
     var reusableJob = resultCacheService.findReusableJob(project, request);
 
@@ -166,15 +158,7 @@ public class JobService {
       throw new IllegalArgumentException("FAILED 상태의 작업만 재처리할 수 있습니다.");
     }
 
-    Job retryJob =
-        new Job(
-            project,
-            latestJob.getJobType(),
-            latestJob.getSourceLanguage(),
-            latestJob.getTargetLanguage(),
-            latestJob.getTranslationProvider());
-
-    Job savedJob = jobRepository.save(retryJob);
+    Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob));
 
     project.updateStatus(ProjectStatus.PROCESSING);
 
@@ -385,5 +369,23 @@ public class JobService {
     return jobRepository
         .findTopByProjectIdOrderByCreatedAtDesc(projectId)
         .orElseThrow(() -> new IllegalArgumentException("재처리할 작업이 없습니다."));
+  }
+
+  private Job createJobEntity(Project project, JobCreateRequest request) {
+    return new Job(
+        project,
+        request.jobType(),
+        request.sourceLanguage(),
+        request.targetLanguage(),
+        request.translationProvider());
+  }
+
+  private Job createRetryJobEntity(Project project, Job latestJob) {
+    return new Job(
+        project,
+        latestJob.getJobType(),
+        latestJob.getSourceLanguage(),
+        latestJob.getTargetLanguage(),
+        latestJob.getTranslationProvider());
   }
 }
