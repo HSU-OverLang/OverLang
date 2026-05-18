@@ -4,6 +4,7 @@ import com.overlang.api.dto.project.*;
 import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.repository.JobRepository;
+import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.member.entity.Member;
 import com.overlang.domain.member.repository.MemberRepository;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
@@ -40,6 +41,7 @@ public class ProjectService {
   private final SegmentWordRepository segmentWordRepository;
   private final OcrItemRepository ocrItemRepository;
   private final SavedWordRepository savedWordRepository;
+  private final LearningContentRepository learningContentRepository;
 
   public ProjectCreateResponse createProject(Long memberId, ProjectCreateRequest request) {
     Member member =
@@ -151,6 +153,7 @@ public class ProjectService {
     for (Job job : jobs) {
       Long jobId = job.getId();
 
+      learningContentRepository.deleteByJobId(jobId);
       ocrItemRepository.deleteByJobId(jobId);
       segmentWordRepository.deleteBySegmentJobId(jobId);
       segmentRepository.deleteByJobId(jobId);
