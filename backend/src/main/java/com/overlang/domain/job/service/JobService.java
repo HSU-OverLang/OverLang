@@ -72,10 +72,7 @@ public class JobService {
       return JobCreateResponse.from(savedJob, true);
     }
 
-    project.updateStatus(ProjectStatus.PROCESSING);
-
-    JobQueuePayload payload = createQueuePayload(project, savedJob);
-    jobQueueProducer.enqueue(payload);
+    enqueueJob(project, savedJob);
 
     return JobCreateResponse.from(savedJob, false);
   }
@@ -160,10 +157,7 @@ public class JobService {
 
     Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob));
 
-    project.updateStatus(ProjectStatus.PROCESSING);
-
-    JobQueuePayload payload = createQueuePayload(project, savedJob);
-    jobQueueProducer.enqueue(payload);
+    enqueueJob(project, savedJob);
 
     return new JobRetryResponse(
         project.getId(),
@@ -387,5 +381,12 @@ public class JobService {
         latestJob.getSourceLanguage(),
         latestJob.getTargetLanguage(),
         latestJob.getTranslationProvider());
+  }
+
+  private void enqueueJob(Project project, Job job) {
+    project.updateStatus(ProjectStatus.PROCESSING);
+
+    JobQueuePayload payload = createQueuePayload(project, job);
+    jobQueueProducer.enqueue(payload);
   }
 }
