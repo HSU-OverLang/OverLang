@@ -13,8 +13,11 @@ LINE_HORIZONTAL_GAP_MIN = 0.06
 BLOCK_HORIZONTAL_OVERLAP_THRESHOLD = 0.35
 BLOCK_VERTICAL_GAP_RATIO = 1.6
 BLOCK_VERTICAL_GAP_MIN = 0.035
-TRACK_COVERAGE_PADDING_RATIO = 0.008
+TRACK_COVERAGE_PADDING_RATIO = 0.012
+TRACK_MULTILINE_COVERAGE_PADDING_RATIO = 0.018
 TRACK_START_DELAY_SECONDS = 0.15
+TRACK_END_TRIM_SECONDS = 0.05
+MIN_OCR_ITEM_DURATION_SECONDS = 0.25
 DUPLICATE_TEXT_SIMILARITY_THRESHOLD = 0.85
 DUPLICATE_BBOX_IOU_THRESHOLD = 0.45
 DUPLICATE_CENTER_DISTANCE_RATIO = 1.0
@@ -24,6 +27,9 @@ DUPLICATE_NORMALIZED_TEXT_THRESHOLD = 0.95
 TRACK_TEXT_STABILITY_THRESHOLD = 0.82
 TRACK_CENTER_DISTANCE_RATIO = 2.5
 TRACK_CENTER_DISTANCE_MIN = 0.08
+PROGRESSIVE_TEXT_MIN_LENGTH = 2
+PROGRESSIVE_TEXT_MIN_LENGTH_RATIO = 0.35
+PROGRESSIVE_TEXT_SCORE = 0.88
 
 
 def build_ocr_items(
@@ -98,6 +104,9 @@ def build_ocr_items(
         finalized_tracks.extend(disappeared_tracks)
 
     finalized_tracks.extend(active_tracks)
+    finalized_tracks = [
+        track for track in finalized_tracks if _should_keep_track(track)
+    ]
     finalized_tracks.sort(key=lambda track: (track["startTime"], track["endTime"]))
     return _deduplicate_ocr_items(
         [_track_to_ocr_item(track) for track in finalized_tracks]
@@ -116,6 +125,8 @@ def _create_track(
         "boundingBox": raw_item["boundingBox"],
         "boundingBoxValues": [raw_item["boundingBox"]],
         "confidenceValues": [raw_item.get("confidence")],
+        "mergedItemCountValues": [int(raw_item.get("mergedItemCount", 1))],
+        "frameIntervalSeconds": frame_interval_seconds,
         "lastTimestamp": float(raw_item["timestamp"]),
         "missingFrameCount": 0,
         "styleFramePath": raw_item.get("framePath"),
@@ -133,6 +144,7 @@ def _extend_track(
     track["missingFrameCount"] = 0
     track["confidenceValues"].append(raw_item.get("confidence"))
     track["textCandidates"].append(_build_text_candidate(raw_item))
+    track["mergedItemCountValues"].append(int(raw_item.get("mergedItemCount", 1)))
     if not raw_item.get("carriedForward"):
         track["boundingBoxValues"].append(raw_item["boundingBox"])
     track["boundingBox"] = _median_bbox(track["boundingBoxValues"])
@@ -203,28 +215,78 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
     if confidence_values:
         confidence = round(sum(confidence_values) / len(confidence_values), 4)
 
+    coverage_box = _track_coverage_bbox(track)
     return OcrItem(
         start_time=_resolve_track_start_time(track),
-        end_time=round(float(track["endTime"]), 3),
+        end_time=_resolve_track_end_time(track),
         origin_text=_resolve_track_text(track),
         translated_text=None,
-        bounding_box=_coverage_bbox(track["boundingBoxValues"]),
+        bounding_box=coverage_box,
         confidence=confidence,
         style=build_ocr_style(
             track.get("styleFramePath"),
-            _coverage_bbox(track["boundingBoxValues"]),
+            coverage_box,
         ),
+    )
+
+
+def _should_keep_track(track: dict[str, Any]) -> bool:
+    duration = float(track["endTime"]) - float(track["startTime"])
+    real_detection_count = len(track.get("boundingBoxValues", []))
+    max_confidence = max(
+        (
+            float(confidence)
+            for confidence in track.get("confidenceValues", [])
+            if confidence is not None
+        ),
+        default=0.0,
+    )
+    return (
+        duration >= MIN_OCR_ITEM_DURATION_SECONDS
+        or real_detection_count >= 2
+        or max_confidence >= 0.75
     )
 
 
 def _resolve_track_start_time(track: dict[str, Any]) -> float:
     start_time = float(track["startTime"])
     end_time = float(track["endTime"])
-    delayed_start_time = start_time + TRACK_START_DELAY_SECONDS
+    if _has_progressive_text_candidates(track):
+        representative_timestamp = _resolve_track_text_group(track).get(
+            "firstTimestamp",
+        )
+        if representative_timestamp is not None:
+            start_time = max(start_time, float(representative_timestamp))
+
+    duration = max(0.0, end_time - start_time)
+    start_delay = min(TRACK_START_DELAY_SECONDS, duration * 0.25)
+    delayed_start_time = start_time + start_delay
     if delayed_start_time >= end_time:
         return round(start_time, 3)
 
     return round(delayed_start_time, 3)
+
+
+def _resolve_track_end_time(track: dict[str, Any]) -> float:
+    start_time = _resolve_track_start_time(track)
+    end_time = float(track["endTime"])
+    frame_interval_seconds = float(track.get("frameIntervalSeconds") or 0.0)
+    end_trim_seconds = min(TRACK_END_TRIM_SECONDS, frame_interval_seconds * 0.25)
+    trimmed_end_time = end_time - end_trim_seconds
+    if trimmed_end_time <= start_time:
+        return round(end_time, 3)
+
+    return round(trimmed_end_time, 3)
+
+
+def _track_coverage_bbox(track: dict[str, Any]) -> BoundingBox:
+    merged_item_count = max(track.get("mergedItemCountValues", [1]), default=1)
+    resolved_text = _resolve_track_text(track)
+    padding_ratio = TRACK_COVERAGE_PADDING_RATIO
+    if "\n" in resolved_text or merged_item_count > 1:
+        padding_ratio = TRACK_MULTILINE_COVERAGE_PADDING_RATIO
+
+    return _coverage_bbox(track["boundingBoxValues"], padding_ratio=padding_ratio)
 
 
 def _merge_adjacent_frame_items(
@@ -278,64 +340,14 @@ def _is_duplicate_frame_item(
         left_item["originText"],
         right_item["originText"],
     )
-
-
-def _build_text_candidate(raw_item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "text": str(raw_item.get("originText", "")).strip(),
-        "confidence": float(raw_item.get("confidence") or 0.0),
-        "timestamp": float(raw_item.get("timestamp", 0.0)),
-    }
-
-
-def _resolve_track_text(track: dict[str, Any]) -> str:
-    candidates = [
-        candidate
-        for candidate in track.get("textCandidates", [])
-        if str(candidate.get("text", "")).strip()
-    ]
-    if not candidates:
-        return str(track.get("originText", "")).strip()
-
-    grouped_candidates: dict[str, dict[str, Any]] = {}
-    for candidate in candidates:
-        text = str(candidate["text"]).strip()
-        normalized_text = _normalize_text(text)
-        if not normalized_text:
-            continue
-
-        group = grouped_candidates.setdefault(
-            normalized_text,
-            {
-                "text": text,
-                "count": 0,
-                "confidence": 0.0,
-                "lastTimestamp": 0.0,
-            },
-        )
-        group["count"] += 1
-        group["confidence"] += float(candidate.get("confidence") or 0.0)
-        group["lastTimestamp"] = max(
-            float(group["lastTimestamp"]),
-            float(candidate.get("timestamp") or 0.0),
-        )
-        if len(text) > len(str(group["text"])):
-            group["text"] = text
-
-    if not grouped_candidates:
-        return str(track.get("originText", "")).strip()
-
-    best_group = max(
-        grouped_candidates.values(),
-        key=lambda group: (
-            int(group["count"]),
-            float(group["confidence"]),
-            float(group["lastTimestamp"]),
-            len(str(group["text"])),
-        ),
+    is_progressive_text = _is_progressive_text_pair(
+        left_item["originText"],
+        right_item["originText"],
     )
-    return str(best_group["text"]).strip()
-    if text_similarity < DUPLICATE_TEXT_SIMILARITY_THRESHOLD:
+    if (
+        text_similarity < DUPLICATE_TEXT_SIMILARITY_THRESHOLD
+        and not is_progressive_text
+    ):
         return False
 
     left_box = left_item["boundingBox"]
@@ -350,6 +362,125 @@ def _resolve_track_text(track: dict[str, Any]) -> str:
         return True
 
     return _is_near_bbox_center(left_box, right_box)
+
+
+def _build_text_candidate(raw_item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "text": str(raw_item.get("originText", "")).strip(),
+        "confidence": float(raw_item.get("confidence") or 0.0),
+        "timestamp": float(raw_item.get("timestamp", 0.0)),
+    }
+
+
+def _resolve_track_text(track: dict[str, Any]) -> str:
+    return str(_resolve_track_text_group(track).get("text", "")).strip()
+
+
+def _resolve_track_text_group(track: dict[str, Any]) -> dict[str, Any]:
+    candidates = [
+        candidate
+        for candidate in track.get("textCandidates", [])
+        if str(candidate.get("text", "")).strip()
+    ]
+    if not candidates:
+        return {
+            "text": str(track.get("originText", "")).strip(),
+            "count": 0,
+            "confidence": 0.0,
+            "firstTimestamp": float(track.get("startTime", 0.0)),
+            "lastTimestamp": float(track.get("startTime", 0.0)),
+        }
+
+    grouped_candidates: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        text = str(candidate["text"]).strip()
+        normalized_text = _normalize_text(text)
+        if not normalized_text:
+            continue
+
+        timestamp = float(candidate.get("timestamp") or 0.0)
+        group = grouped_candidates.setdefault(
+            normalized_text,
+            {
+                "text": text,
+                "count": 0,
+                "confidence": 0.0,
+                "firstTimestamp": timestamp,
+                "lastTimestamp": timestamp,
+            },
+        )
+        group["count"] += 1
+        group["confidence"] += float(candidate.get("confidence") or 0.0)
+        group["firstTimestamp"] = min(float(group["firstTimestamp"]), timestamp)
+        group["lastTimestamp"] = max(float(group["lastTimestamp"]), timestamp)
+        if len(text) > len(str(group["text"])):
+            group["text"] = text
+
+    if not grouped_candidates:
+        return {
+            "text": str(track.get("originText", "")).strip(),
+            "count": 0,
+            "confidence": 0.0,
+            "firstTimestamp": float(track.get("startTime", 0.0)),
+            "lastTimestamp": float(track.get("startTime", 0.0)),
+        }
+
+    groups = list(grouped_candidates.values())
+    if _has_progressive_text_candidates(track):
+        return max(
+            groups,
+            key=lambda group: (
+                len(_compact_text(str(group["text"]))),
+                int(group["count"]),
+                float(group["confidence"]),
+                float(group["lastTimestamp"]),
+            ),
+        )
+
+    return max(
+        groups,
+        key=lambda group: (
+            int(group["count"]),
+            float(group["confidence"]),
+            float(group["lastTimestamp"]),
+            len(str(group["text"])),
+        ),
+    )
+
+
+def _has_progressive_text_candidates(track: dict[str, Any]) -> bool:
+    candidates = [
+        str(candidate.get("text", "")).strip()
+        for candidate in track.get("textCandidates", [])
+        if str(candidate.get("text", "")).strip()
+    ]
+    for left_index, left_text in enumerate(candidates):
+        for right_text in candidates[left_index + 1 :]:
+            if _is_progressive_text_pair(left_text, right_text):
+                return True
+
+    return False
+
+
+def _is_progressive_text_pair(left: str, right: str) -> bool:
+    left_compact = _compact_text(left)
+    right_compact = _compact_text(right)
+    if not left_compact or not right_compact:
+        return False
+
+    shorter_length = min(len(left_compact), len(right_compact))
+    longer_length = max(len(left_compact), len(right_compact))
+    if shorter_length < PROGRESSIVE_TEXT_MIN_LENGTH:
+        return False
+
+    if shorter_length / longer_length < PROGRESSIVE_TEXT_MIN_LENGTH_RATIO:
+        return False
+
+    return left_compact in right_compact or right_compact in left_compact
+
+
+def _compact_text(text: str) -> str:
+    return "".join(_normalize_text(text).split())
 
 
 def _merge_items_into_lines(
@@ -552,7 +683,8 @@ def _is_duplicate_merge_item(
         return False
 
     text_similarity = 1.0 if left_text == right_text else _similarity(left_text, right_text)
-    if text_similarity < DUPLICATE_NORMALIZED_TEXT_THRESHOLD:
+    is_progressive_text = _is_progressive_text_pair(left_text, right_text)
+    if text_similarity < DUPLICATE_NORMALIZED_TEXT_THRESHOLD and not is_progressive_text:
         return False
 
     left_box = left_item["boundingBox"]
@@ -599,7 +731,12 @@ def _is_duplicate_ocr_item(
     left_item: OcrItem,
     right_item: OcrItem,
 ) -> bool:
-    if _text_similarity(left_item.origin_text, right_item.origin_text) < 0.9:
+    text_similarity = _text_similarity(left_item.origin_text, right_item.origin_text)
+    is_progressive_text = _is_progressive_text_pair(
+        left_item.origin_text,
+        right_item.origin_text,
+    )
+    if text_similarity < 0.9 and not is_progressive_text:
         return False
 
     if _time_overlap_ratio(left_item, right_item) < 0.5:
@@ -698,30 +835,53 @@ def _find_best_matching_active_track(
         if id(track) in matched_track_ids:
             continue
 
+        track_text = _resolve_track_text(track) or str(track.get("originText", ""))
+        raw_text = str(raw_item.get("originText", ""))
         text_similarity = _text_similarity(
-            track["originText"],
-            raw_item["originText"],
+            track_text,
+            raw_text,
         )
-        if text_similarity < min(text_similarity_threshold, TRACK_TEXT_STABILITY_THRESHOLD):
+        is_progressive_text = _is_progressive_track_match(track, raw_text)
+        if (
+            text_similarity < min(text_similarity_threshold, TRACK_TEXT_STABILITY_THRESHOLD)
+            and not is_progressive_text
+        ):
             continue
 
         bbox_overlap = _bbox_iou(track["boundingBox"], raw_item["boundingBox"])
+        is_stable_scaling = _is_stable_scaling_match(
+            track["boundingBox"],
+            raw_item["boundingBox"],
+        )
         if bbox_overlap <= 0 and not _is_similar_bbox(
             track["boundingBox"],
             raw_item["boundingBox"],
             bbox_tolerance,
-        ) and not _is_stable_scaling_match(
-            track["boundingBox"],
-            raw_item["boundingBox"],
-        ):
+        ) and not is_stable_scaling:
             continue
 
-        candidates.append((text_similarity + bbox_overlap, track))
+        text_score = max(
+            text_similarity,
+            PROGRESSIVE_TEXT_SCORE if is_progressive_text else 0.0,
+        )
+        scaling_score = 0.1 if is_stable_scaling else 0.0
+        candidates.append((text_score + bbox_overlap + scaling_score, track))
 
     if not candidates:
         return None
 
     return max(candidates, key=lambda candidate: candidate[0])[1]
+
+
+def _is_progressive_track_match(track: dict[str, Any], raw_text: str) -> bool:
+    track_text = _resolve_track_text(track) or str(track.get("originText", ""))
+    if _is_progressive_text_pair(track_text, raw_text):
+        return True
+
+    return any(
+        _is_progressive_text_pair(str(candidate.get("text", "")), raw_text)
+        for candidate in track.get("textCandidates", [])
+    )
 
 
 def _is_stable_scaling_match(
