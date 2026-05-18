@@ -254,7 +254,7 @@ public class JobService {
 
     List<Segment> savedSegments = segmentRepository.saveAll(segments);
 
-    createSegmentWords(savedSegments);
+    saveSegmentWords(savedSegments);
   }
 
   private void saveOcrItems(Job job, JobCallbackRequest request) {
@@ -289,26 +289,27 @@ public class JobService {
         blurRegion != null ? blurRegion.h() : null);
   }
 
-  private void createSegmentWords(List<Segment> segments) {
+  private void saveSegmentWords(List<Segment> segments) {
     List<SegmentWord> segmentWords =
-        segments.stream().flatMap(segment -> createSegmentWords(segment).stream()).toList();
+        segments.stream().flatMap(segment -> createWordsFromSegment(segment).stream()).toList();
 
     segmentWordRepository.saveAll(segmentWords);
   }
 
-  private List<SegmentWord> createSegmentWords(Segment segment) {
+  private List<SegmentWord> createWordsFromSegment(Segment segment) {
     List<SegmentWord> words = new ArrayList<>();
 
-    words.addAll(createSegmentWords(segment, segment.getText(), SegmentWordType.ORIGINAL));
+    words.addAll(createWordsFromText(segment, segment.getText(), SegmentWordType.ORIGINAL));
 
     words.addAll(
-        createSegmentWords(segment, segment.getTranslatedText(), SegmentWordType.TRANSLATION));
+        createWordsFromText(segment, segment.getTranslatedText(), SegmentWordType.TRANSLATION));
 
     return words;
   }
 
-  private List<SegmentWord> createSegmentWords(
+  private List<SegmentWord> createWordsFromText(
       Segment segment, String text, SegmentWordType wordType) {
+
     if (text == null || text.isBlank()) {
       return List.of();
     }
