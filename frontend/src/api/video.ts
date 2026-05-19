@@ -128,6 +128,7 @@ export interface SegmentWord {
   segmentWordId: number;
   seq: number;
   word: string;
+  selectedTextType?: string;
   startTime: number;
   endTime: number;
 }
@@ -141,7 +142,8 @@ export interface SegmentResult {
   text: string;
   translatedText: string | null;
   languageCode: string;
-  words: SegmentWord[];
+  originalWords: SegmentWord[];
+  translatedWords: SegmentWord[];
 }
 
 export interface OcrItemResult {
@@ -213,4 +215,54 @@ export interface RetryJobResult {
 export async function retryJob(projectId: number): Promise<RetryJobResult> {
   const res = await apiPost(`/v1/projects/${projectId}/jobs/retry`, {});
   return unwrap<RetryJobResult>(res);
+}
+
+// ── 번역 수정 Types ─────────────────────────────────────
+
+export interface TranslationSegmentUpdate {
+  segmentId: number;
+  translatedText: string;
+}
+
+export interface TranslationSegmentResult {
+  segmentId: number;
+  translatedText: string;
+  translatedWords: SegmentWord[];
+}
+
+export interface UpdateTranslationResult {
+  projectId: number;
+  segments: TranslationSegmentResult[];
+}
+
+/** 번역문 수정 저장 */
+export async function updateTranslation(
+  projectId: number,
+  segments: TranslationSegmentUpdate[],
+): Promise<UpdateTranslationResult> {
+  const res = await apiPatch(`/v1/projects/${projectId}/results`, { segments });
+  return unwrap<UpdateTranslationResult>(res);
+}
+
+// ── 학습 콘텐츠 Types ───────────────────────────────────
+
+export interface LearningContentItem {
+  learningContentId: number;
+  title: string;
+  content: string;
+  startTime: number | null;
+  endTime: number | null;
+}
+
+export interface LearningContentsResult {
+  jobId: number;
+  summary: LearningContentItem | null;
+  keywords: LearningContentItem[];
+  expressions: LearningContentItem[];
+}
+
+/** 학습 콘텐츠 조회 */
+export async function getLearningContents(jobId: number): Promise<LearningContentsResult> {
+  const res = await apiGet(`/v1/jobs/${jobId}/learning-contents`);
+  return unwrap<LearningContentsResult>(res);
 }

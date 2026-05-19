@@ -3,8 +3,9 @@ import { apiGet, apiPost, apiDelete } from './client';
 // ── 요청/응답 타입 ─────────────────────────────────────
 
 export interface ExplainWordRequest {
+  segmentId: number;
   word: string;
-  selectedTextType: 'ORIGINAL' | 'TRANSLATED';
+  selectedTextType: 'ORIGINAL' | 'TRANSLATION';
   originalSentence: string;
   translatedSentence: string;
   sourceLanguage: string;
@@ -15,10 +16,13 @@ export interface ExplainWordResponse {
   word: string;
   meaning: string;
   relatedWords: string[];
+  matchedExpression: boolean;
 }
 
 export interface SaveWordRequest {
   segmentWordId: number;
+  word: string;
+  matchedExpression?: boolean;
   meaning: string;
   contextMeaning: string;
   memo?: string;
@@ -26,8 +30,15 @@ export interface SaveWordRequest {
 
 export interface SavedWordResult {
   savedWordId: number;
+  segmentWordId: number;
   word: string;
+  selectedTextType: 'ORIGINAL' | 'TRANSLATION';
   meaning: string;
+  contextMeaning: string;
+  memo: string;
+  matchedExpression: boolean;
+  startTime: number | null;
+  endTime: number | null;
   originalSentence: string;
   translatedSentence: string;
   projectId: number | null;

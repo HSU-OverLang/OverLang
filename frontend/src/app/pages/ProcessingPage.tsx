@@ -84,7 +84,7 @@ export function ProcessingPage() {
       if (detail.status === 'COMPLETED') {
         stopPolling();
         setTimeout(() => {
-          navigate('/translate', { state: { videoSrc, projectId, targetLanguage } });
+          navigate(`/translate/${projectId}`, { state: { videoSrc, targetLanguage } });
         }, 1200);
       } else if (detail.status === 'FAILED') {
         stopPolling();
