@@ -56,22 +56,11 @@ public class JobService {
 
   @Transactional
   public JobCreateResponse createJob(Long projectId, Long memberId, JobCreateRequest request) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     validateJobCreateRequest(request);
 
-    Job job =
-        new Job(
-            project,
-            request.jobType(),
-            request.sourceLanguage(),
-            request.targetLanguage(),
-            request.translationProvider());
-
-    Job savedJob = jobRepository.save(job);
+    Job savedJob = jobRepository.save(createJobEntity(project, request));
 
     var reusableJob = resultCacheService.findReusableJob(project, request);
 
@@ -83,10 +72,7 @@ public class JobService {
       return JobCreateResponse.from(savedJob, true);
     }
 
-    project.updateStatus(ProjectStatus.PROCESSING);
-
-    JobQueuePayload payload = createQueuePayload(project, savedJob);
-    jobQueueProducer.enqueue(payload);
+    enqueueJob(project, savedJob);
 
     return JobCreateResponse.from(savedJob, false);
   }
@@ -146,10 +132,7 @@ public class JobService {
 
   @Transactional(readOnly = true)
   public List<JobResponse> getJobsByProject(Long projectId, Long memberId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     return jobRepository.findByProjectIdOrderByCreatedAtDesc(project.getId()).stream()
         .map(JobResponse::from)
@@ -158,44 +141,23 @@ public class JobService {
 
   @Transactional(readOnly = true)
   public JobDetailResponse getJobDetail(Long jobId, Long memberId) {
-    Job job =
-        jobRepository
-            .findByIdAndProjectMemberId(jobId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+    Job job = findJobByIdAndMemberId(jobId, memberId);
 
     return JobDetailResponse.from(job);
   }
 
   @Transactional
   public JobRetryResponse retryJob(Long projectId, Long memberId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
-
-    Job latestJob =
-        jobRepository
-            .findTopByProjectIdOrderByCreatedAtDesc(project.getId())
-            .orElseThrow(() -> new IllegalArgumentException("재처리할 작업이 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
+    Job latestJob = findLatestJobByProjectId(project.getId());
 
     if (latestJob.getStatus() != JobStatus.FAILED) {
       throw new IllegalArgumentException("FAILED 상태의 작업만 재처리할 수 있습니다.");
     }
 
-    Job retryJob =
-        new Job(
-            project,
-            latestJob.getJobType(),
-            latestJob.getSourceLanguage(),
-            latestJob.getTargetLanguage(),
-            latestJob.getTranslationProvider());
+    Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob));
 
-    Job savedJob = jobRepository.save(retryJob);
-
-    project.updateStatus(ProjectStatus.PROCESSING);
-
-    JobQueuePayload payload = createQueuePayload(project, savedJob);
-    jobQueueProducer.enqueue(payload);
+    enqueueJob(project, savedJob);
 
     return new JobRetryResponse(
         project.getId(),
@@ -292,7 +254,7 @@ public class JobService {
 
     List<Segment> savedSegments = segmentRepository.saveAll(segments);
 
-    createSegmentWords(savedSegments);
+    saveSegmentWords(savedSegments);
   }
 
   private void saveOcrItems(Job job, JobCallbackRequest request) {
@@ -327,26 +289,27 @@ public class JobService {
         blurRegion != null ? blurRegion.h() : null);
   }
 
-  private void createSegmentWords(List<Segment> segments) {
+  private void saveSegmentWords(List<Segment> segments) {
     List<SegmentWord> segmentWords =
-        segments.stream().flatMap(segment -> createSegmentWords(segment).stream()).toList();
+        segments.stream().flatMap(segment -> createWordsFromSegment(segment).stream()).toList();
 
     segmentWordRepository.saveAll(segmentWords);
   }
 
-  private List<SegmentWord> createSegmentWords(Segment segment) {
+  private List<SegmentWord> createWordsFromSegment(Segment segment) {
     List<SegmentWord> words = new ArrayList<>();
 
-    words.addAll(createSegmentWords(segment, segment.getText(), SegmentWordType.ORIGINAL));
+    words.addAll(createWordsFromText(segment, segment.getText(), SegmentWordType.ORIGINAL));
 
     words.addAll(
-        createSegmentWords(segment, segment.getTranslatedText(), SegmentWordType.TRANSLATION));
+        createWordsFromText(segment, segment.getTranslatedText(), SegmentWordType.TRANSLATION));
 
     return words;
   }
 
-  private List<SegmentWord> createSegmentWords(
+  private List<SegmentWord> createWordsFromText(
       Segment segment, String text, SegmentWordType wordType) {
+
     if (text == null || text.isBlank()) {
       return List.of();
     }
@@ -383,5 +346,48 @@ public class JobService {
             .toList();
 
     learningContentRepository.saveAll(learningContents);
+  }
+
+  private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
+    return projectRepository
+        .findByIdAndMemberId(projectId, memberId)
+        .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+  }
+
+  private Job findJobByIdAndMemberId(Long jobId, Long memberId) {
+    return jobRepository
+        .findByIdAndProjectMemberId(jobId, memberId)
+        .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+  }
+
+  private Job findLatestJobByProjectId(Long projectId) {
+    return jobRepository
+        .findTopByProjectIdOrderByCreatedAtDesc(projectId)
+        .orElseThrow(() -> new IllegalArgumentException("재처리할 작업이 없습니다."));
+  }
+
+  private Job createJobEntity(Project project, JobCreateRequest request) {
+    return new Job(
+        project,
+        request.jobType(),
+        request.sourceLanguage(),
+        request.targetLanguage(),
+        request.translationProvider());
+  }
+
+  private Job createRetryJobEntity(Project project, Job latestJob) {
+    return new Job(
+        project,
+        latestJob.getJobType(),
+        latestJob.getSourceLanguage(),
+        latestJob.getTargetLanguage(),
+        latestJob.getTranslationProvider());
+  }
+
+  private void enqueueJob(Project project, Job job) {
+    project.updateStatus(ProjectStatus.PROCESSING);
+
+    JobQueuePayload payload = createQueuePayload(project, job);
+    jobQueueProducer.enqueue(payload);
   }
 }
