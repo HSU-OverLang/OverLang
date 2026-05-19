@@ -170,10 +170,11 @@ export function MyPage() {
                   <div
                     key={`${pid}_${proj.clickedAt}`}
                     onClick={() => {
+                      if (!pid) return;
                       if (isYoutube) {
-                        navigate('/translate', { state: { videoSrc, projectId: pid } });
+                        navigate(`/translate/${pid}`, { state: { videoSrc } });
                       } else {
-                        navigate('/translate', { state: { projectId: pid } });
+                        navigate(`/translate/${pid}`);
                       }
                     }}
                     className="group flex items-center gap-4 rounded-xl hover:bg-slate-50 px-3 py-3.5 transition-colors cursor-pointer"

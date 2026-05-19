@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getProjects, getVideoPresignedUrl, updateProjectTitle, deleteProject } from '@/api/video';
+import { getProjects, getVideoPresignedUrl, updateProjectTitle, deleteProject, retryJob } from '@/api/video';
 import { getMySavedWords, deleteSavedWord } from '@/api/words';
 import type { ProjectResult } from '@/api/video';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -77,6 +77,9 @@ export function DashboardPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectResult | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // 재시도
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+
   // 분석 중 클릭 시 안내 토스트
   const [processingToast, setProcessingToast] = useState(false);
   const showProcessingToast = () => {
@@ -110,6 +113,25 @@ export function DashboardPage() {
       alert('제목 수정에 실패했습니다.');
     } finally {
       setRenameLoading(false);
+    }
+  };
+
+  const handleRetry = async (project: ProjectResult) => {
+    const pid = project.id ?? project.projectId;
+    if (!pid) return;
+    setRetryingId(pid);
+    setMenuOpenId(null);
+    try {
+      const result = await retryJob(pid);
+      const isYoutube = project.sourceType === 'YOUTUBE';
+      const videoSrc = isYoutube ? (project.sourceUrl ?? '') : '';
+      navigate('/processing', {
+        state: { jobId: result.jobId, projectId: pid, videoSrc },
+      });
+    } catch (e) {
+      alert('재분석 요청에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -264,9 +286,9 @@ export function DashboardPage() {
                     }
                     saveRecentProject(project);
                     if (isYoutube) {
-                      navigate('/translate', { state: { videoSrc, projectId: pid } });
+                      navigate(`/translate/${pid}`, { state: { videoSrc } });
                     } else {
-                      navigate('/translate', { state: { projectId: pid } });
+                      navigate(`/translate/${pid}`);
                     }
                   }}
                   className={`bg-white rounded-2xl border border-gray-200 transition-all group ${
@@ -371,6 +393,29 @@ export function DashboardPage() {
                                 </svg>
                                 제목 수정
                               </button>
+                              {/* 재시도 (실패한 프로젝트만) */}
+                              {project.status === 'FAILED' && (
+                                <>
+                                  <div className="mx-3 border-t border-slate-100" />
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleRetry(project);
+                                    }}
+                                    disabled={retryingId === pid}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-blue-500 hover:bg-blue-50 transition-colors text-left disabled:opacity-50"
+                                  >
+                                    {retryingId === pid ? (
+                                      <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-300 border-t-blue-500 animate-spin shrink-0" />
+                                    ) : (
+                                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                    )}
+                                    다시 분석하기
+                                  </button>
+                                </>
+                              )}
                               <div className="mx-3 border-t border-slate-100" />
                               <button
                                 onClick={e => {

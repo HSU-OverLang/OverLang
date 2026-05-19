@@ -61,7 +61,7 @@ export const router = createBrowserRouter([
   },
 
   {
-    path: '/translate',
+    path: '/translate/:projectId',
     element: <TranslatePage />,
   },
   {
