@@ -1,8 +1,6 @@
 package com.overlang.domain.job.service;
 
 import com.overlang.api.dto.job.*;
-import com.overlang.api.dto.ocr.BlurRegionRequest;
-import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.domain.cache.service.ResultCacheService;
 import com.overlang.domain.cache.service.ResultCopyService;
 import com.overlang.domain.file.service.S3UploadService;
@@ -14,15 +12,10 @@ import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.repository.LearningContentRepository;
-import com.overlang.domain.ocr.entity.OcrItem;
-import com.overlang.domain.ocr.repository.OcrItemRepository;
 import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
-import com.overlang.domain.savedword.repository.SavedWordRepository;
-import com.overlang.domain.segment.repository.SegmentRepository;
-import com.overlang.domain.segment.repository.SegmentWordRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,13 +32,9 @@ public class JobService {
   private final JobRepository jobRepository;
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
-  private final SegmentRepository segmentRepository;
-  private final SegmentWordRepository segmentWordRepository;
-  private final OcrItemRepository ocrItemRepository;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
   private final LearningContentRepository learningContentRepository;
-  private final SavedWordRepository savedWordRepository;
   private final JobResultService jobResultService;
 
   @Value("${worker.secret}")
@@ -211,7 +200,7 @@ public class JobService {
 
     jobResultService.deletePreviousResults(job.getId());
     jobResultService.saveSegments(job, request);
-    saveOcrItems(job, request);
+    jobResultService.saveOcrItems(job, request);
     saveLearningContents(job, request.learningData());
 
     job.getProject().markCompleted();
@@ -222,38 +211,6 @@ public class JobService {
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
     job.getProject().markFailed();
-  }
-
-  private void saveOcrItems(Job job, JobCallbackRequest request) {
-    if (request.ocrItems() == null) return;
-
-    List<OcrItem> ocrItems = request.ocrItems().stream().map(o -> toOcrItem(job, o)).toList();
-
-    ocrItemRepository.saveAll(ocrItems);
-  }
-
-  private OcrItem toOcrItem(Job job, CallbackOcrItemRequest o) {
-    OcrStyleRequest style = o.style();
-    BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
-
-    return new OcrItem(
-        job,
-        o.startTime(),
-        o.endTime(),
-        o.originText(),
-        o.translatedText(),
-        o.boundingBox().x(),
-        o.boundingBox().y(),
-        o.boundingBox().w(),
-        o.boundingBox().h(),
-        o.confidence(),
-        style != null ? style.backgroundColor() : null,
-        style != null ? style.dominantBackgroundColor() : null,
-        style != null ? style.textColor() : null,
-        blurRegion != null ? blurRegion.x() : null,
-        blurRegion != null ? blurRegion.y() : null,
-        blurRegion != null ? blurRegion.w() : null,
-        blurRegion != null ? blurRegion.h() : null);
   }
 
   private void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
