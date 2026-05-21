@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 
 from ai.api.schemas import BoundingBox
 
@@ -14,6 +14,7 @@ DEFAULT_REFINE_ENABLED = True
 DEFAULT_REFINE_SCALE = 2.0
 DEFAULT_REFINE_PADDING = 0.015
 DEFAULT_REFINE_MIN_CONFIDENCE = 0.2
+DEFAULT_OCR_PREPROCESS_VARIANTS = "original,contrast,threshold"
 PRESET_OCR_REGIONS = {
     "full": (0.0, 0.0, 1.0, 1.0),
     "top": (0.0, 0.0, 1.0, 0.35),
@@ -56,29 +57,33 @@ class EasyOcrService:
                 image_height,
             ):
                 crop_image = rgb_image.crop(crop_box)
-                results = self.reader.readtext(np.asarray(crop_image))
+                for variant_name, prepared_image in _iter_preprocessed_images(
+                    crop_image
+                ):
+                    results = self.reader.readtext(np.asarray(prepared_image))
 
-                for bbox_points, text, confidence in results:
-                    origin_text = str(text).strip()
-                    if not origin_text:
-                        continue
+                    for bbox_points, text, confidence in results:
+                        origin_text = str(text).strip()
+                        if not origin_text:
+                            continue
 
-                    raw_items.append(
-                        {
-                            "frameIndex": frame_index,
-                            "framePath": str(source_path),
-                            "timestamp": round(float(timestamp), 3),
-                            "originText": origin_text,
-                            "boundingBox": _normalize_bbox(
-                                bbox_points,
-                                image_width,
-                                image_height,
-                                crop_box,
-                            ),
-                            "confidence": round(float(confidence), 4),
-                            "sourceRegion": region_name,
-                        }
-                    )
+                        raw_items.append(
+                            {
+                                "frameIndex": frame_index,
+                                "framePath": str(source_path),
+                                "timestamp": round(float(timestamp), 3),
+                                "originText": origin_text,
+                                "boundingBox": _normalize_bbox(
+                                    bbox_points,
+                                    image_width,
+                                    image_height,
+                                    crop_box,
+                                ),
+                                "confidence": round(float(confidence), 4),
+                                "sourceRegion": region_name,
+                                "ocrVariant": variant_name,
+                            }
+                        )
 
         if _to_bool(os.getenv("AI_OCR_REFINE_ENABLED", str(DEFAULT_REFINE_ENABLED))):
             raw_items.extend(
@@ -95,22 +100,42 @@ class EasyOcrService:
 
 
 def language_to_easyocr_languages(language_code: str | None) -> list[str]:
+    extra_languages = _resolve_extra_ocr_languages()
+
     if language_code == "zh":
-        return ["ch_sim", "en"]
+        return _dedupe_languages(["ch_sim", "en", *extra_languages])
 
     if language_code == "ja":
-        return ["ja", "en"]
+        return _dedupe_languages(["ja", "en", *extra_languages])
 
     if language_code == "ko":
-        return ["ko", "en"]
+        return _dedupe_languages(["ko", "en", *extra_languages])
 
     if language_code == "en":
-        return ["en"]
+        return _dedupe_languages(["en", *extra_languages])
 
     if language_code in {"es", "fr"}:
-        return [language_code, "en"]
+        return _dedupe_languages([language_code, "en", *extra_languages])
 
-    return ["en"]
+    return _dedupe_languages(["en", *extra_languages])
+
+
+def _resolve_extra_ocr_languages() -> list[str]:
+    raw_value = os.getenv("AI_OCR_EXTRA_LANGUAGES", "")
+    return [
+        language.strip().lower()
+        for language in raw_value.split(",")
+        if language.strip()
+    ]
+
+
+def _dedupe_languages(languages: list[str]) -> list[str]:
+    deduped_languages = []
+    for language in languages:
+        if language not in deduped_languages:
+            deduped_languages.append(language)
+
+    return deduped_languages
 
 
 def _read_image_size(image_path: Path) -> tuple[int, int]:
@@ -153,6 +178,57 @@ def _resolve_ocr_regions() -> list[tuple[str, tuple[float, float, float, float]]
         regions.append((region_name, ratios))
 
     return regions or [("full", PRESET_OCR_REGIONS["full"])]
+
+
+def _iter_preprocessed_images(crop_image: Image.Image) -> list[tuple[str, Image.Image]]:
+    variants = []
+    configured_variants = os.getenv(
+        "AI_OCR_PREPROCESS_VARIANTS",
+        DEFAULT_OCR_PREPROCESS_VARIANTS,
+    )
+    for raw_variant_name in configured_variants.split(","):
+        variant_name = raw_variant_name.strip().lower()
+        if not variant_name:
+            continue
+
+        prepared_image = _build_preprocessed_image(crop_image, variant_name)
+        if prepared_image is not None:
+            variants.append((variant_name, prepared_image))
+
+    return variants or [("original", crop_image)]
+
+
+def _build_preprocessed_image(
+    crop_image: Image.Image,
+    variant_name: str,
+) -> Image.Image | None:
+    if variant_name == "original":
+        return crop_image
+
+    if variant_name == "contrast":
+        return (
+            ImageEnhance.Contrast(crop_image)
+            .enhance(1.8)
+            .filter(ImageFilter.SHARPEN)
+        )
+
+    if variant_name == "threshold":
+        grayscale_image = crop_image.convert("L")
+        enhanced_image = ImageEnhance.Contrast(grayscale_image).enhance(2.0)
+        threshold_image = enhanced_image.point(
+            lambda pixel: 255 if pixel >= 150 else 0
+        )
+        return threshold_image.convert("RGB")
+
+    if variant_name == "invert_threshold":
+        grayscale_image = crop_image.convert("L")
+        enhanced_image = ImageEnhance.Contrast(grayscale_image).enhance(2.0)
+        threshold_image = enhanced_image.point(
+            lambda pixel: 0 if pixel >= 150 else 255
+        )
+        return threshold_image.convert("RGB")
+
+    return None
 
 
 def _extract_refined_items(

@@ -24,7 +24,11 @@ from ai.ocr.frame_change import (
     calculate_bounding_box_change_score,
 )
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
-from ai.ocr.postprocess import build_ocr_items
+from ai.ocr.postprocess import (
+    build_ocr_items,
+    should_keep_ocr_text_for_translation,
+    should_preserve_ocr_translation,
+)
 from ai.pipeline.audio_service import extract_audio_to_wav
 from ai.pipeline.frame_service import extract_frames
 from ai.pipeline.input_service import resolve_input_source
@@ -575,7 +579,29 @@ def _run_translation_stage(
 
     translation_service = create_translation_service(job.translation_provider)
     subtitle_texts = [subtitle.text for subtitle in subtitles]
-    ocr_texts = [ocr_item.origin_text for ocr_item in ocr_items]
+    translatable_ocr_items = [
+        ocr_item
+        for ocr_item in ocr_items
+        if should_keep_ocr_text_for_translation(
+            ocr_item.origin_text,
+            ocr_item.confidence,
+        )
+    ]
+    ocr_items[:] = translatable_ocr_items
+
+    preserved_ocr_items = [
+        ocr_item
+        for ocr_item in ocr_items
+        if should_preserve_ocr_translation(ocr_item.origin_text)
+    ]
+    ocr_items_to_translate = [
+        ocr_item
+        for ocr_item in ocr_items
+        if ocr_item not in preserved_ocr_items
+    ]
+    ocr_translation_jobs, ocr_texts = _build_ocr_translation_jobs(
+        ocr_items_to_translate,
+    )
 
     subtitle_translations = translation_service.translate_batch(
         subtitle_texts,
@@ -591,8 +617,17 @@ def _run_translation_stage(
     for subtitle, translated_text in zip(subtitles, subtitle_translations):
         subtitle.translated_text = translated_text
 
-    for ocr_item, translated_text in zip(ocr_items, ocr_translations):
-        ocr_item.translated_text = _normalize_ocr_translation_text(translated_text)
+    for ocr_item in preserved_ocr_items:
+        ocr_item.translated_text = ocr_item.origin_text
+
+    for ocr_item, translated_text in _zip_ocr_translation_results(
+        ocr_translation_jobs,
+        ocr_translations,
+    ):
+        ocr_item.translated_text = _resolve_ocr_translation_text(
+            ocr_item,
+            translated_text,
+        )
 
     if _enum_value(job.translation_provider) == TranslationProvider.DEFAULT.value:
         return [
@@ -604,7 +639,93 @@ def _run_translation_stage(
 
 
 def _normalize_ocr_translation_text(translated_text: str) -> str:
-    return " ".join(str(translated_text).split())
+    normalized_lines = [
+        " ".join(line.split())
+        for line in str(translated_text).splitlines()
+        if line.strip()
+    ]
+    return "\n".join(normalized_lines)
+
+
+def _build_ocr_translation_jobs(
+    ocr_items: list[OcrItem],
+) -> tuple[list[tuple[OcrItem, int]], list[str]]:
+    jobs: list[tuple[OcrItem, int]] = []
+    texts: list[str] = []
+    for ocr_item in ocr_items:
+        lines = _split_ocr_translation_lines(ocr_item.origin_text)
+        jobs.append((ocr_item, len(lines)))
+        texts.extend(lines)
+
+    return jobs, texts
+
+
+def _split_ocr_translation_lines(text: str) -> list[str]:
+    lines = [
+        _normalize_ocr_translation_text(line)
+        for line in str(text).splitlines()
+        if line.strip()
+    ]
+    if lines:
+        return lines
+
+    normalized_text = _normalize_ocr_translation_text(text)
+    return [normalized_text] if normalized_text else []
+
+
+def _zip_ocr_translation_results(
+    jobs: list[tuple[OcrItem, int]],
+    translations: list[str],
+) -> list[tuple[OcrItem, str]]:
+    results: list[tuple[OcrItem, str]] = []
+    cursor = 0
+    for ocr_item, line_count in jobs:
+        line_translations = translations[cursor : cursor + line_count]
+        cursor += line_count
+        results.append(
+            (
+                ocr_item,
+                "\n".join(
+                    _normalize_ocr_translation_text(line)
+                    for line in line_translations
+                    if _normalize_ocr_translation_text(line)
+                ),
+            )
+        )
+
+    return results
+
+
+def _resolve_ocr_translation_text(
+    ocr_item: OcrItem,
+    translated_text: str,
+) -> str | None:
+    normalized_text = _normalize_ocr_translation_text(translated_text)
+    if not normalized_text:
+        return None
+
+    if not should_keep_ocr_text_for_translation(normalized_text, ocr_item.confidence):
+        return None
+
+    if _is_same_ocr_translation_text(ocr_item.origin_text, normalized_text):
+        return None
+
+    origin_length = len((ocr_item.origin_text or "").replace(" ", ""))
+    translated_length = len(normalized_text.replace(" ", ""))
+    if origin_length > 0 and translated_length > max(80, origin_length * 8):
+        return None
+
+    return normalized_text
+
+
+def _is_same_ocr_translation_text(origin_text: str, translated_text: str) -> bool:
+    return _normalize_ocr_compare_text(origin_text) == _normalize_ocr_compare_text(
+        translated_text,
+    )
+
+
+def _normalize_ocr_compare_text(text: str) -> str:
+    return "".join(str(text).lower().split())
 
 
 def _split_translated_subtitles_for_rendering(
