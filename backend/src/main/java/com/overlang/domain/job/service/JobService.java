@@ -50,6 +50,7 @@ public class JobService {
   private final ResultCopyService resultCopyService;
   private final LearningContentRepository learningContentRepository;
   private final SavedWordRepository savedWordRepository;
+  private final JobResultService jobResultService;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -212,20 +213,12 @@ public class JobService {
     job.complete(
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
-    deletePreviousResults(job.getId());
+    jobResultService.deletePreviousResults(job.getId());
     saveSegments(job, request);
     saveOcrItems(job, request);
     saveLearningContents(job, request.learningData());
 
     job.getProject().markCompleted();
-  }
-
-  private void deletePreviousResults(Long jobId) {
-    savedWordRepository.deleteByJobId(jobId);
-    segmentWordRepository.deleteBySegmentJobId(jobId);
-    segmentRepository.deleteByJobId(jobId);
-    ocrItemRepository.deleteByJobId(jobId);
-    learningContentRepository.deleteByJobId(jobId);
   }
 
   private void handleFailedCallback(Job job, JobCallbackRequest request) {

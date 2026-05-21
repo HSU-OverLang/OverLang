@@ -4,7 +4,9 @@ import com.overlang.api.dto.ocr.OcrItemResponse;
 import com.overlang.api.dto.segment.SegmentResponse;
 import com.overlang.api.dto.segment.SegmentWordResponse;
 import com.overlang.domain.job.repository.JobRepository;
+import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
+import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.entity.SegmentWordType;
@@ -25,6 +27,8 @@ public class JobResultService {
   private final SegmentWordRepository segmentWordRepository;
   private final OcrItemRepository ocrItemRepository;
   private final JobRepository jobRepository;
+  private final LearningContentRepository learningContentRepository;
+  private final SavedWordRepository savedWordRepository;
 
   @Transactional(readOnly = true)
   public List<SegmentResponse> getSegments(Long jobId, Long memberId) {
@@ -82,5 +86,13 @@ public class JobResultService {
     if (!jobRepository.existsByIdAndProjectMemberId(jobId, memberId)) {
       throw new IllegalArgumentException("작업을 찾을 수 없습니다.");
     }
+  }
+
+  public void deletePreviousResults(Long jobId) {
+    savedWordRepository.deleteByJobId(jobId);
+    segmentWordRepository.deleteBySegmentJobId(jobId);
+    segmentRepository.deleteByJobId(jobId);
+    ocrItemRepository.deleteByJobId(jobId);
+    learningContentRepository.deleteByJobId(jobId);
   }
 }
