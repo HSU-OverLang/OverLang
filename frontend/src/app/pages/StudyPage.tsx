@@ -41,6 +41,16 @@ const EXAMPLE_FMTS = [
   }),
 ];
 
+// 텍스트에서 언어 자동 감지 (유니코드 범위 기반)
+function detectLang(text: string): string {
+  if (/[가-힣ᄀ-ᇿ㄰-㆏]/.test(text)) return 'ko-KR';
+  if (/[぀-ゟ゠-ヿㇰ-ㇿ]/.test(text)) return 'ja-JP';
+  if (/[一-鿿]/.test(text)) return 'zh-CN';
+  if (/[Ѐ-ӿ]/.test(text)) return 'ru-RU';
+  if (/[À-ɏ]/.test(text)) return 'es-ES'; // 라틴 확장 (스페인어/프랑스어 등 — 기본 fallback)
+  return 'en-US';
+}
+
 function strHash(s: string) {
   return s.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
 }
@@ -174,8 +184,9 @@ export function StudyPage() {
     setRelationsMap(prev => ({ ...prev, [word.savedWordId]: 'loading' }));
     try {
       const result = await explainWord({
+        segmentId: word.segmentId ?? undefined,
         word: word.word,
-        selectedTextType: 'ORIGINAL',
+        selectedTextType: word.selectedTextType ?? 'ORIGINAL',
         originalSentence: word.originalSentence ?? '',
         translatedSentence: word.translatedSentence ?? '',
         sourceLanguage: word.lang ? word.lang.split('-')[0].toUpperCase() : 'EN',
@@ -196,11 +207,20 @@ export function StudyPage() {
   };
 
   const handleTTS = (text: string, lang?: string) => {
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = lang ?? 'en-US';
-    utter.rate = 0.9;
+    // lang 명시 없으면 텍스트 내용으로 자동 감지
+    const resolvedLang = lang ?? detectLang(text);
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
+    // cancel()은 비동기로 처리되므로 speak()를 즉시 호출하면 씹힘 → 100ms 딜레이
+    setTimeout(() => {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = resolvedLang;
+      utter.rate = 0.9;
+      // paused 상태면 resume 후 speak
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      window.speechSynthesis.speak(utter);
+    }, 100);
   };
 
   const filtered = words.filter(w =>
