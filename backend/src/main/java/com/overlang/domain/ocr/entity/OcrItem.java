@@ -66,6 +66,24 @@ public class OcrItem extends BaseTimeEntity {
   @Column(name = "blur_h")
   private Double blurH;
 
+  @Column(name = "font_size_ratio")
+  private Double fontSizeRatio;
+
+  @Column(name = "font_weight", length = 20)
+  private String fontWeight;
+
+  @Column(name = "text_align", length = 20)
+  private String textAlign;
+
+  @Column(name = "animation_type", length = 30)
+  private String animationType;
+
+  @Column(name = "animation_start_time")
+  private Double animationStartTime;
+
+  @Column(name = "animation_end_time")
+  private Double animationEndTime;
+
   public OcrItem(
       Job job,
       Double startTime,
@@ -83,7 +101,13 @@ public class OcrItem extends BaseTimeEntity {
       Double blurX,
       Double blurY,
       Double blurW,
-      Double blurH) {
+      Double blurH,
+      Double fontSizeRatio,
+      String fontWeight,
+      String textAlign,
+      String animationType,
+      Double animationStartTime,
+      Double animationEndTime) {
     this.job = job;
     this.startTime = startTime;
     this.endTime = endTime;
@@ -101,5 +125,11 @@ public class OcrItem extends BaseTimeEntity {
     this.blurY = blurY;
     this.blurW = blurW;
     this.blurH = blurH;
+    this.fontSizeRatio = fontSizeRatio;
+    this.fontWeight = fontWeight;
+    this.textAlign = textAlign;
+    this.animationType = animationType;
+    this.animationStartTime = animationStartTime;
+    this.animationEndTime = animationEndTime;
   }
 }

@@ -27,7 +27,16 @@ public record OcrItemResponse(
             ocrItem.getBackgroundColor(),
             ocrItem.getDominantBackgroundColor(),
             ocrItem.getTextColor(),
+            ocrItem.getFontSizeRatio(),
+            ocrItem.getFontWeight(),
+            ocrItem.getTextAlign(),
             new BlurRegionResponse(
-                ocrItem.getBlurX(), ocrItem.getBlurY(), ocrItem.getBlurW(), ocrItem.getBlurH())));
+                ocrItem.getBlurX(), ocrItem.getBlurY(), ocrItem.getBlurW(), ocrItem.getBlurH()),
+            ocrItem.getAnimationType() != null
+                ? new AnimationResponse(
+                    ocrItem.getAnimationType(),
+                    ocrItem.getAnimationStartTime(),
+                    ocrItem.getAnimationEndTime())
+                : null));
   }
 }

@@ -195,7 +195,25 @@ public class JobResultService {
         blurRegion != null ? blurRegion.x() : null,
         blurRegion != null ? blurRegion.y() : null,
         blurRegion != null ? blurRegion.w() : null,
-        blurRegion != null ? blurRegion.h() : null);
+        blurRegion != null ? blurRegion.h() : null,
+        style != null ? style.fontSizeRatio() : null,
+        style != null ? style.fontWeight() : null,
+        style != null ? style.textAlign() : null,
+        getAnimationType(style),
+        getAnimationStartTime(style),
+        getAnimationEndTime(style));
+  }
+
+  private String getAnimationType(OcrStyleRequest style) {
+    return style != null && style.animation() != null ? style.animation().type() : null;
+  }
+
+  private Double getAnimationStartTime(OcrStyleRequest style) {
+    return style != null && style.animation() != null ? style.animation().startTime() : null;
+  }
+
+  private Double getAnimationEndTime(OcrStyleRequest style) {
+    return style != null && style.animation() != null ? style.animation().endTime() : null;
   }
 
   public void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
