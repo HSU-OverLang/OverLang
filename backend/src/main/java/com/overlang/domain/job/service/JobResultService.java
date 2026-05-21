@@ -1,5 +1,6 @@
 package com.overlang.domain.job.service;
 
+import com.overlang.api.dto.job.CallbackLearningDataRequest;
 import com.overlang.api.dto.job.CallbackOcrItemRequest;
 import com.overlang.api.dto.job.JobCallbackRequest;
 import com.overlang.api.dto.ocr.BlurRegionRequest;
@@ -9,6 +10,7 @@ import com.overlang.api.dto.segment.SegmentResponse;
 import com.overlang.api.dto.segment.SegmentWordResponse;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.repository.JobRepository;
+import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.ocr.entity.OcrItem;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
@@ -194,5 +196,27 @@ public class JobResultService {
         blurRegion != null ? blurRegion.y() : null,
         blurRegion != null ? blurRegion.w() : null,
         blurRegion != null ? blurRegion.h() : null);
+  }
+
+  public void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
+    if (learningData == null || learningData.contents() == null) {
+      return;
+    }
+
+    List<LearningContent> learningContents =
+        learningData.contents().stream()
+            .map(
+                content ->
+                    new LearningContent(
+                        job,
+                        content.contentType(),
+                        content.textType(),
+                        content.title(),
+                        content.content(),
+                        content.startTime(),
+                        content.endTime()))
+            .toList();
+
+    learningContentRepository.saveAll(learningContents);
   }
 }

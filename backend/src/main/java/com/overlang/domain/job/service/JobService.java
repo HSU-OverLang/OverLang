@@ -10,8 +10,6 @@ import com.overlang.domain.job.entity.JobStatus;
 import com.overlang.domain.job.queue.JobQueuePayload;
 import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
-import com.overlang.domain.learning.entity.LearningContent;
-import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.entity.SourceType;
@@ -26,15 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class JobService {
 
-  private static final String WORD_SPLIT_REGEX = "\\s+";
-
   private final ProjectRepository projectRepository;
   private final JobRepository jobRepository;
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
-  private final LearningContentRepository learningContentRepository;
   private final JobResultService jobResultService;
 
   @Value("${worker.secret}")
@@ -201,7 +196,7 @@ public class JobService {
     jobResultService.deletePreviousResults(job.getId());
     jobResultService.saveSegments(job, request);
     jobResultService.saveOcrItems(job, request);
-    saveLearningContents(job, request.learningData());
+    jobResultService.saveLearningContents(job, request.learningData());
 
     job.getProject().markCompleted();
   }
@@ -211,28 +206,6 @@ public class JobService {
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
     job.getProject().markFailed();
-  }
-
-  private void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
-    if (learningData == null || learningData.contents() == null) {
-      return;
-    }
-
-    List<LearningContent> learningContents =
-        learningData.contents().stream()
-            .map(
-                content ->
-                    new LearningContent(
-                        job,
-                        content.contentType(),
-                        content.textType(),
-                        content.title(),
-                        content.content(),
-                        content.startTime(),
-                        content.endTime()))
-            .toList();
-
-    learningContentRepository.saveAll(learningContents);
   }
 
   private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
