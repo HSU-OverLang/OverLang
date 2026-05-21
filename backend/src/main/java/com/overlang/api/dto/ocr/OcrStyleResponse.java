@@ -4,4 +4,8 @@ public record OcrStyleResponse(
     String backgroundColor,
     String dominantBackgroundColor,
     String textColor,
-    BlurRegionResponse blurRegion) {}
+    Double fontSizeRatio,
+    String fontWeight,
+    String textAlign,
+    BlurRegionResponse blurRegion,
+    AnimationResponse animation) {}

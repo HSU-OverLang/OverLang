@@ -60,8 +60,27 @@ public class InternalJobController {
                                 "w": 0.3,
                                 "h": 0.4
                               },
-                              "confidence": 0.95
-                            }
+                              "confidence": 0.95,
+                              "style": {
+                                                  "backgroundColor": "#1A1A1A",
+                                                  "dominantBackgroundColor": "#202020",
+                                                  "textColor": "#FFFFFF",
+                                                  "fontSizeRatio": 0.045,
+                                                  "fontWeight": "BOLD",
+                                                  "textAlign": "CENTER",
+                                                  "blurRegion": {
+                                                    "x": 0.1,
+                                                    "y": 0.2,
+                                                    "w": 0.3,
+                                                    "h": 0.4
+                                                  },
+                                                  "animation": {
+                                                    "type": "TYPEWRITER",
+                                                    "startTime": 1.0,
+                                                    "endTime": 2.0
+                                                  }
+                                                }
+                             }
                           ],
                           "learningData": {
                            "contents": [

@@ -68,7 +68,13 @@ public class ResultCopyService {
                         item.getBlurX(),
                         item.getBlurY(),
                         item.getBlurW(),
-                        item.getBlurH()))
+                        item.getBlurH(),
+                        item.getFontSizeRatio(),
+                        item.getFontWeight(),
+                        item.getTextAlign(),
+                        item.getAnimationType(),
+                        item.getAnimationStartTime(),
+                        item.getAnimationEndTime()))
             .toList();
 
     ocrItemRepository.saveAll(copiedOcrItems);
