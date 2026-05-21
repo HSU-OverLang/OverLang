@@ -8,11 +8,11 @@ import com.overlang.domain.job.entity.CurrentStage;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.entity.JobStatus;
 import com.overlang.domain.job.queue.JobQueuePayload;
+import com.overlang.domain.job.queue.JobQueuePayloadFactory;
 import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
-import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +31,7 @@ public class JobService {
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
   private final JobResultService jobResultService;
+  private final JobQueuePayloadFactory jobQueuePayloadFactory;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -72,43 +73,6 @@ public class JobService {
     if (value == null) {
       throw new IllegalArgumentException(fieldName + "은(는) 필수입니다.");
     }
-  }
-
-  private JobQueuePayload createQueuePayload(Project project, Job job) {
-    SourceType sourceType = project.getSourceType();
-
-    return switch (sourceType) {
-      case UPLOAD -> {
-        String presignedUrl = s3UploadService.generatePresignedGetUrl(project.getFileKey());
-
-        yield new JobQueuePayload(
-            job.getId(),
-            project.getId(),
-            project.getMember().getId(),
-            sourceType,
-            null,
-            project.getFileKey(),
-            presignedUrl,
-            job.getJobType(),
-            job.getSourceLanguage(),
-            job.getTargetLanguage(),
-            job.getTranslationProvider());
-      }
-
-      case YOUTUBE ->
-          new JobQueuePayload(
-              job.getId(),
-              project.getId(),
-              project.getMember().getId(),
-              sourceType,
-              project.getSourceUrl(),
-              null,
-              null,
-              job.getJobType(),
-              job.getSourceLanguage(),
-              job.getTargetLanguage(),
-              job.getTranslationProvider());
-    };
   }
 
   @Transactional(readOnly = true)
@@ -247,7 +211,7 @@ public class JobService {
   private void enqueueJob(Project project, Job job) {
     project.updateStatus(ProjectStatus.PROCESSING);
 
-    JobQueuePayload payload = createQueuePayload(project, job);
+    JobQueuePayload payload = jobQueuePayloadFactory.create(project, job);
     jobQueueProducer.enqueue(payload);
   }
 }
