@@ -7,6 +7,7 @@ import java.time.Instant;
 public record SavedWordResponse(
     Long savedWordId,
     Long segmentWordId,
+    Long segmentId,
     String word,
     SelectedTextType selectedTextType,
     String meaning,
@@ -30,6 +31,7 @@ public record SavedWordResponse(
     return new SavedWordResponse(
         savedWord.getId(),
         segmentWord.getId(),
+        segment.getId(),
         savedWord.getWord(),
         SelectedTextType.valueOf(segmentWord.getWordType().name()),
         savedWord.getMeaning(),
