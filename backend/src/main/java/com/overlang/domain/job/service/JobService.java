@@ -1,8 +1,6 @@
 package com.overlang.domain.job.service;
 
 import com.overlang.api.dto.job.*;
-import com.overlang.api.dto.ocr.BlurRegionRequest;
-import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.domain.cache.service.ResultCacheService;
 import com.overlang.domain.cache.service.ResultCopyService;
 import com.overlang.domain.file.service.S3UploadService;
@@ -10,23 +8,12 @@ import com.overlang.domain.job.entity.CurrentStage;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.entity.JobStatus;
 import com.overlang.domain.job.queue.JobQueuePayload;
+import com.overlang.domain.job.queue.JobQueuePayloadFactory;
 import com.overlang.domain.job.queue.JobQueueProducer;
 import com.overlang.domain.job.repository.JobRepository;
-import com.overlang.domain.learning.entity.LearningContent;
-import com.overlang.domain.learning.repository.LearningContentRepository;
-import com.overlang.domain.ocr.entity.OcrItem;
-import com.overlang.domain.ocr.repository.OcrItemRepository;
 import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
-import com.overlang.domain.project.entity.SourceType;
 import com.overlang.domain.project.repository.ProjectRepository;
-import com.overlang.domain.savedword.repository.SavedWordRepository;
-import com.overlang.domain.segment.entity.Segment;
-import com.overlang.domain.segment.entity.SegmentWord;
-import com.overlang.domain.segment.entity.SegmentWordType;
-import com.overlang.domain.segment.repository.SegmentRepository;
-import com.overlang.domain.segment.repository.SegmentWordRepository;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,19 +24,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class JobService {
 
-  private static final String WORD_SPLIT_REGEX = "\\s+";
-
   private final ProjectRepository projectRepository;
   private final JobRepository jobRepository;
   private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
-  private final SegmentRepository segmentRepository;
-  private final SegmentWordRepository segmentWordRepository;
-  private final OcrItemRepository ocrItemRepository;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
-  private final LearningContentRepository learningContentRepository;
-  private final SavedWordRepository savedWordRepository;
+  private final JobResultService jobResultService;
+  private final JobQueuePayloadFactory jobQueuePayloadFactory;
+  private final WorkerAuthService workerAuthService;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -93,43 +76,6 @@ public class JobService {
     }
   }
 
-  private JobQueuePayload createQueuePayload(Project project, Job job) {
-    SourceType sourceType = project.getSourceType();
-
-    return switch (sourceType) {
-      case UPLOAD -> {
-        String presignedUrl = s3UploadService.generatePresignedGetUrl(project.getFileKey());
-
-        yield new JobQueuePayload(
-            job.getId(),
-            project.getId(),
-            project.getMember().getId(),
-            sourceType,
-            null,
-            project.getFileKey(),
-            presignedUrl,
-            job.getJobType(),
-            job.getSourceLanguage(),
-            job.getTargetLanguage(),
-            job.getTranslationProvider());
-      }
-
-      case YOUTUBE ->
-          new JobQueuePayload(
-              job.getId(),
-              project.getId(),
-              project.getMember().getId(),
-              sourceType,
-              project.getSourceUrl(),
-              null,
-              null,
-              job.getJobType(),
-              job.getSourceLanguage(),
-              job.getTargetLanguage(),
-              job.getTranslationProvider());
-    };
-  }
-
   @Transactional(readOnly = true)
   public List<JobResponse> getJobsByProject(Long projectId, Long memberId) {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
@@ -167,16 +113,10 @@ public class JobService {
         "분석 재처리 요청이 생성되었습니다.");
   }
 
-  private void validateWorkerSecret(String requestWorkerSecret) {
-    if (requestWorkerSecret == null || !workerSecret.equals(requestWorkerSecret)) {
-      throw new IllegalArgumentException("Worker Secret이 일치하지 않습니다.");
-    }
-  }
-
   @Transactional
   public JobCallbackResponse handleCallback(
       Long pathJobId, String requestWorkerSecret, JobCallbackRequest request) {
-    validateWorkerSecret(requestWorkerSecret);
+    workerAuthService.validateWorkerSecret(requestWorkerSecret);
     validateCallbackJobId(pathJobId, request.jobId());
 
     Job job = findJobById(pathJobId);
@@ -212,20 +152,12 @@ public class JobService {
     job.complete(
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
-    deletePreviousResults(job.getId());
-    saveSegments(job, request);
-    saveOcrItems(job, request);
-    saveLearningContents(job, request.learningData());
+    jobResultService.deletePreviousResults(job.getId());
+    jobResultService.saveSegments(job, request);
+    jobResultService.saveOcrItems(job, request);
+    jobResultService.saveLearningContents(job, request.learningData());
 
     job.getProject().markCompleted();
-  }
-
-  private void deletePreviousResults(Long jobId) {
-    savedWordRepository.deleteByJobId(jobId);
-    segmentWordRepository.deleteBySegmentJobId(jobId);
-    segmentRepository.deleteByJobId(jobId);
-    ocrItemRepository.deleteByJobId(jobId);
-    learningContentRepository.deleteByJobId(jobId);
   }
 
   private void handleFailedCallback(Job job, JobCallbackRequest request) {
@@ -233,119 +165,6 @@ public class JobService {
         request.progress(), request.currentStage(), request.errorCode(), request.errorMessage());
 
     job.getProject().markFailed();
-  }
-
-  private void saveSegments(Job job, JobCallbackRequest request) {
-    if (request.segments() == null) return;
-
-    List<Segment> segments =
-        request.segments().stream()
-            .map(
-                s ->
-                    new Segment(
-                        job,
-                        s.startTime(),
-                        s.endTime(),
-                        s.seq(),
-                        s.text(),
-                        s.translatedText(),
-                        s.languageCode()))
-            .toList();
-
-    List<Segment> savedSegments = segmentRepository.saveAll(segments);
-
-    saveSegmentWords(savedSegments);
-  }
-
-  private void saveOcrItems(Job job, JobCallbackRequest request) {
-    if (request.ocrItems() == null) return;
-
-    List<OcrItem> ocrItems = request.ocrItems().stream().map(o -> toOcrItem(job, o)).toList();
-
-    ocrItemRepository.saveAll(ocrItems);
-  }
-
-  private OcrItem toOcrItem(Job job, CallbackOcrItemRequest o) {
-    OcrStyleRequest style = o.style();
-    BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
-
-    return new OcrItem(
-        job,
-        o.startTime(),
-        o.endTime(),
-        o.originText(),
-        o.translatedText(),
-        o.boundingBox().x(),
-        o.boundingBox().y(),
-        o.boundingBox().w(),
-        o.boundingBox().h(),
-        o.confidence(),
-        style != null ? style.backgroundColor() : null,
-        style != null ? style.dominantBackgroundColor() : null,
-        style != null ? style.textColor() : null,
-        blurRegion != null ? blurRegion.x() : null,
-        blurRegion != null ? blurRegion.y() : null,
-        blurRegion != null ? blurRegion.w() : null,
-        blurRegion != null ? blurRegion.h() : null);
-  }
-
-  private void saveSegmentWords(List<Segment> segments) {
-    List<SegmentWord> segmentWords =
-        segments.stream().flatMap(segment -> createWordsFromSegment(segment).stream()).toList();
-
-    segmentWordRepository.saveAll(segmentWords);
-  }
-
-  private List<SegmentWord> createWordsFromSegment(Segment segment) {
-    List<SegmentWord> words = new ArrayList<>();
-
-    words.addAll(createWordsFromText(segment, segment.getText(), SegmentWordType.ORIGINAL));
-
-    words.addAll(
-        createWordsFromText(segment, segment.getTranslatedText(), SegmentWordType.TRANSLATION));
-
-    return words;
-  }
-
-  private List<SegmentWord> createWordsFromText(
-      Segment segment, String text, SegmentWordType wordType) {
-
-    if (text == null || text.isBlank()) {
-      return List.of();
-    }
-
-    String[] words = text.split(WORD_SPLIT_REGEX);
-    List<SegmentWord> segmentWords = new ArrayList<>();
-
-    for (int i = 0; i < words.length; i++) {
-      segmentWords.add(
-          new SegmentWord(
-              segment, i + 1, segment.getStartTime(), segment.getEndTime(), words[i], wordType));
-    }
-
-    return segmentWords;
-  }
-
-  private void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
-    if (learningData == null || learningData.contents() == null) {
-      return;
-    }
-
-    List<LearningContent> learningContents =
-        learningData.contents().stream()
-            .map(
-                content ->
-                    new LearningContent(
-                        job,
-                        content.contentType(),
-                        content.textType(),
-                        content.title(),
-                        content.content(),
-                        content.startTime(),
-                        content.endTime()))
-            .toList();
-
-    learningContentRepository.saveAll(learningContents);
   }
 
   private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
@@ -387,7 +206,7 @@ public class JobService {
   private void enqueueJob(Project project, Job job) {
     project.updateStatus(ProjectStatus.PROCESSING);
 
-    JobQueuePayload payload = createQueuePayload(project, job);
+    JobQueuePayload payload = jobQueuePayloadFactory.create(project, job);
     jobQueueProducer.enqueue(payload);
   }
 }
