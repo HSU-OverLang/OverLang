@@ -3,7 +3,7 @@ import { apiGet, apiPost, apiDelete } from './client';
 // ── 요청/응답 타입 ─────────────────────────────────────
 
 export interface ExplainWordRequest {
-  segmentId: number;
+  segmentId?: number;
   word: string;
   selectedTextType: 'ORIGINAL' | 'TRANSLATION';
   originalSentence: string;
@@ -31,6 +31,7 @@ export interface SaveWordRequest {
 export interface SavedWordResult {
   savedWordId: number;
   segmentWordId: number;
+  segmentId: number | null;
   word: string;
   selectedTextType: 'ORIGINAL' | 'TRANSLATION';
   meaning: string;
