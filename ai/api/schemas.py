@@ -177,6 +177,9 @@ class OcrStyle(CamelModel):
     background_color: str | None = None
     dominant_background_color: str | None = None
     text_color: str | None = None
+    font_size_ratio: float | None = None
+    font_weight: str | None = None
+    text_align: str | None = None
     blur_region: BoundingBox | None = None
     animation: dict[str, Any] | None = None
 

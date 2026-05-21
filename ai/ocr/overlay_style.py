@@ -9,6 +9,8 @@ from ai.api.schemas import BoundingBox, OcrStyle
 
 BLUR_PADDING_RATIO = 0.01
 BACKGROUND_SAMPLE_PADDING_RATIO = 0.015
+BOLD_STROKE_CONTRAST_THRESHOLD = 55
+BOLD_DARK_PIXEL_RATIO_THRESHOLD = 0.18
 
 
 def build_ocr_style(
@@ -46,6 +48,9 @@ def build_ocr_style(
         background_color=background_color,
         dominant_background_color=dominant_background_color,
         text_color=text_color,
+        font_size_ratio=_estimate_font_size_ratio(bounding_box),
+        font_weight=_estimate_font_weight(pixels),
+        text_align=_estimate_text_align(bounding_box),
         blur_region=_expand_box(
             bounding_box,
             padding_ratio=BLUR_PADDING_RATIO,
@@ -110,6 +115,38 @@ def _readable_text_color(background_color: str) -> str:
     blue = int(background_color[5:7], 16)
     luminance = (0.299 * red) + (0.587 * green) + (0.114 * blue)
     return "#000000" if luminance >= 160 else "#FFFFFF"
+
+
+def _estimate_font_size_ratio(bounding_box: BoundingBox) -> float:
+    return round(max(0.0, bounding_box.h), 6)
+
+
+def _estimate_font_weight(pixels: np.ndarray) -> str:
+    luminance = (
+        (pixels[:, :, 0].astype(float) * 0.299)
+        + (pixels[:, :, 1].astype(float) * 0.587)
+        + (pixels[:, :, 2].astype(float) * 0.114)
+    )
+    contrast = float(luminance.max() - luminance.min())
+    dark_pixel_ratio = float((luminance < 80).mean())
+    if (
+        contrast >= BOLD_STROKE_CONTRAST_THRESHOLD
+        and dark_pixel_ratio >= BOLD_DARK_PIXEL_RATIO_THRESHOLD
+    ):
+        return "BOLD"
+
+    return "NORMAL"
+
+
+def _estimate_text_align(bounding_box: BoundingBox) -> str:
+    center_x = bounding_box.x + (bounding_box.w / 2)
+    if 0.4 <= center_x <= 0.6:
+        return "CENTER"
+
+    if center_x < 0.4:
+        return "LEFT"
+
+    return "RIGHT"
 
 
 def _rgb_to_hex(rgb: np.ndarray) -> str:
