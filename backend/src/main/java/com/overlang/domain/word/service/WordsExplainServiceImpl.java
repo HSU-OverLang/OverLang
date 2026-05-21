@@ -2,11 +2,13 @@ package com.overlang.domain.word.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.overlang.api.dto.savedword.SavedWordExampleResponse;
 import com.overlang.api.dto.word.WordsExplainRequest;
 import com.overlang.api.dto.word.WordsExplainResponse;
 import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.entity.LearningContentType;
 import com.overlang.domain.learning.repository.LearningContentRepository;
+import com.overlang.domain.savedword.entity.SavedWord;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import java.util.Comparator;
@@ -41,7 +43,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
       LearningContent expression = matchedExpression.get();
 
       List<String> relatedWords =
-          generateRelatedWords(expression.getTitle(), getSelectedTextLanguage(request));
+          generateRelatedWords(expression.getTitle(), getRelatedWordsLanguage(request));
 
       return new WordsExplainResponse(
           expression.getTitle(), expression.getContent(), relatedWords, true);
@@ -83,8 +85,8 @@ public class WordsExplainServiceImpl implements WordsExplainService {
       선택 단어 언어: %s
 
       규칙:
-      - meaning은 선택 단어 언어로 작성
-      - relatedWords는 선택 단어 언어로 작성
+      - meaning은 %s 언어로 작성
+      - relatedWords는 %s 언어로 작성
       - relatedWords는 선택 단어와 유사한 의미의 단어 또는 표현 3개를 작성
       - relatedWords는 사전식 유의어 또는 비슷한 의미의 표현 위주로 작성
       - 단순 연관어(카테고리, 분야 단어)는 제외
@@ -103,7 +105,9 @@ public class WordsExplainServiceImpl implements WordsExplainService {
             request.translatedSentence(),
             request.sourceLanguage(),
             request.targetLanguage(),
-            getSelectedTextLanguage(request));
+            getSelectedTextLanguage(request),
+            request.targetLanguage(),
+            getRelatedWordsLanguage(request));
   }
 
   @SuppressWarnings("unchecked")
@@ -162,6 +166,13 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     return value.toLowerCase().replaceAll(NON_WORD_REGEX, "").trim();
   }
 
+  private String getRelatedWordsLanguage(WordsExplainRequest request) {
+    return switch (request.selectedTextType()) {
+      case ORIGINAL -> request.sourceLanguage();
+      case TRANSLATION -> request.targetLanguage();
+    };
+  }
+
   private List<String> generateRelatedWords(String expression, String targetLanguage) {
 
     String prompt =
@@ -208,4 +219,61 @@ public class WordsExplainServiceImpl implements WordsExplainService {
       case TRANSLATION -> request.targetLanguage();
     };
   }
+
+  @Override
+  public SavedWordExampleResponse generateExamples(SavedWord savedWord) {
+
+    String prompt = createExamplePrompt(savedWord);
+
+    Map<String, Object> body =
+        Map.of(
+            "model", model,
+            "input", prompt,
+            "store", false);
+
+    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
+
+    String outputText = extractOutputText(response);
+
+    try {
+      ExampleResult result = objectMapper.readValue(outputText, ExampleResult.class);
+
+      return new SavedWordExampleResponse(
+          savedWord.getId(), savedWord.getWord(), result.examples());
+
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException("OpenAI 예문 응답 파싱에 실패했습니다.", e);
+    }
+  }
+
+  private String createExamplePrompt(SavedWord savedWord) {
+
+    String targetLanguage =
+        savedWord.getSegmentWord().getSegment().getJob().getTargetLanguage().name();
+
+    return """
+    사용자가 저장한 단어를 기반으로 자연스러운 예문 3개를 생성하세요.
+
+    저장 단어: %s
+    번역 언어: %s
+
+    규칙:
+    - sentence는 저장 단어와 같은 언어로 작성
+    - translatedSentence는 %s 언어로 작성
+    - 설명 문장 없이 JSON만 반환
+
+    JSON 형식:
+    {
+      "examples": [
+        {
+          "sentence": "example sentence",
+          "translatedSentence": "예문 번역"
+        }
+      ]
+    }
+    """
+        .formatted(savedWord.getWord(), targetLanguage, targetLanguage);
+  }
+
+  private record ExampleResult(List<SavedWordExampleResponse.ExampleItem> examples) {}
 }
