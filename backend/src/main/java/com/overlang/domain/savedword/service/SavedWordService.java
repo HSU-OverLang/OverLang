@@ -1,6 +1,7 @@
 package com.overlang.domain.savedword.service;
 
 import com.overlang.api.dto.savedword.SavedWordCreateRequest;
+import com.overlang.api.dto.savedword.SavedWordExampleResponse;
 import com.overlang.api.dto.savedword.SavedWordResponse;
 import com.overlang.domain.member.entity.Member;
 import com.overlang.domain.member.repository.MemberRepository;
@@ -8,6 +9,7 @@ import com.overlang.domain.savedword.entity.SavedWord;
 import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
+import com.overlang.domain.word.service.WordsExplainService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ public class SavedWordService {
   private final SavedWordRepository savedWordRepository;
   private final MemberRepository memberRepository;
   private final SegmentWordRepository segmentWordRepository;
+  private final WordsExplainService wordsExplainService;
 
   @Transactional
   public SavedWordResponse createSavedWord(Long memberId, SavedWordCreateRequest request) {
@@ -72,5 +75,15 @@ public class SavedWordService {
             .orElseThrow(() -> new IllegalArgumentException("저장 단어를 찾을 수 없습니다."));
 
     savedWordRepository.delete(savedWord);
+  }
+
+  @Transactional(readOnly = true)
+  public SavedWordExampleResponse generateExamples(Long memberId, Long savedWordId) {
+    SavedWord savedWord =
+        savedWordRepository
+            .findByIdAndMemberId(savedWordId, memberId)
+            .orElseThrow(() -> new IllegalArgumentException("저장 단어를 찾을 수 없습니다."));
+
+    return wordsExplainService.generateExamples(savedWord);
   }
 }

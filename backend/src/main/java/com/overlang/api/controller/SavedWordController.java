@@ -1,6 +1,7 @@
 package com.overlang.api.controller;
 
 import com.overlang.api.dto.savedword.SavedWordCreateRequest;
+import com.overlang.api.dto.savedword.SavedWordExampleResponse;
 import com.overlang.api.dto.savedword.SavedWordResponse;
 import com.overlang.domain.savedword.service.SavedWordService;
 import com.overlang.global.auth.AuthInterceptor;
@@ -40,5 +41,13 @@ public class SavedWordController {
     Long memberId = (Long) httpRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
     savedWordService.deleteSavedWord(memberId, savedWordId);
     return ApiResponse.success(null);
+  }
+
+  @Operation(summary = "저장 단어 AI 예문 생성", description = "학습노트에 저장된 단어를 기반으로 AI 예문을 생성합니다.")
+  @PostMapping("/me/saved-words/{savedWordId}/examples")
+  public ApiResponse<SavedWordExampleResponse> generateExamples(
+      HttpServletRequest httpRequest, @PathVariable Long savedWordId) {
+    Long memberId = (Long) httpRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    return ApiResponse.success(savedWordService.generateExamples(memberId, savedWordId));
   }
 }

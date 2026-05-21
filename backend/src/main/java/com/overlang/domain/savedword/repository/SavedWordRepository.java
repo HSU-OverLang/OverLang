@@ -47,4 +47,6 @@ public interface SavedWordRepository extends JpaRepository<SavedWord, Long> {
           WHERE sw.segmentWord.segment.job.id = :jobId
           """)
   void deleteByJobId(@Param("jobId") Long jobId);
+
+  Optional<SavedWord> findByIdAndMember_Id(Long id, Long memberId);
 }
