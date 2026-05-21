@@ -32,6 +32,7 @@ public class JobService {
   private final ResultCopyService resultCopyService;
   private final JobResultService jobResultService;
   private final JobQueuePayloadFactory jobQueuePayloadFactory;
+  private final WorkerAuthService workerAuthService;
 
   @Value("${worker.secret}")
   private String workerSecret;
@@ -112,16 +113,10 @@ public class JobService {
         "분석 재처리 요청이 생성되었습니다.");
   }
 
-  private void validateWorkerSecret(String requestWorkerSecret) {
-    if (requestWorkerSecret == null || !workerSecret.equals(requestWorkerSecret)) {
-      throw new IllegalArgumentException("Worker Secret이 일치하지 않습니다.");
-    }
-  }
-
   @Transactional
   public JobCallbackResponse handleCallback(
       Long pathJobId, String requestWorkerSecret, JobCallbackRequest request) {
-    validateWorkerSecret(requestWorkerSecret);
+    workerAuthService.validateWorkerSecret(requestWorkerSecret);
     validateCallbackJobId(pathJobId, request.jobId());
 
     Job job = findJobById(pathJobId);
