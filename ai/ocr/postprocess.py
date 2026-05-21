@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import statistics
 from typing import Any
 
@@ -8,15 +9,16 @@ from ai.ocr.overlay_style import build_ocr_style
 
 LINE_VERTICAL_OVERLAP_THRESHOLD = 0.45
 LINE_CENTER_DISTANCE_RATIO = 0.75
-LINE_HORIZONTAL_GAP_RATIO = 3.0
-LINE_HORIZONTAL_GAP_MIN = 0.06
-BLOCK_HORIZONTAL_OVERLAP_THRESHOLD = 0.35
-BLOCK_VERTICAL_GAP_RATIO = 1.6
-BLOCK_VERTICAL_GAP_MIN = 0.035
+LINE_HORIZONTAL_GAP_RATIO = 1.6
+LINE_HORIZONTAL_GAP_MIN = 0.035
+BLOCK_HORIZONTAL_OVERLAP_THRESHOLD = 0.55
+BLOCK_VERTICAL_GAP_RATIO = 1.1
+BLOCK_VERTICAL_GAP_MIN = 0.025
 TRACK_COVERAGE_PADDING_RATIO = 0.012
 TRACK_MULTILINE_COVERAGE_PADDING_RATIO = 0.018
 TRACK_START_DELAY_SECONDS = 0.15
 TRACK_END_TRIM_SECONDS = 0.05
+TRACK_MISSING_TOLERANCE_SECONDS = 0.8
 MIN_OCR_ITEM_DURATION_SECONDS = 0.25
 DUPLICATE_TEXT_SIMILARITY_THRESHOLD = 0.85
 DUPLICATE_BBOX_IOU_THRESHOLD = 0.45
@@ -27,9 +29,48 @@ DUPLICATE_NORMALIZED_TEXT_THRESHOLD = 0.95
 TRACK_TEXT_STABILITY_THRESHOLD = 0.82
 TRACK_CENTER_DISTANCE_RATIO = 2.5
 TRACK_CENTER_DISTANCE_MIN = 0.08
+TRACK_RELATED_TEXT_THRESHOLD = 0.55
+TRACK_TOKEN_OVERLAP_THRESHOLD = 0.5
 PROGRESSIVE_TEXT_MIN_LENGTH = 2
 PROGRESSIVE_TEXT_MIN_LENGTH_RATIO = 0.35
 PROGRESSIVE_TEXT_SCORE = 0.88
+SHORT_TEXT_CONFIDENCE_THRESHOLD = 0.45
+SHORT_TEXT_MAX_LENGTH = 3
+LOW_IMPORTANCE_TEXT_CONFIDENCE_THRESHOLD = 0.0
+LOW_IMPORTANCE_TEXT_MAX_LENGTH = 0
+MAX_REPEATED_CHAR_RATIO = 0.75
+MAX_CONSECUTIVE_DUPLICATE_TOKENS = 0
+SINGLE_LETTER_TOKEN_RATIO_THRESHOLD = 0.8
+DEFAULT_ALLOWED_SHORT_TEXTS = {
+    "am",
+    "bye",
+    "hi",
+    "min",
+    "no",
+    "ok",
+    "pm",
+    "yes",
+}
+DEFAULT_BLOCKED_OCR_TEXTS = {
+    "blah",
+    "dictp",
+    "fndilg",
+    "howz",
+    "nol",
+    "okl",
+    "speok",
+    "w",
+    "wowl",
+}
+DEFAULT_PRESERVE_TRANSLATION_TEXTS = {
+    "finding nemo",
+    "frozen",
+    "marvel",
+    "peppa pig",
+    "pixar",
+    "spider-man",
+    "spiderman",
+}
 
 
 def build_ocr_items(
@@ -45,7 +86,9 @@ def build_ocr_items(
 ) -> list[OcrItem]:
     active_tracks: list[dict[str, Any]] = []
     finalized_tracks: list[dict[str, Any]] = []
-    max_tracking_gap_seconds = max(frame_interval_seconds * 1.5, frame_interval_seconds)
+    max_tracking_gap_seconds = _track_missing_tolerance_seconds(
+        frame_interval_seconds
+    )
 
     for timestamp, frame_items in _group_raw_items_by_timestamp(
         raw_items,
@@ -69,6 +112,7 @@ def build_ocr_items(
             active_tracks, disappeared_tracks = _mark_missing_tracks(
                 active_tracks,
                 missing_timestamp=timestamp,
+                max_tracking_gap_seconds=max_tracking_gap_seconds,
             )
             finalized_tracks.extend(disappeared_tracks)
             continue
@@ -100,6 +144,7 @@ def build_ocr_items(
             active_tracks,
             matched_track_ids,
             timestamp,
+            max_tracking_gap_seconds,
         )
         finalized_tracks.extend(disappeared_tracks)
 
@@ -161,12 +206,15 @@ def _is_valid_raw_item(
     max_special_char_ratio: float,
     edge_margin: float,
 ) -> bool:
-    text = str(raw_item.get("originText", "")).strip()
+    text = _clean_ocr_text(str(raw_item.get("originText", "")))
     if len(text.replace(" ", "")) < min_text_length:
         return False
 
     confidence = raw_item.get("confidence")
     if confidence is not None and float(confidence) < min_confidence:
+        return False
+
+    if _is_low_value_text(text, confidence):
         return False
 
     if _special_char_ratio(text) > max_special_char_ratio:
@@ -175,7 +223,20 @@ def _is_valid_raw_item(
     if _is_edge_noise(raw_item["boundingBox"], edge_margin):
         return False
 
+    raw_item["originText"] = text
     return True
+
+
+def should_keep_ocr_text_for_translation(text: str, confidence: Any | None) -> bool:
+    return not _is_low_value_text(text, confidence)
+
+
+def should_preserve_ocr_translation(text: str) -> bool:
+    normalized_text = _normalize_text(text)
+    if not normalized_text:
+        return False
+
+    return normalized_text in _preserve_translation_texts()
 
 
 def _special_char_ratio(text: str) -> float:
@@ -185,6 +246,229 @@ def _special_char_ratio(text: str) -> float:
 
     special_chars = [char for char in visible_chars if not char.isalnum()]
     return len(special_chars) / len(visible_chars)
+
+
+def _clean_ocr_text(text: str) -> str:
+    if not text.strip():
+        return ""
+
+    lines = [
+        _collapse_consecutive_duplicate_tokens(" ".join(line.strip().split()))
+        for line in text.strip().splitlines()
+        if line.strip()
+    ]
+    return "\n".join(line for line in lines if line).strip()
+
+
+def _collapse_consecutive_duplicate_tokens(text: str) -> str:
+    tokens = text.split()
+    if len(tokens) <= 1:
+        return text
+
+    collapsed_tokens: list[str] = []
+    duplicate_count = 0
+    previous_normalized_token = ""
+    for token in tokens:
+        normalized_token = _normalize_token(token)
+        if normalized_token and normalized_token == previous_normalized_token:
+            duplicate_count += 1
+            if duplicate_count > _max_consecutive_duplicate_tokens():
+                continue
+        else:
+            duplicate_count = 0
+
+        collapsed_tokens.append(token)
+        previous_normalized_token = normalized_token
+
+    return " ".join(collapsed_tokens)
+
+
+def _is_low_value_text(text: str, confidence: Any | None) -> bool:
+    cleaned_text = _clean_ocr_text(text)
+    compact_text = _compact_text(cleaned_text)
+    if not compact_text:
+        return True
+
+    normalized_text = _normalize_text(cleaned_text)
+    if normalized_text in _allowed_short_texts():
+        return False
+
+    if normalized_text in _blocked_ocr_texts():
+        return True
+
+    if not any(char.isalnum() for char in compact_text):
+        return True
+
+    if _is_short_numeric_noise(compact_text):
+        return True
+
+    if _is_single_letter_alphabet_noise(cleaned_text):
+        return True
+
+    if _repeated_char_ratio(compact_text) >= _max_repeated_char_ratio():
+        return True
+
+    if _is_low_confidence_short_text(compact_text, confidence):
+        return True
+
+    return False
+
+
+def _is_short_numeric_noise(compact_text: str) -> bool:
+    return compact_text.isdigit() and len(compact_text) <= 2
+
+
+def _allowed_short_texts() -> set[str]:
+    return DEFAULT_ALLOWED_SHORT_TEXTS | _env_text_set("AI_OCR_ALLOWED_SHORT_TEXTS")
+
+
+def _blocked_ocr_texts() -> set[str]:
+    return DEFAULT_BLOCKED_OCR_TEXTS | _env_text_set("AI_OCR_BLOCKED_TEXTS")
+
+
+def _preserve_translation_texts() -> set[str]:
+    return DEFAULT_PRESERVE_TRANSLATION_TEXTS | _env_text_set(
+        "AI_OCR_PRESERVE_TRANSLATION_TEXTS",
+    )
+
+
+def _env_text_set(env_name: str) -> set[str]:
+    raw_value = os.getenv(env_name, "")
+    return {
+        _normalize_text(value)
+        for value in raw_value.split(",")
+        if _normalize_text(value)
+    }
+
+
+def _is_single_letter_alphabet_noise(text: str) -> bool:
+    tokens = [token for token in text.replace("\n", " ").split() if token]
+    if not tokens:
+        return True
+
+    alphabet_tokens = [
+        token
+        for token in tokens
+        if len(_normalize_token(token)) == 1 and _normalize_token(token).isalpha()
+    ]
+    if not alphabet_tokens:
+        return False
+
+    return len(alphabet_tokens) / len(tokens) >= _single_letter_token_ratio_threshold()
+
+
+def _is_low_importance_single_word(text: str, confidence: Any | None) -> bool:
+    normalized_text = _normalize_text(text)
+    if (
+        normalized_text in _allowed_short_texts()
+        or normalized_text in _preserve_translation_texts()
+    ):
+        return False
+
+    tokens = normalized_text.split()
+    if len(tokens) != 1:
+        return False
+
+    compact_text = _compact_text(normalized_text)
+    if len(compact_text) > _low_importance_text_max_length():
+        return False
+
+    if confidence is None:
+        return False
+
+    return float(confidence) < _low_importance_text_confidence_threshold()
+
+
+def _repeated_char_ratio(compact_text: str) -> float:
+    if not compact_text:
+        return 1.0
+
+    most_common_count = max(compact_text.count(char) for char in set(compact_text))
+    return most_common_count / len(compact_text)
+
+
+def _is_low_confidence_short_text(
+    compact_text: str,
+    confidence: Any | None,
+) -> bool:
+    if len(compact_text) > _short_text_max_length():
+        return False
+
+    if confidence is None:
+        return False
+
+    return float(confidence) < _short_text_confidence_threshold()
+
+
+def _normalize_token(token: str) -> str:
+    return "".join(char.lower() for char in token if char.isalnum())
+
+
+def _short_text_confidence_threshold() -> float:
+    return _float_env(
+        "AI_OCR_SHORT_TEXT_CONFIDENCE_THRESHOLD",
+        SHORT_TEXT_CONFIDENCE_THRESHOLD,
+    )
+
+
+def _short_text_max_length() -> int:
+    return _int_env("AI_OCR_SHORT_TEXT_MAX_LENGTH", SHORT_TEXT_MAX_LENGTH)
+
+
+def _low_importance_text_confidence_threshold() -> float:
+    return _float_env(
+        "AI_OCR_LOW_IMPORTANCE_TEXT_CONFIDENCE_THRESHOLD",
+        LOW_IMPORTANCE_TEXT_CONFIDENCE_THRESHOLD,
+    )
+
+
+def _low_importance_text_max_length() -> int:
+    return _int_env(
+        "AI_OCR_LOW_IMPORTANCE_TEXT_MAX_LENGTH",
+        LOW_IMPORTANCE_TEXT_MAX_LENGTH,
+    )
+
+
+def _max_repeated_char_ratio() -> float:
+    return _float_env("AI_OCR_MAX_REPEATED_CHAR_RATIO", MAX_REPEATED_CHAR_RATIO)
+
+
+def _single_letter_token_ratio_threshold() -> float:
+    return _float_env(
+        "AI_OCR_SINGLE_LETTER_TOKEN_RATIO_THRESHOLD",
+        SINGLE_LETTER_TOKEN_RATIO_THRESHOLD,
+    )
+
+
+def _max_consecutive_duplicate_tokens() -> int:
+    return _int_env(
+        "AI_OCR_MAX_CONSECUTIVE_DUPLICATE_TOKENS",
+        MAX_CONSECUTIVE_DUPLICATE_TOKENS,
+    )
+
+
+def _float_env(env_name: str, default_value: float) -> float:
+    try:
+        return float(os.getenv(env_name, str(default_value)))
+    except ValueError:
+        return default_value
+
+
+def _int_env(env_name: str, default_value: int) -> int:
+    try:
+        return int(os.getenv(env_name, str(default_value)))
+    except ValueError:
+        return default_value
+
+
+def _track_missing_tolerance_seconds(frame_interval_seconds: float) -> float:
+    return max(
+        frame_interval_seconds * 2.5,
+        _float_env(
+            "AI_OCR_TRACK_MISSING_TOLERANCE_SECONDS",
+            TRACK_MISSING_TOLERANCE_SECONDS,
+        ),
+    )
 
 
 def _is_edge_noise(
@@ -216,6 +500,13 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
         confidence = round(sum(confidence_values) / len(confidence_values), 4)
 
     coverage_box = _track_coverage_bbox(track)
+    style = build_ocr_style(
+        track.get("styleFramePath"),
+        coverage_box,
+    )
+    if style is not None:
+        style.animation = _build_track_animation(track)
+
     return OcrItem(
         start_time=_resolve_track_start_time(track),
         end_time=_resolve_track_end_time(track),
@@ -223,14 +514,12 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
         translated_text=None,
         bounding_box=coverage_box,
         confidence=confidence,
-        style=build_ocr_style(
-            track.get("styleFramePath"),
-            coverage_box,
-        ),
+        style=style,
     )
 
 
 def _should_keep_track(track: dict[str, Any]) -> bool:
+    resolved_text = _resolve_track_text(track)
     duration = float(track["endTime"]) - float(track["startTime"])
     real_detection_count = len(track.get("boundingBoxValues", []))
     max_confidence = max(
@@ -241,6 +530,9 @@ def _should_keep_track(track: dict[str, Any]) -> bool:
         ),
         default=0.0,
     )
+    if _is_low_value_text(resolved_text, max_confidence):
+        return False
+
     return (
         duration >= MIN_OCR_ITEM_DURATION_SECONDS
         or real_detection_count >= 2
@@ -277,6 +569,26 @@ def _resolve_track_end_time(track: dict[str, Any]) -> float:
         return round(end_time, 3)
 
     return round(trimmed_end_time, 3)
+
+
+def _build_track_animation(track: dict[str, Any]) -> dict[str, Any] | None:
+    if not _has_progressive_text_candidates(track):
+        return None
+
+    text_group = _resolve_track_text_group(track)
+    start_time = text_group.get("firstTimestamp")
+    end_time = text_group.get("lastTimestamp")
+    if start_time is None or end_time is None:
+        return None
+
+    if float(end_time) <= float(start_time):
+        return None
+
+    return {
+        "type": "TYPEWRITER",
+        "startTime": round(float(start_time), 3),
+        "endTime": round(float(end_time), 3),
+    }
 
 
 def _track_coverage_bbox(track: dict[str, Any]) -> BoundingBox:
@@ -635,10 +947,12 @@ def _merge_raw_items(
 ) -> dict[str, Any]:
     merged_item = dict(raw_items[0])
     merge_items = _deduplicate_merge_items(raw_items)
-    merged_item["originText"] = separator.join(
-        str(item["originText"]).strip()
-        for item in merge_items
-        if str(item.get("originText", "")).strip()
+    merged_item["originText"] = _clean_ocr_text(
+        separator.join(
+            str(item["originText"]).strip()
+            for item in merge_items
+            if str(item.get("originText", "")).strip()
+        )
     )
     merged_item["boundingBox"] = _union_bbox(
         [item["boundingBox"] for item in merge_items]
@@ -770,10 +1084,20 @@ def _group_raw_items_by_timestamp(
 def _mark_missing_tracks(
     tracks: list[dict[str, Any]],
     missing_timestamp: float,
+    max_tracking_gap_seconds: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     active_tracks = []
     disappeared_tracks = []
     for track in tracks:
+        if _should_keep_missing_track(
+            track,
+            missing_timestamp,
+            max_tracking_gap_seconds,
+        ):
+            _extend_missing_track(track, missing_timestamp)
+            active_tracks.append(track)
+            continue
+
         finalized_track = dict(track)
         finalized_track["endTime"] = round(float(missing_timestamp), 3)
         if finalized_track["endTime"] <= finalized_track["startTime"]:
@@ -788,11 +1112,17 @@ def _mark_unmatched_tracks(
     tracks: list[dict[str, Any]],
     matched_track_ids: set[int],
     timestamp: float,
+    max_tracking_gap_seconds: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     active_tracks = []
     disappeared_tracks = []
     for track in tracks:
         if id(track) in matched_track_ids or track["lastTimestamp"] == timestamp:
+            active_tracks.append(track)
+            continue
+
+        if _should_keep_missing_track(track, timestamp, max_tracking_gap_seconds):
+            _extend_missing_track(track, timestamp)
             active_tracks.append(track)
             continue
 
@@ -804,6 +1134,20 @@ def _mark_unmatched_tracks(
         disappeared_tracks.append(finalized_track)
 
     return active_tracks, disappeared_tracks
+
+
+def _should_keep_missing_track(
+    track: dict[str, Any],
+    timestamp: float,
+    max_tracking_gap_seconds: float,
+) -> bool:
+    return timestamp - float(track["lastTimestamp"]) <= max_tracking_gap_seconds
+
+
+def _extend_missing_track(track: dict[str, Any], timestamp: float) -> None:
+    frame_interval_seconds = float(track.get("frameIntervalSeconds") or 0.0)
+    track["endTime"] = round(float(timestamp) + frame_interval_seconds, 3)
+    track["missingFrameCount"] = int(track.get("missingFrameCount", 0)) + 1
 
 
 def _split_expired_tracks(
@@ -842,9 +1186,11 @@ def _find_best_matching_active_track(
             raw_text,
         )
         is_progressive_text = _is_progressive_track_match(track, raw_text)
+        is_related_text = _is_related_ocr_text_pair(track_text, raw_text)
         if (
             text_similarity < min(text_similarity_threshold, TRACK_TEXT_STABILITY_THRESHOLD)
             and not is_progressive_text
+            and not is_related_text
         ):
             continue
 
@@ -863,6 +1209,7 @@ def _find_best_matching_active_track(
         text_score = max(
             text_similarity,
             PROGRESSIVE_TEXT_SCORE if is_progressive_text else 0.0,
+            TRACK_RELATED_TEXT_THRESHOLD if is_related_text else 0.0,
         )
         scaling_score = 0.1 if is_stable_scaling else 0.0
         candidates.append((text_score + bbox_overlap + scaling_score, track))
@@ -882,6 +1229,36 @@ def _is_progressive_track_match(track: dict[str, Any], raw_text: str) -> bool:
         _is_progressive_text_pair(str(candidate.get("text", "")), raw_text)
         for candidate in track.get("textCandidates", [])
     )
+
+
+def _is_related_ocr_text_pair(left: str, right: str) -> bool:
+    left_normalized = _normalize_text(left)
+    right_normalized = _normalize_text(right)
+    if not left_normalized or not right_normalized:
+        return False
+
+    if _is_progressive_text_pair(left_normalized, right_normalized):
+        return True
+
+    if _similarity(left_normalized, right_normalized) >= TRACK_RELATED_TEXT_THRESHOLD:
+        return True
+
+    left_tokens = _meaningful_text_tokens(left_normalized)
+    right_tokens = _meaningful_text_tokens(right_normalized)
+    if not left_tokens or not right_tokens:
+        return False
+
+    overlap_count = len(left_tokens & right_tokens)
+    shorter_token_count = min(len(left_tokens), len(right_tokens))
+    return overlap_count / shorter_token_count >= TRACK_TOKEN_OVERLAP_THRESHOLD
+
+
+def _meaningful_text_tokens(text: str) -> set[str]:
+    return {
+        _normalize_token(token)
+        for token in text.replace("\n", " ").split()
+        if len(_normalize_token(token)) >= 2
+    }
 
 
 def _is_stable_scaling_match(
