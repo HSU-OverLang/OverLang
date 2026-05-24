@@ -80,6 +80,44 @@ export function DashboardPage() {
   // 재시도
   const [retryingId, setRetryingId] = useState<number | null>(null);
 
+  // 선택 삭제 모드
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+
+  const toggleSelect = (pid: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(pid) ? next.delete(pid) : next.add(pid);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}개 프로젝트를 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
+    setBulkDeleteLoading(true);
+    try {
+      await Promise.allSettled(
+        Array.from(selectedIds).map(async pid => {
+          try {
+            const savedWords = await getMySavedWords();
+            const projectWords = savedWords.filter(w => w.projectId === pid);
+            await Promise.allSettled(projectWords.map(w => deleteSavedWord(w.savedWordId)));
+          } catch { /* ignore */ }
+          await deleteProject(pid);
+        })
+      );
+      setProjects(prev => prev.filter(p => !selectedIds.has(p.id ?? p.projectId ?? -1)));
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    } catch {
+      alert('일부 프로젝트 삭제에 실패했습니다.');
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   // 분석 중 클릭 시 안내 토스트
   const [processingToast, setProcessingToast] = useState(false);
   const showProcessingToast = () => {
@@ -214,21 +252,52 @@ export function DashboardPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-        {/* 타이틀 + 업로드 버튼 */}
+        {/* 타이틀 + 버튼 영역 */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">내 영상</h1>
             <p className="text-sm text-slate-400 mt-1">업로드한 영상과 번역 결과를 확인하세요</p>
           </div>
-          <button
-            onClick={() => navigate('/upload')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            새 영상 업로드
-          </button>
+          <div className="flex items-center gap-2">
+            {selectMode ? (
+              <>
+                <span className="text-sm text-slate-500">{selectedIds.size}개 선택됨</span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.size === 0 || bulkDeleteLoading}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-xl font-semibold text-sm hover:bg-red-400 disabled:opacity-40 transition-colors"
+                >
+                  {bulkDeleteLoading ? '삭제 중...' : `${selectedIds.size}개 삭제`}
+                </button>
+                <button
+                  onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+                  className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
+                >
+                  취소
+                </button>
+              </>
+            ) : (
+              <>
+                {projects.length > 0 && (
+                  <button
+                    onClick={() => setSelectMode(true)}
+                    className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
+                  >
+                    선택
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate('/upload')}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  새 영상 업로드
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* 로딩 */}
@@ -275,10 +344,17 @@ export function DashboardPage() {
               const videoSrc = isYoutube ? (project.sourceUrl ?? '') : (project.fileUrl ?? '');
               const cardColor = CARD_COLORS[idx % CARD_COLORS.length];
 
+              const isSelected = pid ? selectedIds.has(pid) : false;
+
               return (
                 <div
                   key={pid ?? idx}
                   onClick={() => {
+                    if (!pid) return;
+                    if (selectMode) {
+                      toggleSelect(pid);
+                      return;
+                    }
                     if (menuOpenId !== null) return;
                     if (project.status === 'CREATED' || project.status === 'PROCESSING') {
                       showProcessingToast();
@@ -291,10 +367,14 @@ export function DashboardPage() {
                       navigate(`/translate/${pid}`);
                     }
                   }}
-                  className={`bg-white rounded-2xl border border-gray-200 transition-all group ${
-                    project.status === 'CREATED' || project.status === 'PROCESSING'
-                      ? 'cursor-not-allowed opacity-75'
-                      : 'hover:shadow-md hover:border-emerald-300 cursor-pointer'
+                  className={`bg-white rounded-2xl border transition-all group ${
+                    selectMode
+                      ? isSelected
+                        ? 'border-emerald-400 ring-2 ring-emerald-200 cursor-pointer'
+                        : 'border-gray-200 cursor-pointer hover:border-emerald-200'
+                      : project.status === 'CREATED' || project.status === 'PROCESSING'
+                        ? 'border-gray-200 cursor-not-allowed opacity-75'
+                        : 'border-gray-200 hover:shadow-md hover:border-emerald-300 cursor-pointer'
                   }`}
                 >
                   {/* 썸네일 */}
@@ -355,6 +435,19 @@ export function DashboardPage() {
                     <span className={`absolute top-2.5 right-2.5 text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm ${statusCfg.color}`}>
                       {statusCfg.label}
                     </span>
+
+                    {/* 체크박스 (선택 모드) */}
+                    {selectMode && (
+                      <div className={`absolute top-2.5 left-2.5 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                        isSelected ? 'bg-emerald-500 border-emerald-500' : 'bg-white/80 border-slate-300'
+                      }`}>
+                        {isSelected && (
+                          <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* 카드 정보 */}
@@ -362,8 +455,8 @@ export function DashboardPage() {
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <h3 className="font-semibold text-slate-800 text-sm truncate flex-1">{project.title}</h3>
 
-                      {/* ⋮ 메뉴 버튼 */}
-                      {pid && (
+                      {/* ⋮ 메뉴 버튼 (선택 모드에서 숨김) */}
+                      {pid && !selectMode && (
                         <div className="relative shrink-0" ref={menuOpenId === pid ? menuRef : undefined}>
                           <button
                             onClick={e => {
