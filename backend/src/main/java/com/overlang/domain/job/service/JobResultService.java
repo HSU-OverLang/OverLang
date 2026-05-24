@@ -8,6 +8,7 @@ import com.overlang.api.dto.ocr.OcrItemResponse;
 import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.api.dto.segment.SegmentResponse;
 import com.overlang.api.dto.segment.SegmentWordResponse;
+import com.overlang.domain.common.LanguageCode;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.learning.entity.LearningContent;
@@ -20,6 +21,7 @@ import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.entity.SegmentWordType;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
+import com.overlang.domain.segment.tokenizer.SegmentWordTokenizerProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,7 @@ public class JobResultService {
   private final JobRepository jobRepository;
   private final LearningContentRepository learningContentRepository;
   private final SavedWordRepository savedWordRepository;
+  private final SegmentWordTokenizerProvider tokenizerProvider;
 
   @Transactional(readOnly = true)
   public List<SegmentResponse> getSegments(Long jobId, Long memberId) {
@@ -105,8 +108,6 @@ public class JobResultService {
     learningContentRepository.deleteByJobId(jobId);
   }
 
-  private static final String WORD_SPLIT_REGEX = "\\s+";
-
   public void saveSegments(Job job, JobCallbackRequest request) {
     if (request.segments() == null) return;
 
@@ -154,15 +155,21 @@ public class JobResultService {
       return List.of();
     }
 
-    String[] words = text.split(WORD_SPLIT_REGEX);
+    List<String> words =
+        tokenizerProvider.tokenize(text, LanguageCode.fromCode(segment.getLanguageCode()));
+
     List<SegmentWord> segmentWords = new ArrayList<>();
 
-    for (int i = 0; i < words.length; i++) {
+    for (int i = 0; i < words.size(); i++) {
       segmentWords.add(
           new SegmentWord(
-              segment, i + 1, segment.getStartTime(), segment.getEndTime(), words[i], wordType));
+              segment,
+              i + 1,
+              segment.getStartTime(),
+              segment.getEndTime(),
+              words.get(i),
+              wordType));
     }
-
     return segmentWords;
   }
 
