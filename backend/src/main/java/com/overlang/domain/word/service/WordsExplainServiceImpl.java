@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.overlang.api.dto.savedword.SavedWordExampleResponse;
 import com.overlang.api.dto.word.WordsExplainRequest;
 import com.overlang.api.dto.word.WordsExplainResponse;
+import com.overlang.domain.common.LanguageCode;
 import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.entity.LearningContentType;
 import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.savedword.entity.SavedWord;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.repository.SegmentRepository;
+import com.overlang.domain.segment.tokenizer.SegmentWordTokenizerProvider;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -24,13 +26,13 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class WordsExplainServiceImpl implements WordsExplainService {
 
-  private static final String WORD_SPLIT_REGEX = "\\s+";
-  private static final String NON_WORD_REGEX = "[^\\p{IsAlphabetic}\\p{IsDigit}\\s]";
+  private static final String NON_WORD_REGEX = "[\\p{Punct}\\p{IsPunctuation}]";
 
   private final RestClient openAiRestClient;
   private final ObjectMapper objectMapper;
   private final SegmentRepository segmentRepository;
   private final LearningContentRepository learningContentRepository;
+  private final SegmentWordTokenizerProvider tokenizerProvider;
 
   @Value("${openai.model}")
   private String model;
@@ -135,7 +137,10 @@ public class WordsExplainServiceImpl implements WordsExplainService {
         .stream()
         .filter(expression -> expression.getTextType() == request.selectedTextType())
         .filter(expression -> overlapsSegmentTime(segment, expression))
-        .filter(expression -> containsClickedWord(expression.getTitle(), clickedWord))
+        .filter(
+            expression ->
+                containsClickedWord(
+                    expression.getTitle(), clickedWord, getSelectedTextLanguageCode(request)))
         .max(Comparator.comparingInt(expression -> expression.getTitle().length()));
   }
 
@@ -148,14 +153,17 @@ public class WordsExplainServiceImpl implements WordsExplainService {
         && expression.getEndTime() >= segment.getStartTime();
   }
 
-  private boolean containsClickedWord(String expressionTitle, String clickedWord) {
+  private boolean containsClickedWord(
+      String expressionTitle, String clickedWord, LanguageCode languageCode) {
     if (expressionTitle == null || clickedWord == null || clickedWord.isBlank()) {
       return false;
     }
 
     String normalizedTitle = normalize(expressionTitle);
 
-    return List.of(normalizedTitle.split(WORD_SPLIT_REGEX)).contains(clickedWord);
+    return tokenizerProvider.tokenize(normalizedTitle, languageCode).stream()
+        .map(this::normalize)
+        .anyMatch(clickedWord::equals);
   }
 
   private String normalize(String value) {
@@ -171,6 +179,10 @@ public class WordsExplainServiceImpl implements WordsExplainService {
       case ORIGINAL -> request.sourceLanguage();
       case TRANSLATION -> request.targetLanguage();
     };
+  }
+
+  private LanguageCode getSelectedTextLanguageCode(WordsExplainRequest request) {
+    return LanguageCode.fromCode(getSelectedTextLanguage(request));
   }
 
   private List<String> generateRelatedWords(String expression, String targetLanguage) {
