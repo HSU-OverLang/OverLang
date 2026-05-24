@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { getVideoPresignedUrl, getProjectJobs, getSegments, getOcrItems, updateTranslation, getLearningContents } from '@/api/video';
+import { getVideoPresignedUrl, getProjectJobs, getSegments, getOcrItems, updateTranslation, getLearningContents, retryJob } from '@/api/video';
 import type { SegmentResult, OcrItemResult, SegmentWord, LearningContentsResult } from '@/api/video';
 import { explainWord, saveWord, getMySavedWords } from '@/api/words';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -291,6 +291,7 @@ export function TranslatePage() {
 
   // 저장 토스트
   const [saveToast, setSaveToast] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [showOcr, setShowOcr] = useState(true);
@@ -498,6 +499,22 @@ export function TranslatePage() {
   };
 
   // 저장 핸들러
+  const handleRetry = async () => {
+    if (!projectId || retrying) return;
+    if (!window.confirm('영상을 다시 분석합니다. 계속할까요?')) return;
+    setRetrying(true);
+    try {
+      const result = await retryJob(projectId);
+      navigate('/processing', {
+        state: { jobId: result.jobId, projectId, videoSrc, targetLanguage },
+      });
+    } catch {
+      alert('재처리 요청에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   const handleSaveSubtitles = async () => {
     // projectId 없으면 localStorage 저장 (demo 모드)
     if (!projectId) {
@@ -1173,19 +1190,32 @@ export function TranslatePage() {
                           className="w-full text-xs border border-slate-100 rounded-lg px-2 py-1.5 mb-2 leading-relaxed text-slate-500 bg-slate-50 flex flex-wrap"
                         >
                           {sub.original ? (
-                            sub.original.split(/(\s+)/).map((token, i) => {
-                              const isSpace = /^\s+$/.test(token);
-                              if (isSpace) return <span key={i}>&nbsp;</span>;
-                              return (
-                                <span
-                                  key={i}
-                                  onClick={e => { e.stopPropagation(); handleWordClick(sub, token, 'ORIGINAL'); }}
-                                  className="cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
-                                >
-                                  {token}
-                                </span>
-                              );
-                            })
+                            // 백엔드 토크나이저 결과 우선 사용 (일본어/중국어 형태소 분석 지원)
+                            // words가 없으면 공백 분리 폴백
+                            (sub.words && sub.words.length > 0
+                              ? sub.words.map((w, i) => (
+                                  <span
+                                    key={w.segmentWordId ?? i}
+                                    onClick={e => { e.stopPropagation(); handleWordClick(sub, w.word, 'ORIGINAL'); }}
+                                    className="cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+                                  >
+                                    {w.word}
+                                  </span>
+                                ))
+                              : sub.original.split(/(\s+)/).map((token, i) => {
+                                  const isSpace = /^\s+$/.test(token);
+                                  if (isSpace) return <span key={i}>&nbsp;</span>;
+                                  return (
+                                    <span
+                                      key={i}
+                                      onClick={e => { e.stopPropagation(); handleWordClick(sub, token, 'ORIGINAL'); }}
+                                      className="cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+                                    >
+                                      {token}
+                                    </span>
+                                  );
+                                })
+                            )
                           ) : (
                             <span className="text-slate-300">원문 없음</span>
                           )}

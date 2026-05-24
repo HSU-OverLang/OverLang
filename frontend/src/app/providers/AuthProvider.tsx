@@ -23,7 +23,8 @@ import {
 import { auth } from '@/lib/firebase';
 import { setAuthTokenGetter } from '@/api/client';
 import { registerWithFirebase, getMe, uploadProfileImage as apiUploadProfileImage } from '@/api/auth';
-import { updateProfile } from 'firebase/auth';
+import { apiDelete } from '@/api/client';
+import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 
 type AuthState = {
   user: User | null;
@@ -40,6 +41,7 @@ type AuthContextValue = AuthState & {
   clearError: () => void;
   changePassword: (currentPw: string, newPw: string) => Promise<void>;
   deleteAccount: (currentPw: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
   updateUserProfile: (name: string) => Promise<void>;
   profileImageUrl: string | null;
   uploadProfileImage: (file: File) => Promise<void>;
@@ -183,8 +185,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user || !user.email) throw new Error('로그인이 필요합니다.');
       try {
+        // Firebase 재인증
         const credential = EmailAuthProvider.credential(user.email, currentPw);
         await reauthenticateWithCredential(user, credential);
+        // 백엔드 데이터 삭제 (프로젝트, 저장 단어 등)
+        await apiDelete('/v1/members/me');
+        // Firebase 계정 삭제
         await deleteUser(user);
         setUser(null);
       } catch (e) {
@@ -195,6 +201,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [user]
   );
+
+  const sendPasswordReset = useCallback(async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
+  }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -214,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUserProfile,
       profileImageUrl,
       uploadProfileImage,
+      sendPasswordReset,
     }),
     [
       user,
@@ -230,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUserProfile,
       profileImageUrl,
       uploadProfileImage,
+      sendPasswordReset,
     ]
   );
 

@@ -10,6 +10,7 @@ import { TranslatePage } from '@/app/pages/TranslatePage';
 import { StudyPage } from '@/app/pages/StudyPage';
 import { ProcessingPage } from '@/app/pages/ProcessingPage';
 import { DashboardPage } from '@/app/pages/DashboardPage';
+import { ForgotPasswordPage } from '@/app/pages/ForgotPasswordPage';
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
   },
 
   {
