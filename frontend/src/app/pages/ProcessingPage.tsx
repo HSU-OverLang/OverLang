@@ -49,6 +49,7 @@ export function ProcessingPage() {
   const [retrying, setRetrying] = useState(false);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastValidStageIndex = useRef(0);
 
   const handleRetry = async () => {
     if (!projectId) return;
@@ -111,7 +112,15 @@ export function ProcessingPage() {
     return stopPolling;
   }, [authLoading, user, jobId]);
 
-  const stageIndex = STAGES.findIndex(s => s.key === currentStage);
+  const stageIndex = (() => {
+    const idx = STAGES.findIndex(s => s.key === currentStage);
+    if (idx !== -1) {
+      lastValidStageIndex.current = idx;
+      return idx;
+    }
+    // 백엔드가 모르는 중간 단계를 잠깐 보낼 때 마지막 유효 단계 유지
+    return lastValidStageIndex.current;
+  })();
   const isFailed = status === 'FAILED';
   const isCompleted = status === 'COMPLETED';
 

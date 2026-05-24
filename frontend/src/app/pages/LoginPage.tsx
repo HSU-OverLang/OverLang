@@ -141,6 +141,13 @@ export function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-medium text-slate-700">비밀번호</label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-xs text-emerald-600 hover:text-emerald-500 transition-colors"
+                >
+                  비밀번호 찾기
+                </button>
               </div>
               <input
                 type="password"

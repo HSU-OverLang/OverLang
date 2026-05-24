@@ -188,7 +188,7 @@ export function StudyPage() {
         selectedTextType: word.selectedTextType ?? 'ORIGINAL',
         originalSentence: word.originalSentence ?? '',
         translatedSentence: word.translatedSentence ?? '',
-        sourceLanguage: word.lang ? word.lang.split('-')[0].toUpperCase() : 'EN',
+        sourceLanguage: (word.lang ?? detectLang(word.word)).split('-')[0].toUpperCase(),
         targetLanguage: 'KO',
       });
       setRelationsMap(prev => ({ ...prev, [word.savedWordId]: result.relatedWords }));
