@@ -81,3 +81,22 @@ export async function deleteSavedWord(savedWordId: number): Promise<void> {
   const res = await apiDelete(`/v1/saved-words/${savedWordId}`);
   if (!res.ok) throw new Error(`단어 삭제 실패 (${res.status})`);
 }
+
+export interface ExampleItem {
+  sentence: string;
+  translatedSentence: string;
+}
+
+export interface SavedWordExampleResponse {
+  savedWordId: number;
+  word: string;
+  examples: ExampleItem[];
+}
+
+/** POST /api/v1/me/saved-words/{savedWordId}/examples — AI 예문 생성 */
+export async function generateWordExamples(savedWordId: number): Promise<SavedWordExampleResponse> {
+  const res = await apiPost(`/v1/me/saved-words/${savedWordId}/examples`, {});
+  if (!res.ok) throw new Error(`예문 생성 실패 (${res.status})`);
+  const json = await res.json();
+  return json.data ?? json;
+}

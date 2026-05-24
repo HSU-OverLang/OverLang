@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMySavedWords, deleteSavedWord, explainWord } from '@/api/words';
-import type { SavedWordResult } from '@/api/words';
+import { getMySavedWords, deleteSavedWord, explainWord, generateWordExamples } from '@/api/words';
+import type { SavedWordResult, ExampleItem } from '@/api/words';
 import { useAuth } from '@/app/providers/AuthProvider';
 
-interface ExampleSentence {
-  en: string;
-  ko: string;
-}
+// API ExampleItem을 그대로 사용 (sentence, translatedSentence)
+type ExampleSentence = ExampleItem;
 
 // API 응답을 화면용으로 래핑하는 타입
 type SavedWord = SavedWordResult & { lang?: string };
@@ -28,16 +26,16 @@ const ANT_POOLS = [
 ];
 const EXAMPLE_FMTS = [
   (w: string) => ({
-    en: `We need to practice "${w}" in real conversations.`,
-    ko: `실제 대화에서 "${w}"을(를) 연습해 보아야 한다.`,
+    sentence: `We need to practice "${w}" in real conversations.`,
+    translatedSentence: `실제 대화에서 "${w}"을(를) 연습해 보아야 한다.`,
   }),
   (w: string) => ({
-    en: `Understanding "${w}" is essential for language learners.`,
-    ko: `"${w}"의 의미를 이해하는 것은 언어 학습자에게 필수적이다.`,
+    sentence: `Understanding "${w}" is essential for language learners.`,
+    translatedSentence: `"${w}"의 의미를 이해하는 것은 언어 학습자에게 필수적이다.`,
   }),
   (w: string) => ({
-    en: `The speaker used "${w}" to make the sentence more natural.`,
-    ko: `화자는 문장을 더 자연스럽게 만들기 위해 "${w}"을(를) 사용했다.`,
+    sentence: `The speaker used "${w}" to make the sentence more natural.`,
+    translatedSentence: `화자는 문장을 더 자연스럽게 만들기 위해 "${w}"을(를) 사용했다.`,
   }),
 ];
 
@@ -128,7 +126,7 @@ function WordNetworkSVG({ word, relatedWords }: {
       })}
 
       {/* 관련 단어 레이블 */}
-      <text x="170" y="14" textAnchor="middle" fontSize="8" fill="#6366f1" fontWeight="700" letterSpacing="0.5">관련 단어</text>
+      <text x="170" y="14" textAnchor="middle" fontSize="8" fill="#6366f1" fontWeight="700" letterSpacing="0.5">유의어</text>
     </svg>
   );
 }
@@ -143,6 +141,7 @@ export function StudyPage() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'list' | 'card'>('list');
   const [flipped, setFlipped] = useState<number | null>(null);
+  const [cardIndex, setCardIndex] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // 관련 단어 분석 상태 (key: savedWordId)
@@ -199,26 +198,40 @@ export function StudyPage() {
     }
   };
 
-  const handleGenerateExamples = (word: SavedWord) => {
+  const handleGenerateExamples = async (word: SavedWord) => {
     setExamplesMap(prev => ({ ...prev, [word.savedWordId]: 'loading' }));
-    setTimeout(() => {
+    try {
+      const result = await generateWordExamples(word.savedWordId);
+      setExamplesMap(prev => ({ ...prev, [word.savedWordId]: result.examples }));
+    } catch (err) {
+      console.error('[OverLang] 예문 생성 실패:', err);
+      // 실패 시 목 데이터로 폴백
       setExamplesMap(prev => ({ ...prev, [word.savedWordId]: getMockExamples(word.word) }));
-    }, 1800);
+    }
   };
 
   const handleTTS = (text: string, lang?: string) => {
-    // lang 명시 없으면 텍스트 내용으로 자동 감지
     const resolvedLang = lang ?? detectLang(text);
+    const langPrefix = resolvedLang.split('-')[0]; // 'ja', 'ko', 'en' ...
+
     window.speechSynthesis.cancel();
-    // cancel()은 비동기로 처리되므로 speak()를 즉시 호출하면 씹힘 → 100ms 딜레이
     setTimeout(() => {
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = resolvedLang;
       utter.rate = 0.9;
-      // paused 상태면 resume 후 speak
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
+
+      // 최적 음성 선택 (Google 클라우드 음성 > Enhanced/Premium > 기타 순)
+      const voices = window.speechSynthesis.getVoices();
+      const langVoices = voices.filter(v => v.lang.startsWith(langPrefix));
+      const googleVoice   = langVoices.find(v => v.name.toLowerCase().includes('google'));
+      const enhancedVoice = langVoices.find(v =>
+        v.name.toLowerCase().includes('enhanced') ||
+        v.name.toLowerCase().includes('premium')
+      );
+      const bestVoice = googleVoice ?? enhancedVoice ?? langVoices[0] ?? null;
+      if (bestVoice) utter.voice = bestVoice;
+
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
       window.speechSynthesis.speak(utter);
     }, 100);
   };
@@ -229,13 +242,6 @@ export function StudyPage() {
     w.translatedSentence?.includes(search) ||
     w.meaning?.includes(search)
   );
-
-  const thisWeekCount = words.filter(w => {
-    try {
-      const d = new Date(w.createdAt);
-      return (Date.now() - d.getTime()) / 86400000 <= 7;
-    } catch { return false; }
-  }).length;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -299,23 +305,6 @@ export function StudyPage() {
       </header>
 
       <div className="mx-auto max-w-3xl px-6 py-6 space-y-4">
-
-        {/* 통계 */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: '전체',    value: words.length,  dot: 'bg-slate-400',  card: 'bg-white border border-slate-200 text-slate-800' },
-            { label: '이번 주', value: thisWeekCount,  dot: 'bg-orange-400', card: 'bg-orange-50 border border-orange-100 text-orange-700' },
-            { label: '숙지 완료', value: 0,            dot: 'bg-emerald-400', card: 'bg-emerald-50 border border-emerald-100 text-emerald-700' },
-          ].map(s => (
-            <div key={s.label} className={`rounded-2xl shadow-sm px-4 py-3.5 text-center ${s.card}`}>
-              <p className="text-2xl font-extrabold">{s.value}</p>
-              <div className="flex items-center justify-center gap-1.5 mt-1">
-                <div className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-                <p className="text-xs opacity-70">{s.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
 
         {/* 검색 */}
         <div className="relative">
@@ -471,7 +460,7 @@ export function StudyPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                         </svg>
-                        관련 단어
+                        유의어
                         {relations && relations !== 'loading' && (
                           <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-orange-400 inline-block" />
                         )}
@@ -516,7 +505,7 @@ export function StudyPage() {
                       {/* 단어망 */}
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">관련 단어</p>
+                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">유의어</p>
                         </div>
 
                         {!relations ? (
@@ -528,7 +517,7 @@ export function StudyPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                 d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                             </svg>
-                            관련 단어 분석하기
+                            유의어 분석하기
                           </button>
                         ) : relations === 'loading' ? (
                           <div className="flex flex-col items-center justify-center py-10 gap-3">
@@ -557,9 +546,6 @@ export function StudyPage() {
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">AI 예문</p>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium border border-violet-100">
-                              AI 생성 예정
-                            </span>
                           </div>
                         </div>
 
@@ -585,7 +571,7 @@ export function StudyPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider">예문 {i + 1}</span>
                                   <button
-                                    onClick={() => handleTTS(ex.en, word.lang ?? 'en-US')}
+                                    onClick={e => { e.stopPropagation(); handleTTS(ex.sentence); }}
                                     className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 hover:bg-violet-200 text-violet-500 transition-colors"
                                   >
                                     <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
@@ -593,11 +579,10 @@ export function StudyPage() {
                                     </svg>
                                   </button>
                                 </div>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed">{ex.en}</p>
-                                <p className="text-xs text-slate-400 leading-relaxed">{ex.ko}</p>
+                                <p className="text-sm text-slate-700 font-medium leading-relaxed">{ex.sentence}</p>
+                                <p className="text-xs text-slate-400 leading-relaxed">{ex.translatedSentence}</p>
                               </div>
                             ))}
-                            <p className="text-center text-[10px] text-slate-300">* 예시 데이터 · 실제 AI 생성 기능 개발 중</p>
                           </div>
                         )}
                       </div>
@@ -610,51 +595,127 @@ export function StudyPage() {
         )}
 
         {/* ── 플래시카드 뷰 ── */}
-        {!wordsLoading && view === 'card' && filtered.length > 0 && (
-          <div className="space-y-4">
-            <p className="text-xs text-center text-slate-400">카드를 클릭하면 뒤집어집니다</p>
-            {filtered.map((word, i) => (
+        {!wordsLoading && view === 'card' && filtered.length > 0 && (() => {
+          const safeIndex = Math.min(cardIndex, filtered.length - 1);
+          const word = filtered[safeIndex];
+          const isFlipped = flipped === safeIndex;
+
+          return (
+            <div className="flex flex-col items-center gap-5">
+
+              {/* 진행 표시 */}
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={() => { setCardIndex(i => Math.max(0, i - 1)); setFlipped(null); }}
+                  disabled={safeIndex === 0}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 disabled:opacity-25 transition-all shadow-sm shrink-0"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <div className="flex-1 text-center">
+                  <p className="text-xs font-semibold text-slate-500 mb-1.5">{safeIndex + 1} / {filtered.length}</p>
+                  <div className="w-full bg-slate-100 rounded-full h-1">
+                    <div
+                      className="bg-orange-400 h-1 rounded-full transition-all duration-300"
+                      style={{ width: `${((safeIndex + 1) / filtered.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setCardIndex(i => Math.min(filtered.length - 1, i + 1)); setFlipped(null); }}
+                  disabled={safeIndex === filtered.length - 1}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 disabled:opacity-25 transition-all shadow-sm shrink-0"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* 카드 (3D 플립) */}
               <div
-                key={word.savedWordId}
-                onClick={() => setFlipped(flipped === i ? null : i)}
-                className="cursor-pointer select-none"
+                className="w-full cursor-pointer select-none"
+                style={{ perspective: '1200px' }}
+                onClick={() => setFlipped(isFlipped ? null : safeIndex)}
               >
-                <div className={`rounded-2xl border-2 transition-all duration-300 ${
-                  flipped === i
-                    ? 'bg-gradient-to-br from-orange-400 to-amber-400 border-orange-300 shadow-xl shadow-orange-100/60'
-                    : 'bg-white border-slate-200 hover:border-orange-200 shadow-sm hover:shadow-lg'
-                }`}>
-                  {flipped === i ? (
-                    <div className="p-9 text-center">
-                      {word.meaning && (
-                        <p className="text-sm font-semibold text-white/90 mb-4 leading-relaxed">{word.meaning}</p>
-                      )}
-                      <p className="text-[10px] font-bold text-orange-100 mb-3 uppercase tracking-widest">원문 문장</p>
-                      <p className="text-sm font-medium text-white leading-relaxed">{word.originalSentence}</p>
-                      {word.translatedSentence && (
-                        <p className="text-xs text-orange-100/80 mt-3 leading-relaxed">{word.translatedSentence}</p>
-                      )}
-                      <div className="mt-5 pt-4 border-t border-white/20">
-                        <p className="text-xs text-orange-100/70">{new Date(word.createdAt).toLocaleDateString('ko-KR')}</p>
+                <div
+                  style={{
+                    position: 'relative',
+                    height: '340px',
+                    transformStyle: 'preserve-3d',
+                    transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                    transition: 'transform 0.55s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
+                  {/* 앞면 */}
+                  <div
+                    style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                    className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-white border border-slate-200 shadow-lg p-8 text-center"
+                  >
+                    {word.lang && (
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-400 uppercase tracking-wide mb-3">
+                        {word.lang.split('-')[0]}
+                      </span>
+                    )}
+                    <p className="text-4xl font-extrabold text-slate-800 tracking-tight mb-4">{word.word}</p>
+                    {word.contextMeaning && (
+                      <p className="text-sm text-slate-400 italic mb-4 max-w-xs leading-relaxed">"{word.contextMeaning}"</p>
+                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-50 hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors mt-1"
+                    >
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                      </svg>
+                    </button>
+                    <p className="text-xs text-slate-300 mt-8">탭하여 뜻 확인 →</p>
+                  </div>
+
+                  {/* 뒷면 */}
+                  <div
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      WebkitBackfaceVisibility: 'hidden',
+                      transform: 'rotateY(180deg)',
+                    }}
+                    className="absolute inset-0 flex flex-col justify-center rounded-3xl bg-gradient-to-br from-orange-400 to-amber-400 shadow-xl p-8"
+                  >
+                    {word.meaning && (
+                      <p className="text-lg font-bold text-white text-center leading-snug mb-5">{word.meaning}</p>
+                    )}
+                    {word.originalSentence && (
+                      <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-4 py-3.5">
+                        <p className="text-sm font-medium text-white leading-relaxed">{word.originalSentence}</p>
+                        {word.translatedSentence && (
+                          <p className="text-xs text-orange-100/80 mt-2 leading-relaxed">{word.translatedSentence}</p>
+                        )}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="p-9 text-center">
-                      <p className="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-widest">단어 / 표현</p>
-                      <p className="text-3xl font-extrabold text-slate-800 tracking-tight">{word.word}</p>
-                      {word.lang && (
-                        <span className="inline-block mt-2 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-400 uppercase">
-                          {word.lang.split('-')[0]}
-                        </span>
+                    )}
+                    <div className="flex items-center justify-between mt-5">
+                      <button
+                        onClick={e => { e.stopPropagation(); handleTTS(word.originalSentence ?? word.word); }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                        </svg>
+                      </button>
+                      {word.projectTitle && (
+                        <p className="text-xs text-orange-100/70 truncate max-w-[160px]">{word.projectTitle}</p>
                       )}
-                      <p className="text-xs text-slate-300 mt-5">탭하여 문장 맥락 확인</p>
+                      <p className="text-xs text-orange-100/60 shrink-0">{new Date(word.createdAt).toLocaleDateString('ko-KR')}</p>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+
+              <p className="text-xs text-slate-400">카드를 탭해서 뒤집어보세요</p>
+            </div>
+          );
+        })()}
 
       </div>
     </div>

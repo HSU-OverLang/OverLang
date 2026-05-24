@@ -1052,9 +1052,9 @@ export function TranslatePage() {
 
           {/* ── ① 영상 요약 ── */}
           {activeTab === '요약' && (
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex-1 overflow-y-auto">
               {!learningContents ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-100">
                     <svg className="h-7 w-7 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1063,22 +1063,45 @@ export function TranslatePage() {
                   <p className="text-sm text-slate-500 font-medium">학습 콘텐츠가 없습니다</p>
                   <p className="text-xs text-slate-400">AI 분석이 완료된 영상에서 확인할 수 있어요</p>
                 </div>
+              ) : !learningContents.summary ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
+                  <p className="text-sm text-slate-400">요약 데이터가 없습니다</p>
+                </div>
               ) : (
-                <div className="space-y-4">
-                  {learningContents.summary && (
-                    <div className="rounded-xl bg-violet-50 border border-violet-100 p-4">
-                      <p className="text-xs font-bold text-violet-500 mb-2 flex items-center gap-1.5">
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <div>
+                  {/* 헤더 배너 */}
+                  <div className="bg-gradient-to-br from-violet-500 to-purple-600 px-5 pt-5 pb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[10px] font-bold tracking-widest text-violet-200 uppercase">AI Summary</span>
+                      <span className="flex items-center gap-1 text-[10px] text-violet-300 bg-white/10 rounded-full px-2 py-0.5">
+                        <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
                         </svg>
-                        영상 요약
-                      </p>
-                      <p className="text-sm text-slate-700 leading-relaxed">{learningContents.summary.content}</p>
+                        영상 기반 요약
+                      </span>
                     </div>
-                  )}
-                  {!learningContents.summary && (
-                    <p className="text-sm text-slate-400 text-center py-8">요약 데이터가 없습니다</p>
-                  )}
+                    <p className="text-white font-bold text-base leading-snug">영상 핵심 내용 요약</p>
+                    <p className="text-violet-200 text-xs mt-1">
+                      {learningContents.summary.content.length}자 · 약 {Math.ceil(learningContents.summary.content.length / 200)}분 읽기
+                    </p>
+                  </div>
+
+                  {/* 요약 본문 */}
+                  <div className="px-5 py-5">
+                    <div className="space-y-3">
+                      {learningContents.summary.content.split(/\n+/).filter(Boolean).map((para, i) => (
+                        <p key={i} className="text-sm text-slate-700 leading-relaxed">{para}</p>
+                      ))}
+                    </div>
+
+                    {/* 하단 뱃지 */}
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
+                      <svg className="h-3.5 w-3.5 text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <p className="text-[11px] text-slate-400">AI가 영상 자막을 분석하여 자동 생성한 요약입니다</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1196,28 +1219,6 @@ export function TranslatePage() {
                             </svg>
                             {repeatRange?.startSec === sub.startSec ? '반복 중' : '구간 반복'}
                           </button>
-                          <button onClick={e => { e.stopPropagation(); handleSentenceAnalysis(sub); }} className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 hover:text-emerald-700 transition-colors">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                            </svg>
-                            원문 분석
-                          </button>
-                          {sub.translation && (
-                            <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                setSentenceData({ sentence: sub.translation, parts: getMockSentenceParts(sub.translation), grammar: getMockGrammar(sub.translation) });
-                                setRightPanel('sentence');
-                                setActiveTab('자막');
-                              }}
-                              className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 hover:text-emerald-700 transition-colors"
-                            >
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                              </svg>
-                              번역 분석
-                            </button>
-                          )}
                         </div>
                       </div>
                     );
@@ -1351,9 +1352,9 @@ export function TranslatePage() {
 
           {/* ── ③ 빈출 단어 ── */}
           {activeTab === '빈출단어' && (
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex-1 overflow-y-auto">
               {!learningContents || learningContents.keywords.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
                     <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -1363,32 +1364,67 @@ export function TranslatePage() {
                   <p className="text-xs text-slate-400">AI 분석이 완료된 영상에서 확인할 수 있어요</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {learningContents.keywords.map(kw => (
-                    <div
-                      key={kw.learningContentId}
-                      className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-colors"
-                      onClick={() => {
-                        if (kw.startTime != null) {
-                          if (videoRef.current) { videoRef.current.currentTime = kw.startTime; videoRef.current.play(); }
-                          else if (ytPlayerRef.current) { ytPlayerRef.current.seekTo(kw.startTime, true); }
-                        }
-                      }}
-                    >
-                      <span className="mt-0.5 shrink-0 text-base">{kw.title}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-slate-700 leading-relaxed">{kw.content}</p>
-                        {kw.startTime != null && (
-                          <p className="text-[10px] text-slate-400 mt-1 font-mono flex items-center gap-1">
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {secToTimecode(kw.startTime)}
-                          </p>
-                        )}
-                      </div>
+                <div>
+                  {/* 헤더 */}
+                  <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-700">핵심 단어 · 표현</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{learningContents.keywords.length}개 · 클릭하면 해당 구간으로 이동</p>
                     </div>
-                  ))}
+                    <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      AI 분석
+                    </span>
+                  </div>
+
+                  <div className="px-3 pb-4 space-y-2">
+                    {learningContents.keywords.map((kw, idx) => {
+                      const rankColors = [
+                        'from-amber-400 to-yellow-400 text-white',   // 1위
+                        'from-slate-400 to-slate-300 text-white',    // 2위
+                        'from-orange-400 to-amber-500 text-white',   // 3위
+                      ];
+                      const rankBg = idx < 3 ? rankColors[idx] : null;
+                      return (
+                        <div
+                          key={kw.learningContentId}
+                          className="rounded-2xl border border-slate-200 bg-white overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group"
+                          onClick={() => {
+                            if (kw.startTime != null) {
+                              if (videoRef.current) { videoRef.current.currentTime = kw.startTime; videoRef.current.play(); }
+                              else if (ytPlayerRef.current) { ytPlayerRef.current.seekTo(kw.startTime, true); }
+                            }
+                          }}
+                        >
+                          <div className="flex items-stretch">
+                            {/* 왼쪽 순위 바 */}
+                            <div className={`flex flex-col items-center justify-center w-10 shrink-0 ${rankBg ? `bg-gradient-to-b ${rankBg}` : 'bg-slate-50'}`}>
+                              <span className={`text-xs font-extrabold ${rankBg ? '' : 'text-slate-400'}`}>
+                                {idx + 1}
+                              </span>
+                            </div>
+                            {/* 본문 */}
+                            <div className="flex-1 min-w-0 px-3 py-3">
+                              <p className="text-sm font-bold text-slate-800 leading-snug mb-1">{kw.title}</p>
+                              <p className="text-xs text-slate-500 leading-relaxed">{kw.content}</p>
+                            </div>
+                            {/* 타임스탬프 */}
+                            {kw.startTime != null && (
+                              <div className="flex flex-col items-center justify-center px-3 shrink-0 border-l border-slate-100 group-hover:border-emerald-100 group-hover:bg-emerald-50/50 transition-colors">
+                                <svg className="h-3.5 w-3.5 text-emerald-400 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">{secToTimecode(kw.startTime)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
