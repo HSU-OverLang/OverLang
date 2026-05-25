@@ -14,7 +14,7 @@ from ai.api.schemas import (
     SourceType,
 )
 from ai.pipeline.callback_client import send_callback
-from ai.pipeline.run_pipeline import run_pipeline
+from ai.pipeline.run_pipeline import resolve_completion_error, run_pipeline
 from ai.pipeline.youtube_service import (
     YoutubeDownloadError,
     YoutubeVideoTooLongError,
@@ -95,6 +95,9 @@ def _execute_job_task(self, job_payload: dict):
             job_id=callback_job_id,
             keep_intermediate_files=True,
         )
+        completion_error_code, completion_error_message = resolve_completion_error(
+            result.warnings
+        )
 
         send_callback(
             CallbackPayload(
@@ -105,8 +108,8 @@ def _execute_job_task(self, job_payload: dict):
                 segments=result.subtitles,
                 ocr_items=result.ocr_items,
                 learning_data=result.learning_data,
-                error_code=None,
-                error_message=None,
+                error_code=completion_error_code,
+                error_message=completion_error_message,
             )
         )
         return result.model_dump(by_alias=True)
