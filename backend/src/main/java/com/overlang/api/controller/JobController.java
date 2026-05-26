@@ -1,10 +1,6 @@
 package com.overlang.api.controller;
 
-import com.overlang.api.dto.job.JobCreateRequest;
-import com.overlang.api.dto.job.JobCreateResponse;
-import com.overlang.api.dto.job.JobDetailResponse;
-import com.overlang.api.dto.job.JobResponse;
-import com.overlang.api.dto.job.JobRetryResponse;
+import com.overlang.api.dto.job.*;
 import com.overlang.domain.job.service.JobService;
 import com.overlang.global.auth.AuthInterceptor;
 import com.overlang.global.response.ApiResponse;
@@ -59,14 +55,16 @@ public class JobController {
     return ApiResponse.success(response);
   }
 
-  @Operation(summary = "분석 작업 재처리", description = "FAILED 상태의 최신 AI 작업을 동일 프로젝트 기준으로 재처리합니다.")
+  @Operation(summary = "분석 작업 재처리", description = "FAILED 상태의 최신 AI 작업을 요청한 jobType 기준으로 재처리합니다.")
   @PostMapping("/projects/{projectId}/jobs/retry")
   public ApiResponse<JobRetryResponse> retryJob(
-      @PathVariable Long projectId, HttpServletRequest httpServletRequest) {
+      @PathVariable Long projectId,
+      @RequestBody JobRetryRequest request,
+      HttpServletRequest httpServletRequest) {
 
     Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
 
-    JobRetryResponse response = jobService.retryJob(projectId, memberId);
+    JobRetryResponse response = jobService.retryJob(projectId, memberId, request);
 
     return ApiResponse.success(response);
   }
