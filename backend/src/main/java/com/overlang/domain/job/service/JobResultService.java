@@ -14,6 +14,7 @@ import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.ocr.entity.OcrItem;
+import com.overlang.domain.ocr.entity.OcrItemLine;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
 import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.Segment;
@@ -185,30 +186,55 @@ public class JobResultService {
     OcrStyleRequest style = o.style();
     BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
 
-    return new OcrItem(
-        job,
-        o.startTime(),
-        o.endTime(),
-        o.originText(),
-        o.translatedText(),
-        o.boundingBox().x(),
-        o.boundingBox().y(),
-        o.boundingBox().w(),
-        o.boundingBox().h(),
-        o.confidence(),
-        style != null ? style.backgroundColor() : null,
-        style != null ? style.dominantBackgroundColor() : null,
-        style != null ? style.textColor() : null,
-        blurRegion != null ? blurRegion.x() : null,
-        blurRegion != null ? blurRegion.y() : null,
-        blurRegion != null ? blurRegion.w() : null,
-        blurRegion != null ? blurRegion.h() : null,
-        style != null ? style.fontSizeRatio() : null,
-        style != null ? style.fontWeight() : null,
-        style != null ? style.textAlign() : null,
-        getAnimationType(style),
-        getAnimationStartTime(style),
-        getAnimationEndTime(style));
+    OcrItem ocrItem =
+        new OcrItem(
+            job,
+            o.startTime(),
+            o.endTime(),
+            o.originText(),
+            o.translatedText(),
+            o.boundingBox().x(),
+            o.boundingBox().y(),
+            o.boundingBox().w(),
+            o.boundingBox().h(),
+            o.confidence(),
+            style != null ? style.backgroundColor() : null,
+            style != null ? style.dominantBackgroundColor() : null,
+            style != null ? style.textColor() : null,
+            blurRegion != null ? blurRegion.x() : null,
+            blurRegion != null ? blurRegion.y() : null,
+            blurRegion != null ? blurRegion.w() : null,
+            blurRegion != null ? blurRegion.h() : null,
+            style != null ? style.fontSizeRatio() : null,
+            style != null ? style.fontWeight() : null,
+            style != null ? style.textAlign() : null,
+            getAnimationType(style),
+            getAnimationStartTime(style),
+            getAnimationEndTime(style));
+
+    if (o.lines() != null) {
+      for (int i = 0; i < o.lines().size(); i++) {
+        var lineRequest = o.lines().get(i);
+
+        if (lineRequest.boundingBox() == null) {
+          continue;
+        }
+
+        OcrItemLine line =
+            OcrItemLine.create(
+                ocrItem,
+                i + 1,
+                lineRequest.originText(),
+                lineRequest.boundingBox().x(),
+                lineRequest.boundingBox().y(),
+                lineRequest.boundingBox().w(),
+                lineRequest.boundingBox().h());
+
+        ocrItem.addLine(line);
+      }
+    }
+
+    return ocrItem;
   }
 
   private String getAnimationType(OcrStyleRequest style) {
