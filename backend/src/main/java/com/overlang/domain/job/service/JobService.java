@@ -93,15 +93,19 @@ public class JobService {
   }
 
   @Transactional
-  public JobRetryResponse retryJob(Long projectId, Long memberId) {
+  public JobRetryResponse retryJob(Long projectId, Long memberId, JobRetryRequest request) {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
     Job latestJob = findLatestJobByProjectId(project.getId());
+
+    if (request.jobType() == null) {
+      throw new IllegalArgumentException("jobType은 필수입니다.");
+    }
 
     if (latestJob.getStatus() != JobStatus.FAILED) {
       throw new IllegalArgumentException("FAILED 상태의 작업만 재처리할 수 있습니다.");
     }
 
-    Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob));
+    Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob, request));
 
     enqueueJob(project, savedJob);
 
@@ -194,10 +198,11 @@ public class JobService {
         request.translationProvider());
   }
 
-  private Job createRetryJobEntity(Project project, Job latestJob) {
+  private Job createRetryJobEntity(Project project, Job latestJob, JobRetryRequest request) {
+
     return new Job(
         project,
-        latestJob.getJobType(),
+        request.jobType(),
         latestJob.getSourceLanguage(),
         latestJob.getTargetLanguage(),
         latestJob.getTranslationProvider());
