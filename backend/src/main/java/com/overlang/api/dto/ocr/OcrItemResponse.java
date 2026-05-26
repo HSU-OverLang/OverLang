@@ -1,6 +1,7 @@
 package com.overlang.api.dto.ocr;
 
 import com.overlang.domain.ocr.entity.OcrItem;
+import java.util.List;
 
 public record OcrItemResponse(
     Long ocrItemId,
@@ -11,6 +12,7 @@ public record OcrItemResponse(
     String translatedText,
     BoundingBoxResponse boundingBox,
     Double confidence,
+    List<OcrItemLineResponse> lines,
     OcrStyleResponse style) {
 
   public static OcrItemResponse from(OcrItem ocrItem) {
@@ -23,6 +25,7 @@ public record OcrItemResponse(
         ocrItem.getTranslatedText(),
         new BoundingBoxResponse(ocrItem.getX(), ocrItem.getY(), ocrItem.getW(), ocrItem.getH()),
         ocrItem.getConfidence(),
+        ocrItem.getLines().stream().map(OcrItemLineResponse::from).toList(),
         new OcrStyleResponse(
             ocrItem.getBackgroundColor(),
             ocrItem.getDominantBackgroundColor(),
