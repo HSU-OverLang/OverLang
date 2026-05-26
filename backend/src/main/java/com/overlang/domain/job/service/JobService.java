@@ -92,6 +92,11 @@ public class JobService {
     return JobDetailResponse.from(job);
   }
 
+  @Transactional(readOnly = true)
+  public JobValidResponse validateJob(Long jobId) {
+    return new JobValidResponse(jobRepository.existsById(jobId));
+  }
+
   @Transactional
   public JobRetryResponse retryJob(Long projectId, Long memberId, JobRetryRequest request) {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
