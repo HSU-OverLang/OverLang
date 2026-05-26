@@ -92,6 +92,11 @@ public class JobService {
     return JobDetailResponse.from(job);
   }
 
+  @Transactional(readOnly = true)
+  public JobValidResponse validateJob(Long jobId) {
+    return new JobValidResponse(jobRepository.existsById(jobId));
+  }
+
   @Transactional
   public JobRetryResponse retryJob(Long projectId, Long memberId, JobRetryRequest request) {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
@@ -123,7 +128,13 @@ public class JobService {
     workerAuthService.validateWorkerSecret(requestWorkerSecret);
     validateCallbackJobId(pathJobId, request.jobId());
 
-    Job job = findJobById(pathJobId);
+    var optionalJob = jobRepository.findById(pathJobId);
+
+    if (optionalJob.isEmpty()) {
+      return new JobCallbackResponse(pathJobId, false);
+    }
+
+    Job job = optionalJob.get();
 
     switch (request.status()) {
       case RUNNING -> handleRunningCallback(job, request);
