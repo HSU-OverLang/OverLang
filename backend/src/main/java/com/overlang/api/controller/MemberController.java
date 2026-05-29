@@ -11,7 +11,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -22,12 +21,16 @@ public class MemberController {
   private final MemberService memberService;
   private final MemberWithdrawService memberWithdrawService;
 
+  private Long getMemberId(HttpServletRequest request) {
+    return (Long) request.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+  }
+
   @Operation(summary = "프로필 이미지 업로드", description = "현재 로그인한 사용자의 프로필 이미지를 업로드합니다.")
   @PostMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ApiResponse<ProfileImageUploadResponse> uploadProfileImage(
       @RequestPart("file") MultipartFile file, HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     return ApiResponse.success(memberService.uploadProfileImage(memberId, file));
   }
@@ -36,7 +39,7 @@ public class MemberController {
   @DeleteMapping("/me")
   public ApiResponse<MemberWithdrawResponse> withdraw(HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     memberWithdrawService.withdraw(memberId);
 
