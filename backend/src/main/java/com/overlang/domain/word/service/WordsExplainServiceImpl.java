@@ -54,15 +54,10 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     String prompt = createPrompt(request);
     String outputText = callOpenAi(prompt);
 
-    try {
-      WordExplainAiResult result = objectMapper.readValue(outputText, WordExplainAiResult.class);
+    WordExplainAiResult result =
+        parseOpenAiResponse(outputText, WordExplainAiResult.class, "OpenAI 응답 파싱에 실패했습니다.");
 
-      return new WordsExplainResponse(
-          request.word(), result.meaning(), result.relatedWords(), false);
-
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("OpenAI 응답 파싱에 실패했습니다.", e);
-    }
+    return new WordsExplainResponse(request.word(), result.meaning(), result.relatedWords(), false);
   }
 
   private String createPrompt(WordsExplainRequest request) {
@@ -121,6 +116,14 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     Map<String, Object> message = output.get(0);
     List<Map<String, Object>> content = (List<Map<String, Object>>) message.get("content");
     return (String) content.get(0).get("text");
+  }
+
+  private <T> T parseOpenAiResponse(String outputText, Class<T> resultType, String errorMessage) {
+    try {
+      return objectMapper.readValue(outputText, resultType);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(errorMessage, e);
+    }
   }
 
   private record WordExplainAiResult(String meaning, List<String> relatedWords) {}
@@ -233,16 +236,10 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     String prompt = createExamplePrompt(savedWord);
 
     String outputText = callOpenAi(prompt);
+    ExampleResult result =
+        parseOpenAiResponse(outputText, ExampleResult.class, "OpenAI 예문 응답 파싱에 실패했습니다.");
 
-    try {
-      ExampleResult result = objectMapper.readValue(outputText, ExampleResult.class);
-
-      return new SavedWordExampleResponse(
-          savedWord.getId(), savedWord.getWord(), result.examples());
-
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("OpenAI 예문 응답 파싱에 실패했습니다.", e);
-    }
+    return new SavedWordExampleResponse(savedWord.getId(), savedWord.getWord(), result.examples());
   }
 
   private String createExamplePrompt(SavedWord savedWord) {
