@@ -26,28 +26,41 @@ public class MemberWithdrawService {
   private final S3UploadService s3UploadService;
 
   public void withdraw(Long memberId) {
+    Member member = findMemberById(memberId);
 
-    Member member =
-        memberRepository
-            .findById(memberId)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+    deleteMemberProjects(memberId);
+    savedWordRepository.deleteByMemberId(memberId);
+    deleteProfileImage(member);
+    deleteFirebaseUser(member);
 
+    memberRepository.delete(member);
+  }
+
+  private Member findMemberById(Long memberId) {
+    return memberRepository
+        .findById(memberId)
+        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+  }
+
+  private void deleteMemberProjects(Long memberId) {
     List<Project> projects = projectRepository.findByMemberIdOrderByCreatedAtDesc(memberId);
 
     for (Project project : projects) {
       projectService.deleteProject(memberId, project.getId());
     }
+  }
 
-    savedWordRepository.deleteByMemberId(memberId);
+  private void deleteProfileImage(Member member) {
+    if (member.getProfileImageUrl() != null && !member.getProfileImageUrl().isBlank()) {
+      s3UploadService.deleteFileByUrl(member.getProfileImageUrl());
+    }
+  }
 
-    s3UploadService.deleteFileByUrl(member.getProfileImageUrl());
-
+  private void deleteFirebaseUser(Member member) {
     try {
       FirebaseAuth.getInstance().deleteUser(member.getFirebaseUid());
     } catch (FirebaseAuthException e) {
       throw new IllegalArgumentException("Firebase 회원 삭제 중 오류가 발생했습니다.");
     }
-
-    memberRepository.delete(member);
   }
 }
