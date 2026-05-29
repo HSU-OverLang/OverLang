@@ -52,16 +52,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     }
 
     String prompt = createPrompt(request);
-
-    Map<String, Object> body =
-        Map.of(
-            "model", model,
-            "input", prompt,
-            "store", false);
-
-    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
-
-    String outputText = extractOutputText(response);
+    String outputText = callOpenAi(prompt);
 
     try {
       WordExplainAiResult result = objectMapper.readValue(outputText, WordExplainAiResult.class);
@@ -110,6 +101,18 @@ public class WordsExplainServiceImpl implements WordsExplainService {
             getSelectedTextLanguage(request),
             request.targetLanguage(),
             getRelatedWordsLanguage(request));
+  }
+
+  private String callOpenAi(String prompt) {
+    Map<String, Object> body =
+        Map.of(
+            "model", model,
+            "input", prompt,
+            "store", false);
+
+    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
+
+    return extractOutputText(response);
   }
 
   @SuppressWarnings("unchecked")
@@ -205,15 +208,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
             """
             .formatted(expression, targetLanguage);
 
-    Map<String, Object> body =
-        Map.of(
-            "model", model,
-            "input", prompt,
-            "store", false);
-
-    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
-
-    String outputText = extractOutputText(response);
+    String outputText = callOpenAi(prompt);
 
     try {
       RelatedWordsResult result = objectMapper.readValue(outputText, RelatedWordsResult.class);
@@ -237,15 +232,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
 
     String prompt = createExamplePrompt(savedWord);
 
-    Map<String, Object> body =
-        Map.of(
-            "model", model,
-            "input", prompt,
-            "store", false);
-
-    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
-
-    String outputText = extractOutputText(response);
+    String outputText = callOpenAi(prompt);
 
     try {
       ExampleResult result = objectMapper.readValue(outputText, ExampleResult.class);
