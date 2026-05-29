@@ -174,14 +174,9 @@ public class ProjectService {
     List<Segment> segments = segmentRepository.findByIdIn(segmentIds);
 
     validateSegments(segments, segmentIds, projectId);
-    savedWordRepository.deleteBySegmentIdsAndWordType(segmentIds, SegmentWordType.TRANSLATION);
-
-    segmentWordRepository.deleteBySegmentIdInAndWordType(segmentIds, SegmentWordType.TRANSLATION);
     updateTranslatedTexts(segments, request.segments());
-    List<SegmentWord> newTranslatedWords = createTranslationSegmentWords(segments);
 
-    List<SegmentWord> savedTranslatedWords = segmentWordRepository.saveAll(newTranslatedWords);
-
+    List<SegmentWord> savedTranslatedWords = recreateTranslatedSegmentWords(segmentIds, segments);
     List<ProjectResultSegmentResponse> segmentResponses =
         createProjectResultSegmentResponses(segments, savedTranslatedWords);
 
@@ -227,6 +222,16 @@ public class ProjectService {
                     segment.getTranslatedText(),
                     translatedWordsBySegmentId.getOrDefault(segment.getId(), List.of())))
         .toList();
+  }
+
+  private List<SegmentWord> recreateTranslatedSegmentWords(
+      List<Long> segmentIds, List<Segment> segments) {
+    savedWordRepository.deleteBySegmentIdsAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+    segmentWordRepository.deleteBySegmentIdInAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+
+    List<SegmentWord> newTranslatedWords = createTranslationSegmentWords(segments);
+
+    return segmentWordRepository.saveAll(newTranslatedWords);
   }
 
   private void validateSegments(List<Segment> segments, List<Long> segmentIds, Long projectId) {
