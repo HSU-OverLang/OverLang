@@ -27,6 +27,11 @@ public class LearningContentService {
     List<LearningContent> learningContents =
         learningContentRepository.findByJobIdOrderByStartTimeAscIdAsc(jobId);
 
+    return toLearningContentsResponse(jobId, learningContents);
+  }
+
+  private LearningContentsResponse toLearningContentsResponse(
+      Long jobId, List<LearningContent> learningContents) {
     Map<LearningContentType, List<LearningContentResponse>> contentsByType =
         learningContents.stream()
             .collect(

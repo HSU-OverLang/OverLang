@@ -52,26 +52,12 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     }
 
     String prompt = createPrompt(request);
+    String outputText = callOpenAi(prompt);
 
-    Map<String, Object> body =
-        Map.of(
-            "model", model,
-            "input", prompt,
-            "store", false);
+    WordExplainAiResult result =
+        parseOpenAiResponse(outputText, WordExplainAiResult.class, "OpenAI 응답 파싱에 실패했습니다.");
 
-    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
-
-    String outputText = extractOutputText(response);
-
-    try {
-      WordExplainAiResult result = objectMapper.readValue(outputText, WordExplainAiResult.class);
-
-      return new WordsExplainResponse(
-          request.word(), result.meaning(), result.relatedWords(), false);
-
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("OpenAI 응답 파싱에 실패했습니다.", e);
-    }
+    return new WordsExplainResponse(request.word(), result.meaning(), result.relatedWords(), false);
   }
 
   private String createPrompt(WordsExplainRequest request) {
@@ -112,12 +98,32 @@ public class WordsExplainServiceImpl implements WordsExplainService {
             getRelatedWordsLanguage(request));
   }
 
+  private String callOpenAi(String prompt) {
+    Map<String, Object> body =
+        Map.of(
+            "model", model,
+            "input", prompt,
+            "store", false);
+
+    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
+
+    return extractOutputText(response);
+  }
+
   @SuppressWarnings("unchecked")
   private String extractOutputText(Map response) {
     List<Map<String, Object>> output = (List<Map<String, Object>>) response.get("output");
     Map<String, Object> message = output.get(0);
     List<Map<String, Object>> content = (List<Map<String, Object>>) message.get("content");
     return (String) content.get(0).get("text");
+  }
+
+  private <T> T parseOpenAiResponse(String outputText, Class<T> resultType, String errorMessage) {
+    try {
+      return objectMapper.readValue(outputText, resultType);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(errorMessage, e);
+    }
   }
 
   private record WordExplainAiResult(String meaning, List<String> relatedWords) {}
@@ -205,15 +211,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
             """
             .formatted(expression, targetLanguage);
 
-    Map<String, Object> body =
-        Map.of(
-            "model", model,
-            "input", prompt,
-            "store", false);
-
-    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
-
-    String outputText = extractOutputText(response);
+    String outputText = callOpenAi(prompt);
 
     try {
       RelatedWordsResult result = objectMapper.readValue(outputText, RelatedWordsResult.class);
@@ -237,25 +235,11 @@ public class WordsExplainServiceImpl implements WordsExplainService {
 
     String prompt = createExamplePrompt(savedWord);
 
-    Map<String, Object> body =
-        Map.of(
-            "model", model,
-            "input", prompt,
-            "store", false);
+    String outputText = callOpenAi(prompt);
+    ExampleResult result =
+        parseOpenAiResponse(outputText, ExampleResult.class, "OpenAI 예문 응답 파싱에 실패했습니다.");
 
-    Map response = openAiRestClient.post().uri("/responses").body(body).retrieve().body(Map.class);
-
-    String outputText = extractOutputText(response);
-
-    try {
-      ExampleResult result = objectMapper.readValue(outputText, ExampleResult.class);
-
-      return new SavedWordExampleResponse(
-          savedWord.getId(), savedWord.getWord(), result.examples());
-
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("OpenAI 예문 응답 파싱에 실패했습니다.", e);
-    }
+    return new SavedWordExampleResponse(savedWord.getId(), savedWord.getWord(), result.examples());
   }
 
   private String createExamplePrompt(SavedWord savedWord) {
