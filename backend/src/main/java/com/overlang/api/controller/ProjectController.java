@@ -24,7 +24,7 @@ public class ProjectController {
   public ApiResponse<ProjectCreateResponse> createProject(
       @Valid @RequestBody ProjectCreateRequest request, HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     ProjectCreateResponse response = projectService.createProject(memberId, request);
     return ApiResponse.success(response);
@@ -33,7 +33,7 @@ public class ProjectController {
   @Operation(summary = "프로젝트 조회")
   @GetMapping
   public ApiResponse<List<ProjectResponse>> getProjects(HttpServletRequest httpServletRequest) {
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     List<ProjectResponse> response = projectService.getProjects(memberId);
     return ApiResponse.success(response);
@@ -44,7 +44,7 @@ public class ProjectController {
   public ApiResponse<ProjectDetailResponse> getProject(
       @PathVariable Long projectId, HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     ProjectDetailResponse response = projectService.getProject(memberId, projectId);
     return ApiResponse.success(response);
@@ -57,8 +57,7 @@ public class ProjectController {
       @Valid @RequestBody ProjectUpdateRequest request,
       HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
-
+    Long memberId = getMemberId(httpServletRequest);
     ProjectUpdateResponse response = projectService.updateProject(memberId, projectId, request);
 
     return ApiResponse.success(response);
@@ -69,7 +68,7 @@ public class ProjectController {
   public ApiResponse<ProjectDeleteResponse> deleteProject(
       @PathVariable Long projectId, HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     ProjectDeleteResponse response = projectService.deleteProject(memberId, projectId);
 
@@ -80,7 +79,7 @@ public class ProjectController {
   @GetMapping("/{projectId}/video-url")
   public ApiResponse<PresignedUrlResponse> getVideoUrl(
       @PathVariable Long projectId, HttpServletRequest httpServletRequest) {
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     String presignedUrl = projectService.getVideoPresignedUrl(memberId, projectId);
 
@@ -99,5 +98,9 @@ public class ProjectController {
         projectService.updateProjectResults(projectId, memberId, request);
 
     return ApiResponse.success(response);
+  }
+
+  private Long getMemberId(HttpServletRequest request) {
+    return (Long) request.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
   }
 }
