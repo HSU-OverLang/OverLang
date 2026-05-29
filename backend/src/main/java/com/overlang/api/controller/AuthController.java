@@ -26,11 +26,15 @@ public class AuthController {
   private final FirebaseTokenVerifier firebaseTokenVerifier;
   private final MemberService memberService;
 
+  private FirebaseUserInfo getFirebaseUserInfo(HttpServletRequest request) {
+    String idToken = bearerTokenResolver.resolve(request);
+    return firebaseTokenVerifier.verify(idToken);
+  }
+
   @Operation(summary = "회원가입/로그인", description = "Firebase 토큰을 검증하고, DB에 없으면 가입, 있으면 로그인을 처리합니다.")
   @PostMapping("/firebase")
   public ApiResponse<AuthFirebaseResponse> firebase(HttpServletRequest request) {
-    String idToken = bearerTokenResolver.resolve(request);
-    FirebaseUserInfo userInfo = firebaseTokenVerifier.verify(idToken);
+    FirebaseUserInfo userInfo = getFirebaseUserInfo(request);
 
     MemberWithStatus result =
         memberService.findOrCreate(userInfo.firebaseUid(), userInfo.email(), userInfo.name());
@@ -44,8 +48,7 @@ public class AuthController {
   @Operation(summary = "사용자 정보 조회", description = "토큰을 통해 현재 로그인한 사용자의 정보를 가져옵니다.")
   @GetMapping("/me")
   public ApiResponse<AuthMeResponse> getMyInfo(HttpServletRequest request) {
-    String idToken = bearerTokenResolver.resolve(request);
-    FirebaseUserInfo userInfo = firebaseTokenVerifier.verify(idToken);
+    FirebaseUserInfo userInfo = getFirebaseUserInfo(request);
 
     Member member = memberService.getByFirebaseUid(userInfo.firebaseUid());
 

@@ -24,11 +24,9 @@ public class JobController {
       @RequestBody JobCreateRequest request,
       HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
-    JobCreateResponse response = jobService.createJob(projectId, memberId, request);
-
-    return ApiResponse.success(response);
+    return ApiResponse.success(jobService.createJob(projectId, memberId, request));
   }
 
   @Operation(summary = "프로젝트 작업 목록 조회", description = "프로젝트에 속한 AI 작업 목록을 조회합니다.")
@@ -36,7 +34,7 @@ public class JobController {
   public ApiResponse<List<JobResponse>> getJobsByProject(
       @PathVariable Long projectId, HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     List<JobResponse> response = jobService.getJobsByProject(projectId, memberId);
 
@@ -48,7 +46,7 @@ public class JobController {
   public ApiResponse<JobDetailResponse> getJobDetail(
       @PathVariable Long jobId, HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     JobDetailResponse response = jobService.getJobDetail(jobId, memberId);
 
@@ -62,10 +60,14 @@ public class JobController {
       @RequestBody JobRetryRequest request,
       HttpServletRequest httpServletRequest) {
 
-    Long memberId = (Long) httpServletRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpServletRequest);
 
     JobRetryResponse response = jobService.retryJob(projectId, memberId, request);
 
     return ApiResponse.success(response);
+  }
+
+  private Long getMemberId(HttpServletRequest request) {
+    return (Long) request.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
   }
 }
