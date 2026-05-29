@@ -182,6 +182,27 @@ public class ProjectService {
 
     List<SegmentWord> savedTranslatedWords = segmentWordRepository.saveAll(newTranslatedWords);
 
+    List<ProjectResultSegmentResponse> segmentResponses =
+        createProjectResultSegmentResponses(segments, savedTranslatedWords);
+
+    return new ProjectResultUpdateResponse(project.getId(), segmentResponses);
+  }
+
+  private void updateTranslatedTexts(
+      List<Segment> segments, List<ProjectResultSegmentUpdateRequest> segmentRequests) {
+    Map<Long, String> translatedTextBySegmentId =
+        segmentRequests.stream()
+            .collect(
+                Collectors.toMap(
+                    ProjectResultSegmentUpdateRequest::segmentId,
+                    ProjectResultSegmentUpdateRequest::translatedText));
+
+    segments.forEach(
+        segment -> segment.updateTranslatedText(translatedTextBySegmentId.get(segment.getId())));
+  }
+
+  private List<ProjectResultSegmentResponse> createProjectResultSegmentResponses(
+      List<Segment> segments, List<SegmentWord> savedTranslatedWords) {
     Map<Long, List<ProjectResultSegmentResponse.ProjectResultSegmentWordResponse>>
         translatedWordsBySegmentId =
             savedTranslatedWords.stream()
@@ -198,30 +219,14 @@ public class ProjectService {
                                     segmentWord.getEndTime()),
                             Collectors.toList())));
 
-    List<ProjectResultSegmentResponse> segmentResponses =
-        segments.stream()
-            .map(
-                segment ->
-                    new ProjectResultSegmentResponse(
-                        segment.getId(),
-                        segment.getTranslatedText(),
-                        translatedWordsBySegmentId.getOrDefault(segment.getId(), List.of())))
-            .toList();
-
-    return new ProjectResultUpdateResponse(project.getId(), segmentResponses);
-  }
-
-  private void updateTranslatedTexts(
-      List<Segment> segments, List<ProjectResultSegmentUpdateRequest> segmentRequests) {
-    Map<Long, String> translatedTextBySegmentId =
-        segmentRequests.stream()
-            .collect(
-                Collectors.toMap(
-                    ProjectResultSegmentUpdateRequest::segmentId,
-                    ProjectResultSegmentUpdateRequest::translatedText));
-
-    segments.forEach(
-        segment -> segment.updateTranslatedText(translatedTextBySegmentId.get(segment.getId())));
+    return segments.stream()
+        .map(
+            segment ->
+                new ProjectResultSegmentResponse(
+                    segment.getId(),
+                    segment.getTranslatedText(),
+                    translatedWordsBySegmentId.getOrDefault(segment.getId(), List.of())))
+        .toList();
   }
 
   private void validateSegments(List<Segment> segments, List<Long> segmentIds, Long projectId) {
