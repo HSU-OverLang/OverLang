@@ -18,7 +18,7 @@ public class JapaneseSegmentWordTokenizer implements SegmentWordTokenizer {
 
   @Override
   public List<String> tokenize(String text) {
-    if (text == null || text.isBlank()) {
+    if (isBlank(text)) {
       return List.of();
     }
 
@@ -26,9 +26,5 @@ public class JapaneseSegmentWordTokenizer implements SegmentWordTokenizer {
         .map(Token::getSurface)
         .filter(this::isValidWord)
         .toList();
-  }
-
-  private boolean isValidWord(String word) {
-    return word != null && !word.isBlank();
   }
 }
