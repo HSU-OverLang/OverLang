@@ -1,8 +1,6 @@
 package com.overlang.domain.job.service;
 
-import com.overlang.api.dto.job.CallbackLearningDataRequest;
-import com.overlang.api.dto.job.CallbackOcrItemRequest;
-import com.overlang.api.dto.job.JobCallbackRequest;
+import com.overlang.api.dto.job.*;
 import com.overlang.api.dto.ocr.BlurRegionRequest;
 import com.overlang.api.dto.ocr.OcrItemResponse;
 import com.overlang.api.dto.ocr.OcrStyleRequest;
@@ -109,22 +107,15 @@ public class JobResultService {
     learningContentRepository.deleteByJobId(jobId);
   }
 
+  private Segment toSegment(Job job, CallbackSegmentRequest s) {
+    return new Segment(
+        job, s.startTime(), s.endTime(), s.seq(), s.text(), s.translatedText(), s.languageCode());
+  }
+
   public void saveSegments(Job job, JobCallbackRequest request) {
     if (request.segments() == null) return;
 
-    List<Segment> segments =
-        request.segments().stream()
-            .map(
-                s ->
-                    new Segment(
-                        job,
-                        s.startTime(),
-                        s.endTime(),
-                        s.seq(),
-                        s.text(),
-                        s.translatedText(),
-                        s.languageCode()))
-            .toList();
+    List<Segment> segments = request.segments().stream().map(s -> toSegment(job, s)).toList();
 
     List<Segment> savedSegments = segmentRepository.saveAll(segments);
 
@@ -249,24 +240,25 @@ public class JobResultService {
     return style != null && style.animation() != null ? style.animation().endTime() : null;
   }
 
+  private LearningContent toLearningContent(Job job, CallbackLearningContentRequest content) {
+
+    return new LearningContent(
+        job,
+        content.contentType(),
+        content.textType(),
+        content.title(),
+        content.content(),
+        content.startTime(),
+        content.endTime());
+  }
+
   public void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
     if (learningData == null || learningData.contents() == null) {
       return;
     }
 
     List<LearningContent> learningContents =
-        learningData.contents().stream()
-            .map(
-                content ->
-                    new LearningContent(
-                        job,
-                        content.contentType(),
-                        content.textType(),
-                        content.title(),
-                        content.content(),
-                        content.startTime(),
-                        content.endTime()))
-            .toList();
+        learningData.contents().stream().map(content -> toLearningContent(job, content)).toList();
 
     learningContentRepository.saveAll(learningContents);
   }
