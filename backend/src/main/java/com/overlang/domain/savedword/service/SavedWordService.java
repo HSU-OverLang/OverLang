@@ -33,15 +33,8 @@ public class SavedWordService {
       throw new IllegalArgumentException("word는 필수입니다.");
     }
 
-    Member member =
-        memberRepository
-            .findById(memberId)
-            .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
-
-    SegmentWord segmentWord =
-        segmentWordRepository
-            .findById(request.segmentWordId())
-            .orElseThrow(() -> new IllegalArgumentException("세그먼트 단어를 찾을 수 없습니다."));
+    Member member = findMemberById(memberId);
+    SegmentWord segmentWord = findSegmentWordById(request.segmentWordId());
 
     if (savedWordRepository.existsByMemberIdAndSegmentWordId(memberId, request.segmentWordId())) {
       throw new IllegalArgumentException("이미 저장한 단어입니다.");
@@ -69,21 +62,32 @@ public class SavedWordService {
 
   @Transactional
   public void deleteSavedWord(Long memberId, Long savedWordId) {
-    SavedWord savedWord =
-        savedWordRepository
-            .findByIdAndMemberId(savedWordId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("저장 단어를 찾을 수 없습니다."));
-
+    SavedWord savedWord = findSavedWordByIdAndMemberId(savedWordId, memberId);
     savedWordRepository.delete(savedWord);
   }
 
   @Transactional(readOnly = true)
   public SavedWordExampleResponse generateExamples(Long memberId, Long savedWordId) {
-    SavedWord savedWord =
-        savedWordRepository
-            .findByIdAndMemberId(savedWordId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("저장 단어를 찾을 수 없습니다."));
+    SavedWord savedWord = findSavedWordByIdAndMemberId(savedWordId, memberId);
 
     return wordsExplainService.generateExamples(savedWord);
+  }
+
+  private Member findMemberById(Long memberId) {
+    return memberRepository
+        .findById(memberId)
+        .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
+  }
+
+  private SegmentWord findSegmentWordById(Long segmentWordId) {
+    return segmentWordRepository
+        .findById(segmentWordId)
+        .orElseThrow(() -> new IllegalArgumentException("세그먼트 단어를 찾을 수 없습니다."));
+  }
+
+  private SavedWord findSavedWordByIdAndMemberId(Long savedWordId, Long memberId) {
+    return savedWordRepository
+        .findByIdAndMemberId(savedWordId, memberId)
+        .orElseThrow(() -> new IllegalArgumentException("저장 단어를 찾을 수 없습니다."));
   }
 }
