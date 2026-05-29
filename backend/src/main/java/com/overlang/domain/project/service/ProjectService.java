@@ -173,16 +173,7 @@ public class ProjectService {
 
     List<Segment> segments = segmentRepository.findByIdIn(segmentIds);
 
-    if (segments.size() != segmentIds.size()) {
-      throw new IllegalArgumentException("존재하지 않는 segment가 포함되어 있습니다.");
-    }
-    boolean hasInvalidSegment =
-        segments.stream()
-            .anyMatch(segment -> !segment.getJob().getProject().getId().equals(projectId));
-
-    if (hasInvalidSegment) {
-      throw new IllegalArgumentException("다른 프로젝트의 segment는 수정할 수 없습니다.");
-    }
+    validateSegments(segments, segmentIds, projectId);
     savedWordRepository.deleteBySegmentIdsAndWordType(segmentIds, SegmentWordType.TRANSLATION);
 
     segmentWordRepository.deleteBySegmentIdInAndWordType(segmentIds, SegmentWordType.TRANSLATION);
@@ -226,6 +217,20 @@ public class ProjectService {
             .toList();
 
     return new ProjectResultUpdateResponse(project.getId(), segmentResponses);
+  }
+
+  private void validateSegments(List<Segment> segments, List<Long> segmentIds, Long projectId) {
+    if (segments.size() != segmentIds.size()) {
+      throw new IllegalArgumentException("존재하지 않는 segment가 포함되어 있습니다.");
+    }
+
+    boolean hasInvalidSegment =
+        segments.stream()
+            .anyMatch(segment -> !segment.getJob().getProject().getId().equals(projectId));
+
+    if (hasInvalidSegment) {
+      throw new IllegalArgumentException("다른 프로젝트의 segment는 수정할 수 없습니다.");
+    }
   }
 
   private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
