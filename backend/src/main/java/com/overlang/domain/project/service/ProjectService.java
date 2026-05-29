@@ -97,10 +97,7 @@ public class ProjectService {
 
   @Transactional(readOnly = true)
   public ProjectDetailResponse getProject(Long memberId, Long projectId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     return new ProjectDetailResponse(
         project.getId(),
@@ -115,10 +112,7 @@ public class ProjectService {
 
   @Transactional(readOnly = true)
   public String getVideoPresignedUrl(Long memberId, Long projectId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     if (project.getFileKey() == null || project.getFileKey().isBlank()) {
       throw new IllegalArgumentException("업로드된 영상이 없습니다.");
@@ -130,10 +124,7 @@ public class ProjectService {
   public ProjectUpdateResponse updateProject(
       Long memberId, Long projectId, ProjectUpdateRequest request) {
 
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     project.updateTitle(request.title());
 
@@ -141,10 +132,7 @@ public class ProjectService {
   }
 
   public ProjectDeleteResponse deleteProject(Long memberId, Long projectId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     List<Job> jobs = jobRepository.findByProjectId(projectId);
 
