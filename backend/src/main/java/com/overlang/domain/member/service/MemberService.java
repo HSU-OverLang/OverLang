@@ -61,11 +61,8 @@ public class MemberService {
 
   @Transactional
   public ProfileImageUploadResponse uploadProfileImage(Long memberId, MultipartFile file) {
-    Member member =
-        memberRepository
-            .findById(memberId)
-            .orElseThrow(() -> new UnauthorizedException("Member not found"));
 
+    Member member = findMemberById(memberId);
     String oldProfileImageUrl = member.getProfileImageUrl();
 
     String newProfileImageUrl = s3UploadService.uploadProfileImage(file, memberId);
@@ -77,5 +74,11 @@ public class MemberService {
     }
 
     return new ProfileImageUploadResponse(newProfileImageUrl);
+  }
+
+  private Member findMemberById(Long memberId) {
+    return memberRepository
+        .findById(memberId)
+        .orElseThrow(() -> new UnauthorizedException("Member not found"));
   }
 }
