@@ -49,23 +49,7 @@ public class ProjectService {
             .findById(memberId)
             .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
-    String youtubeVideoId = null;
-
-    if (request.sourceType() == SourceType.YOUTUBE) {
-      youtubeVideoId = YoutubeUrlUtils.extractVideoId(request.sourceUrl());
-    }
-
-    Project project =
-        new Project(
-            member,
-            request.title(),
-            request.sourceType(),
-            request.sourceUrl(),
-            youtubeVideoId,
-            request.fileUrl(),
-            request.fileKey());
-
-    Project savedProject = projectRepository.save(project);
+    Project savedProject = projectRepository.save(createProjectEntity(member, request));
 
     return new ProjectCreateResponse(
         savedProject.getId(),
@@ -77,6 +61,23 @@ public class ProjectService {
         savedProject.getFileKey(),
         savedProject.getStatus(),
         savedProject.getCreatedAt());
+  }
+
+  private Project createProjectEntity(Member member, ProjectCreateRequest request) {
+    String youtubeVideoId = null;
+
+    if (request.sourceType() == SourceType.YOUTUBE) {
+      youtubeVideoId = YoutubeUrlUtils.extractVideoId(request.sourceUrl());
+    }
+
+    return new Project(
+        member,
+        request.title(),
+        request.sourceType(),
+        request.sourceUrl(),
+        youtubeVideoId,
+        request.fileUrl(),
+        request.fileKey());
   }
 
   @Transactional(readOnly = true)
