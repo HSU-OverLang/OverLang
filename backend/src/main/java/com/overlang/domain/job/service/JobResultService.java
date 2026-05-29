@@ -1,9 +1,7 @@
 package com.overlang.domain.job.service;
 
 import com.overlang.api.dto.job.*;
-import com.overlang.api.dto.ocr.BlurRegionRequest;
 import com.overlang.api.dto.ocr.OcrItemResponse;
-import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.api.dto.segment.SegmentResponse;
 import com.overlang.api.dto.segment.SegmentWordResponse;
 import com.overlang.domain.common.LanguageCode;
@@ -12,8 +10,8 @@ import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.ocr.entity.OcrItem;
-import com.overlang.domain.ocr.entity.OcrItemLine;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
+import com.overlang.domain.ocr.service.OcrItemFactory;
 import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.entity.SegmentWord;
@@ -40,6 +38,7 @@ public class JobResultService {
   private final LearningContentRepository learningContentRepository;
   private final SavedWordRepository savedWordRepository;
   private final SegmentWordTokenizerProvider tokenizerProvider;
+  private final OcrItemFactory ocrItemFactory;
 
   @Transactional(readOnly = true)
   public List<SegmentResponse> getSegments(Long jobId, Long memberId) {
@@ -168,76 +167,9 @@ public class JobResultService {
   public void saveOcrItems(Job job, JobCallbackRequest request) {
     if (request.ocrItems() == null) return;
 
-    List<OcrItem> ocrItems = request.ocrItems().stream().map(o -> toOcrItem(job, o)).toList();
-
+    List<OcrItem> ocrItems =
+        request.ocrItems().stream().map(o -> ocrItemFactory.create(job, o)).toList();
     ocrItemRepository.saveAll(ocrItems);
-  }
-
-  private OcrItem toOcrItem(Job job, CallbackOcrItemRequest o) {
-    OcrStyleRequest style = o.style();
-    BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
-
-    OcrItem ocrItem =
-        new OcrItem(
-            job,
-            o.startTime(),
-            o.endTime(),
-            o.originText(),
-            o.translatedText(),
-            o.boundingBox().x(),
-            o.boundingBox().y(),
-            o.boundingBox().w(),
-            o.boundingBox().h(),
-            o.confidence(),
-            style != null ? style.backgroundColor() : null,
-            style != null ? style.dominantBackgroundColor() : null,
-            style != null ? style.textColor() : null,
-            blurRegion != null ? blurRegion.x() : null,
-            blurRegion != null ? blurRegion.y() : null,
-            blurRegion != null ? blurRegion.w() : null,
-            blurRegion != null ? blurRegion.h() : null,
-            style != null ? style.fontSizeRatio() : null,
-            style != null ? style.fontWeight() : null,
-            style != null ? style.textAlign() : null,
-            getAnimationType(style),
-            getAnimationStartTime(style),
-            getAnimationEndTime(style));
-
-    if (o.lines() != null) {
-      for (int i = 0; i < o.lines().size(); i++) {
-        var lineRequest = o.lines().get(i);
-
-        if (lineRequest.boundingBox() == null) {
-          continue;
-        }
-
-        OcrItemLine line =
-            OcrItemLine.create(
-                ocrItem,
-                i + 1,
-                lineRequest.originText(),
-                lineRequest.boundingBox().x(),
-                lineRequest.boundingBox().y(),
-                lineRequest.boundingBox().w(),
-                lineRequest.boundingBox().h());
-
-        ocrItem.addLine(line);
-      }
-    }
-
-    return ocrItem;
-  }
-
-  private String getAnimationType(OcrStyleRequest style) {
-    return style != null && style.animation() != null ? style.animation().type() : null;
-  }
-
-  private Double getAnimationStartTime(OcrStyleRequest style) {
-    return style != null && style.animation() != null ? style.animation().startTime() : null;
-  }
-
-  private Double getAnimationEndTime(OcrStyleRequest style) {
-    return style != null && style.animation() != null ? style.animation().endTime() : null;
   }
 
   private LearningContent toLearningContent(Job job, CallbackLearningContentRequest content) {
