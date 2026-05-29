@@ -83,17 +83,19 @@ public class ProjectService {
   @Transactional(readOnly = true)
   public List<ProjectResponse> getProjects(Long memberId) {
     return projectRepository.findByMemberIdOrderByCreatedAtDesc(memberId).stream()
-        .map(
-            project ->
-                new ProjectResponse(
-                    project.getId(),
-                    project.getTitle(),
-                    project.getSourceType(),
-                    project.getSourceUrl(),
-                    project.getFileUrl(),
-                    project.getStatus(),
-                    project.getCreatedAt()))
+        .map(this::toProjectResponse)
         .toList();
+  }
+
+  private ProjectResponse toProjectResponse(Project project) {
+    return new ProjectResponse(
+        project.getId(),
+        project.getTitle(),
+        project.getSourceType(),
+        project.getSourceUrl(),
+        project.getFileUrl(),
+        project.getStatus(),
+        project.getCreatedAt());
   }
 
   @Transactional(readOnly = true)
