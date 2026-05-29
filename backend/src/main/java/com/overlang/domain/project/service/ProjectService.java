@@ -134,6 +134,17 @@ public class ProjectService {
   public ProjectDeleteResponse deleteProject(Long memberId, Long projectId) {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
 
+    deleteProjectRelatedData(projectId);
+
+    if (project.getSourceType() == SourceType.UPLOAD) {
+      s3UploadService.deleteFile(project.getFileKey());
+    }
+    projectRepository.delete(project);
+
+    return new ProjectDeleteResponse(projectId, true);
+  }
+
+  private void deleteProjectRelatedData(Long projectId) {
     List<Job> jobs = jobRepository.findByProjectId(projectId);
 
     savedWordRepository.deleteByProjectId(projectId);
@@ -148,12 +159,6 @@ public class ProjectService {
     }
 
     jobRepository.deleteByProjectId(projectId);
-    if (project.getSourceType() == SourceType.UPLOAD) {
-      s3UploadService.deleteFile(project.getFileKey());
-    }
-    projectRepository.delete(project);
-
-    return new ProjectDeleteResponse(projectId, true);
   }
 
   @Transactional
