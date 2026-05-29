@@ -19,14 +19,10 @@ public class WhitespaceSegmentWordTokenizer implements SegmentWordTokenizer {
 
   @Override
   public List<String> tokenize(String text) {
-    if (text == null || text.isBlank()) {
+    if (isBlank(text)) {
       return List.of();
     }
 
     return Arrays.stream(text.trim().split(WORD_SPLIT_REGEX)).filter(this::isValidWord).toList();
-  }
-
-  private boolean isValidWord(String word) {
-    return word != null && !word.isBlank();
   }
 }

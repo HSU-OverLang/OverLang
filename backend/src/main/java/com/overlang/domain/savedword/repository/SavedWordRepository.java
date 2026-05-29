@@ -20,10 +20,9 @@ public interface SavedWordRepository extends JpaRepository<SavedWord, Long> {
   @Modifying
   @Query(
       """
-
-                  DELETE FROM SavedWord sw
-    WHERE sw.segmentWord.segment.job.project.id = :projectId
-    """)
+          DELETE FROM SavedWord sw
+          WHERE sw.segmentWord.segment.job.project.id = :projectId
+          """)
   void deleteByProjectId(@Param("projectId") Long projectId);
 
   @Modifying
@@ -48,12 +47,11 @@ public interface SavedWordRepository extends JpaRepository<SavedWord, Long> {
           """)
   void deleteByJobId(@Param("jobId") Long jobId);
 
-  Optional<SavedWord> findByIdAndMember_Id(Long id, Long memberId);
-
   @Modifying
-  @Query("""
-    DELETE FROM SavedWord sw
-    WHERE sw.member.id = :memberId
-    """)
+  @Query(
+      """
+          DELETE FROM SavedWord sw
+          WHERE sw.member.id = :memberId
+          """)
   void deleteByMemberId(@Param("memberId") Long memberId);
 }
