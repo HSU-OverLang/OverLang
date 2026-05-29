@@ -26,19 +26,11 @@ public class SavedWordService {
 
   @Transactional
   public SavedWordResponse createSavedWord(Long memberId, SavedWordCreateRequest request) {
-    if (request.segmentWordId() == null) {
-      throw new IllegalArgumentException("segmentWordId는 필수입니다.");
-    }
-    if (request.word() == null || request.word().isBlank()) {
-      throw new IllegalArgumentException("word는 필수입니다.");
-    }
+    validateSavedWordCreateRequest(request);
+    validateDuplicateSavedWord(memberId, request.segmentWordId());
 
     Member member = findMemberById(memberId);
     SegmentWord segmentWord = findSegmentWordById(request.segmentWordId());
-
-    if (savedWordRepository.existsByMemberIdAndSegmentWordId(memberId, request.segmentWordId())) {
-      throw new IllegalArgumentException("이미 저장한 단어입니다.");
-    }
 
     SavedWord savedWord =
         new SavedWord(
@@ -51,6 +43,22 @@ public class SavedWordService {
             request.matchedExpression());
 
     return SavedWordResponse.from(savedWordRepository.save(savedWord));
+  }
+
+  private void validateSavedWordCreateRequest(SavedWordCreateRequest request) {
+    if (request.segmentWordId() == null) {
+      throw new IllegalArgumentException("segmentWordId는 필수입니다.");
+    }
+
+    if (request.word() == null || request.word().isBlank()) {
+      throw new IllegalArgumentException("word는 필수입니다.");
+    }
+  }
+
+  private void validateDuplicateSavedWord(Long memberId, Long segmentWordId) {
+    if (savedWordRepository.existsByMemberIdAndSegmentWordId(memberId, segmentWordId)) {
+      throw new IllegalArgumentException("이미 저장한 단어입니다.");
+    }
   }
 
   @Transactional(readOnly = true)
