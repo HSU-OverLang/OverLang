@@ -140,6 +140,30 @@ function ParticleCanvas() {
   );
 }
 
+// 방향별 슬라이드 + 순차 등장 헬퍼 컴포넌트
+function Anim({
+  from = 'up', vis, delay = 0, children, className = '',
+}: {
+  from?: 'left' | 'right' | 'up';
+  vis: boolean;
+  delay?: number;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const hidden =
+    from === 'left'  ? '-translate-x-16 opacity-0' :
+    from === 'right' ? 'translate-x-16 opacity-0'  :
+                       'translate-y-10 opacity-0';
+  return (
+    <div
+      className={`transition-all duration-700 ease-out ${vis ? 'opacity-100 translate-x-0 translate-y-0' : hidden} ${className}`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -263,40 +287,48 @@ export function HomePage() {
 
         {/* ── 3. 단어 검색 ── */}
         <div id="how" style={{ scrollSnapAlign: 'start', height: '100%' }}>
-          <div className={`h-full relative flex flex-col md:flex-row-reverse items-center justify-center gap-14 px-8 md:px-20 overflow-hidden bg-white ${fadeIn(2)}`}>
+          <div className="h-full relative flex flex-col md:flex-row-reverse items-center justify-center gap-14 px-8 md:px-20 overflow-hidden bg-white">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_theme(colors.violet.50),_transparent_60%)] pointer-events-none" />
 
             <div className="relative w-full md:w-1/2 max-w-md">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-violet-600 bg-violet-50 border border-violet-100 rounded-full px-3 py-1 mb-5">
-                <span className="h-1 w-1 rounded-full bg-violet-500" />Feature 01
-              </span>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
-                단어 드래그,<br />
-                <span className="text-violet-600">즉시 의미 확인</span>
-              </h2>
-              <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                영상 흐름을 끊지 않고, 자막 속 궁금한 단어를 드래그하면 뜻·발음·예문을 즉시 확인하고 학습 노트에 저장할 수 있어요.
-              </p>
-              <ul className="mt-7 space-y-3">
-                {[
-                  '자막 텍스트 드래그만으로 단어 검색',
-                  '발음기호 · 뜻 · 예문 한 번에 확인',
-                  '영상 맥락에 맞는 의미 자동 제공',
-                  '학습 노트에 바로 저장',
-                ].map(item => (
-                  <li key={item} className="flex items-center gap-3 text-slate-600 text-sm">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 shrink-0">
-                      <svg className="h-3 w-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              <Anim from="right" vis={visible.has(2)} delay={0}>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-violet-600 bg-violet-50 border border-violet-100 rounded-full px-3 py-1 mb-5">
+                  <span className="h-1 w-1 rounded-full bg-violet-500" />Feature 01
+                </span>
+              </Anim>
+              <Anim from="up" vis={visible.has(2)} delay={120}>
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
+                  단어 드래그,<br />
+                  <span className="text-violet-600">즉시 의미 확인</span>
+                </h2>
+              </Anim>
+              <Anim from="up" vis={visible.has(2)} delay={240}>
+                <p className="mt-5 text-slate-500 leading-relaxed text-base">
+                  영상 흐름을 끊지 않고, 자막 속 궁금한 단어를 드래그하면 뜻·발음·예문을 즉시 확인하고 학습 노트에 저장할 수 있어요.
+                </p>
+              </Anim>
+              <Anim from="up" vis={visible.has(2)} delay={360}>
+                <ul className="mt-7 space-y-3">
+                  {[
+                    '자막 텍스트 드래그만으로 단어 검색',
+                    '발음기호 · 뜻 · 예문 한 번에 확인',
+                    '영상 맥락에 맞는 의미 자동 제공',
+                    '학습 노트에 바로 저장',
+                  ].map(item => (
+                    <li key={item} className="flex items-center gap-3 text-slate-600 text-sm">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 shrink-0">
+                        <svg className="h-3 w-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </Anim>
             </div>
 
-            <div className="relative w-full md:w-1/2 max-w-sm">
+            <Anim from="left" vis={visible.has(2)} delay={200} className="relative w-full md:w-1/2 max-w-sm">
               <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xl shadow-slate-100">
                 <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 mb-4">
                   <p className="text-xs text-slate-400 mb-3">자막 텍스트</p>
@@ -323,47 +355,55 @@ export function HomePage() {
                   </button>
                 </div>
               </div>
-            </div>
+            </Anim>
           </div>
         </div>
 
         {/* ── 4. Feature 02 - AI 영상 요약 ── */}
         <div style={{ scrollSnapAlign: 'start', height: '100%' }}>
-          <div className={`h-full relative flex flex-col md:flex-row items-center justify-center gap-14 px-8 md:px-20 overflow-hidden bg-slate-50 ${fadeIn(3)}`}>
+          <div className="h-full relative flex flex-col md:flex-row items-center justify-center gap-14 px-8 md:px-20 overflow-hidden bg-slate-50">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_theme(colors.amber.50),_transparent_60%)] pointer-events-none" />
 
             <div className="relative w-full md:w-1/2 max-w-md">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-3 py-1 mb-5">
-                <span className="h-1 w-1 rounded-full bg-amber-500" />Feature 02
-              </span>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
-                영상 하나로<br />
-                <span className="text-amber-500">완성되는 요약</span>
-              </h2>
-              <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                AI가 영상 전체 내용을 자동으로 요약하고, 자주 등장한 핵심 단어와 관용 표현까지 한 번에 정리해드려요.
-              </p>
-              <ul className="mt-7 space-y-3">
-                {[
-                  '영상 내용 전체를 한 눈에 파악',
-                  '빈출 단어·숙어 자동 추출',
-                  '관용 표현의 실제 의미 해설',
-                  '학습 콘텐츠로 바로 활용',
-                ].map(item => (
-                  <li key={item} className="flex items-center gap-3 text-slate-600 text-sm">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 shrink-0">
-                      <svg className="h-3 w-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              <Anim from="left" vis={visible.has(3)} delay={0}>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-3 py-1 mb-5">
+                  <span className="h-1 w-1 rounded-full bg-amber-500" />Feature 02
+                </span>
+              </Anim>
+              <Anim from="up" vis={visible.has(3)} delay={120}>
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
+                  영상 하나로<br />
+                  <span className="text-amber-500">완성되는 요약</span>
+                </h2>
+              </Anim>
+              <Anim from="up" vis={visible.has(3)} delay={240}>
+                <p className="mt-5 text-slate-500 leading-relaxed text-base">
+                  AI가 영상 전체 내용을 자동으로 요약하고, 자주 등장한 핵심 단어와 관용 표현까지 한 번에 정리해드려요.
+                </p>
+              </Anim>
+              <Anim from="up" vis={visible.has(3)} delay={360}>
+                <ul className="mt-7 space-y-3">
+                  {[
+                    '영상 내용 전체를 한 눈에 파악',
+                    '빈출 단어·숙어 자동 추출',
+                    '관용 표현의 실제 의미 해설',
+                    '학습 콘텐츠로 바로 활용',
+                  ].map(item => (
+                    <li key={item} className="flex items-center gap-3 text-slate-600 text-sm">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 shrink-0">
+                        <svg className="h-3 w-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </Anim>
             </div>
 
             {/* 데모 카드 */}
-            <div className="relative w-full md:w-1/2 max-w-sm">
+            <Anim from="right" vis={visible.has(3)} delay={200} className="relative w-full md:w-1/2 max-w-sm">
               <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xl shadow-slate-100">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
@@ -400,47 +440,55 @@ export function HomePage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Anim>
           </div>
         </div>
 
         {/* ── 5. Feature 03 - 학습 노트 ── */}
         <div style={{ scrollSnapAlign: 'start', height: '100%' }}>
-          <div className={`h-full relative flex flex-col md:flex-row-reverse items-center justify-center gap-14 px-8 md:px-20 overflow-hidden bg-white ${fadeIn(4)}`}>
+          <div className="h-full relative flex flex-col md:flex-row-reverse items-center justify-center gap-14 px-8 md:px-20 overflow-hidden bg-white">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_theme(colors.pink.50),_transparent_60%)] pointer-events-none" />
 
             <div className="relative w-full md:w-1/2 max-w-md">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-pink-600 bg-pink-50 border border-pink-100 rounded-full px-3 py-1 mb-5">
-                <span className="h-1 w-1 rounded-full bg-pink-500" />Feature 03
-              </span>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
-                저장하고<br />
-                <span className="text-pink-500">언제든 복습</span>
-              </h2>
-              <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                영상에서 배운 단어와 표현을 학습 노트에 저장하세요. 나만의 단어장으로 언제 어디서든 꺼내볼 수 있어요.
-              </p>
-              <ul className="mt-7 space-y-3">
-                {[
-                  '단어 저장 시 뜻·예문 자동 포함',
-                  '어떤 영상에서 배웠는지 맥락 보존',
-                  '플래시카드 모드로 집중 암기',
-                  '학습한 단어 통계 확인',
-                ].map(item => (
-                  <li key={item} className="flex items-center gap-3 text-slate-600 text-sm">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-100 shrink-0">
-                      <svg className="h-3 w-3 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              <Anim from="right" vis={visible.has(4)} delay={0}>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-pink-600 bg-pink-50 border border-pink-100 rounded-full px-3 py-1 mb-5">
+                  <span className="h-1 w-1 rounded-full bg-pink-500" />Feature 03
+                </span>
+              </Anim>
+              <Anim from="up" vis={visible.has(4)} delay={120}>
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
+                  저장하고<br />
+                  <span className="text-pink-500">언제든 복습</span>
+                </h2>
+              </Anim>
+              <Anim from="up" vis={visible.has(4)} delay={240}>
+                <p className="mt-5 text-slate-500 leading-relaxed text-base">
+                  영상에서 배운 단어와 표현을 학습 노트에 저장하세요. 나만의 단어장으로 언제 어디서든 꺼내볼 수 있어요.
+                </p>
+              </Anim>
+              <Anim from="up" vis={visible.has(4)} delay={360}>
+                <ul className="mt-7 space-y-3">
+                  {[
+                    '단어 저장 시 뜻·예문 자동 포함',
+                    '어떤 영상에서 배웠는지 맥락 보존',
+                    '플래시카드 모드로 집중 암기',
+                    '학습한 단어 통계 확인',
+                  ].map(item => (
+                    <li key={item} className="flex items-center gap-3 text-slate-600 text-sm">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-100 shrink-0">
+                        <svg className="h-3 w-3 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </Anim>
             </div>
 
             {/* 데모 카드 */}
-            <div className="relative w-full md:w-1/2 max-w-sm">
+            <Anim from="left" vis={visible.has(4)} delay={200} className="relative w-full md:w-1/2 max-w-sm">
               <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xl shadow-slate-100">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -477,17 +525,17 @@ export function HomePage() {
                   ))}
                 </div>
               </div>
-            </div>
+            </Anim>
           </div>
         </div>
 
         {/* ── 6. 기능 그리드 ── */}
         <div style={{ scrollSnapAlign: 'start', height: '100%' }}>
-          <div className={`h-full relative flex flex-col items-center justify-center px-8 md:px-20 overflow-hidden bg-slate-50 ${fadeIn(5)}`}>
+          <div className="h-full relative flex flex-col items-center justify-center px-8 md:px-20 overflow-hidden bg-slate-50">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_theme(colors.teal.50),_transparent_70%)] pointer-events-none" />
 
             <div className="relative w-full max-w-5xl">
-              <div className="text-center mb-10">
+              <Anim from="up" vis={visible.has(5)} delay={0} className="text-center mb-10">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-teal-600 bg-teal-50 border border-teal-100 rounded-full px-3 py-1 mb-4">
                   <span className="h-1 w-1 rounded-full bg-teal-500" />All Features
                 </span>
@@ -495,7 +543,7 @@ export function HomePage() {
                   영상 시청이 곧 <span className="text-teal-600">언어 학습</span>
                 </h2>
                 <p className="mt-3 text-slate-500 text-base">모든 기능이 하나의 플랫폼에서</p>
-              </div>
+              </Anim>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
@@ -541,10 +589,13 @@ export function HomePage() {
                     title: 'AI 영상 요약',
                     desc: '영상 내용 요약과 빈출 단어·관용 표현을 자동으로 정리',
                   },
-                ].map(feat => (
+                ].map((feat, idx) => (
                   <div
                     key={feat.title}
-                    className={`rounded-2xl border ${feat.bg} p-5 hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default`}
+                    className={`rounded-2xl border ${feat.bg} p-5 hover:-translate-y-1 hover:shadow-md cursor-default
+                      transition-all duration-700 ease-out
+                      ${visible.has(5) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                    style={{ transitionDelay: visible.has(5) ? `${100 + idx * 80}ms` : '0ms' }}
                   >
                     <span className={`text-xl block mb-3 ${feat.color}`}>{feat.icon}</span>
                     <h3 className="font-bold text-slate-900 text-sm mb-1">{feat.title}</h3>
@@ -558,7 +609,7 @@ export function HomePage() {
 
         {/* ── 5. CTA ── */}
         <div id="start" style={{ scrollSnapAlign: 'start', height: '100%' }}>
-          <div className={`h-full relative flex flex-col items-center justify-center px-6 text-center overflow-hidden bg-white ${fadeIn(4)}`}>
+          <div className={`h-full relative flex flex-col items-center justify-center px-6 text-center overflow-hidden bg-white ${fadeIn(6)}`}>
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_theme(colors.emerald.50),_transparent_70%)] pointer-events-none" />
 
             <div className="relative max-w-xl">
