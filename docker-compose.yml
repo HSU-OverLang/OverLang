@@ -1,4 +1,26 @@
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: overlang_backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=overlang
+      - DB_USERNAME=overlang
+      - DB_PASSWORD=overlang1234
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - WORKER_SECRET=overlang-worker-secret
+    depends_on:
+      - postgres
+      - redis
+
   ai:
     profiles: ["gpu-only"] # GPU가 있는 경우에만 실행 (--profile gpu-only)
     build:
