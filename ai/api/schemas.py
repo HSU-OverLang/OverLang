@@ -207,6 +207,11 @@ class OcrStyle(CamelModel):
     animation: dict[str, Any] | None = None
 
 
+class OcrLine(CamelModel):
+    origin_text: str
+    bounding_box: BoundingBox
+
+
 class OcrItem(CamelModel):
     start_time: float
     end_time: float
@@ -214,6 +219,7 @@ class OcrItem(CamelModel):
     translated_text: str | None = None
     bounding_box: BoundingBox
     confidence: float | None = None
+    lines: list[OcrLine] = Field(default_factory=list)
     style: OcrStyle | None = None
 
 

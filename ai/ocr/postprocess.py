@@ -4,7 +4,7 @@ import os
 import statistics
 from typing import Any
 
-from ai.api.schemas import BoundingBox, OcrItem
+from ai.api.schemas import BoundingBox, OcrItem, OcrLine
 from ai.ocr.overlay_style import build_ocr_style
 
 LINE_VERTICAL_OVERLAP_THRESHOLD = 0.45
@@ -514,8 +514,40 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
         translated_text=None,
         bounding_box=coverage_box,
         confidence=confidence,
+        lines=_build_ocr_item_lines(track, coverage_box),
         style=style,
     )
+
+
+def _build_ocr_item_lines(
+    track: dict[str, Any],
+    coverage_box: BoundingBox,
+) -> list[OcrLine]:
+    line_texts = [
+        line.strip()
+        for line in _resolve_track_text(track).splitlines()
+        if line.strip()
+    ]
+    if not line_texts:
+        return []
+
+    line_count = len(line_texts)
+    if line_count == 1:
+        return [OcrLine(origin_text=line_texts[0], bounding_box=coverage_box)]
+
+    line_height = coverage_box.h / line_count
+    return [
+        OcrLine(
+            origin_text=line_text,
+            bounding_box=BoundingBox(
+                x=coverage_box.x,
+                y=round(coverage_box.y + line_height * index, 6),
+                w=coverage_box.w,
+                h=round(line_height, 6),
+            ),
+        )
+        for index, line_text in enumerate(line_texts)
+    ]
 
 
 def _should_keep_track(track: dict[str, Any]) -> bool:

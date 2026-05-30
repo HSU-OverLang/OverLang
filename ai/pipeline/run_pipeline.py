@@ -14,6 +14,7 @@ from ai.api.schemas import (
     JobType,
     LearningData,
     OcrItem,
+    OcrLine,
     SubtitleSegment,
     TranslationProvider,
     WordTiming,
@@ -485,22 +486,28 @@ def _build_ocr_items_from_worker_payload(
         raise ValueError("TRANSLATION_ONLY requires a backend worker payload.")
 
     return [
-        OcrItem(
-            start_time=item.start_time,
-            end_time=item.end_time,
-            origin_text=item.origin_text,
-            translated_text=None,
-            bounding_box=BoundingBox(
-                x=item.bounding_box.x,
-                y=item.bounding_box.y,
-                w=item.bounding_box.width,
-                h=item.bounding_box.height,
-            ),
-            confidence=None,
-            style=None,
-        )
+        _build_ocr_item_from_worker_payload(item)
         for item in job.ocr_items
     ]
+
+
+def _build_ocr_item_from_worker_payload(item: Any) -> OcrItem:
+    bounding_box = BoundingBox(
+        x=item.bounding_box.x,
+        y=item.bounding_box.y,
+        w=item.bounding_box.width,
+        h=item.bounding_box.height,
+    )
+    return OcrItem(
+        start_time=item.start_time,
+        end_time=item.end_time,
+        origin_text=item.origin_text,
+        translated_text=None,
+        bounding_box=bounding_box,
+        confidence=None,
+        lines=[OcrLine(origin_text=item.origin_text, bounding_box=bounding_box)],
+        style=None,
+    )
 
 
 def _run_stt_stage(
