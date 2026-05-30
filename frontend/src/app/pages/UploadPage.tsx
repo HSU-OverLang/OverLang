@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import {
   Upload,
   Video,
-  ArrowLeft,
   FileVideo,
   CheckCircle,
   Link as LinkIcon,
@@ -11,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { uploadVideoFile, createProject, createJob } from "@/api/video";
+import { Header } from "@/components/layout/Header";
 
 const LANGUAGES = [
   { code: "KO", label: "한국어" },
@@ -178,30 +178,27 @@ export function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 헤더 */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate("/")}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-700" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <Video className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900">영상 업로드</h1>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-slate-50">
+      <Header />
 
       {/* 본문 */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+        {/* 페이지 타이틀 */}
+        <div className="mb-8">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mb-4"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            대시보드로 돌아가기
+          </button>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">새 영상 업로드</h1>
+          <p className="text-slate-500 text-sm mt-1">AI가 자동으로 자막과 번역을 생성해드립니다</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
           <div className="mb-8 text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">영상 파일을 업로드하세요</h2>
             <p className="text-gray-600">AI가 자동으로 자막을 생성해드립니다</p>
