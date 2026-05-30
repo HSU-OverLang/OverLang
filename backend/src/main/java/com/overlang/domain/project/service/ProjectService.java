@@ -49,23 +49,7 @@ public class ProjectService {
             .findById(memberId)
             .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
-    String youtubeVideoId = null;
-
-    if (request.sourceType() == SourceType.YOUTUBE) {
-      youtubeVideoId = YoutubeUrlUtils.extractVideoId(request.sourceUrl());
-    }
-
-    Project project =
-        new Project(
-            member,
-            request.title(),
-            request.sourceType(),
-            request.sourceUrl(),
-            youtubeVideoId,
-            request.fileUrl(),
-            request.fileKey());
-
-    Project savedProject = projectRepository.save(project);
+    Project savedProject = projectRepository.save(createProjectEntity(member, request));
 
     return new ProjectCreateResponse(
         savedProject.getId(),
@@ -79,28 +63,44 @@ public class ProjectService {
         savedProject.getCreatedAt());
   }
 
+  private Project createProjectEntity(Member member, ProjectCreateRequest request) {
+    String youtubeVideoId = null;
+
+    if (request.sourceType() == SourceType.YOUTUBE) {
+      youtubeVideoId = YoutubeUrlUtils.extractVideoId(request.sourceUrl());
+    }
+
+    return new Project(
+        member,
+        request.title(),
+        request.sourceType(),
+        request.sourceUrl(),
+        youtubeVideoId,
+        request.fileUrl(),
+        request.fileKey());
+  }
+
   @Transactional(readOnly = true)
   public List<ProjectResponse> getProjects(Long memberId) {
     return projectRepository.findByMemberIdOrderByCreatedAtDesc(memberId).stream()
-        .map(
-            project ->
-                new ProjectResponse(
-                    project.getId(),
-                    project.getTitle(),
-                    project.getSourceType(),
-                    project.getSourceUrl(),
-                    project.getFileUrl(),
-                    project.getStatus(),
-                    project.getCreatedAt()))
+        .map(this::toProjectResponse)
         .toList();
+  }
+
+  private ProjectResponse toProjectResponse(Project project) {
+    return new ProjectResponse(
+        project.getId(),
+        project.getTitle(),
+        project.getSourceType(),
+        project.getSourceUrl(),
+        project.getFileUrl(),
+        project.getStatus(),
+        project.getCreatedAt());
   }
 
   @Transactional(readOnly = true)
   public ProjectDetailResponse getProject(Long memberId, Long projectId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     return new ProjectDetailResponse(
         project.getId(),
@@ -115,10 +115,7 @@ public class ProjectService {
 
   @Transactional(readOnly = true)
   public String getVideoPresignedUrl(Long memberId, Long projectId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     if (project.getFileKey() == null || project.getFileKey().isBlank()) {
       throw new IllegalArgumentException("업로드된 영상이 없습니다.");
@@ -130,10 +127,7 @@ public class ProjectService {
   public ProjectUpdateResponse updateProject(
       Long memberId, Long projectId, ProjectUpdateRequest request) {
 
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     project.updateTitle(request.title());
 
@@ -141,11 +135,19 @@ public class ProjectService {
   }
 
   public ProjectDeleteResponse deleteProject(Long memberId, Long projectId) {
-    Project project =
-        projectRepository
-            .findByIdAndMemberId(projectId, memberId)
-            .orElseThrow(() -> new IllegalArgumentException("해당 프로젝트를 찾을 수 없습니다."));
+    Project project = findProjectByIdAndMemberId(projectId, memberId);
 
+    deleteProjectRelatedData(projectId);
+
+    if (project.getSourceType() == SourceType.UPLOAD) {
+      s3UploadService.deleteFile(project.getFileKey());
+    }
+    projectRepository.delete(project);
+
+    return new ProjectDeleteResponse(projectId, true);
+  }
+
+  private void deleteProjectRelatedData(Long projectId) {
     List<Job> jobs = jobRepository.findByProjectId(projectId);
 
     savedWordRepository.deleteByProjectId(projectId);
@@ -160,12 +162,6 @@ public class ProjectService {
     }
 
     jobRepository.deleteByProjectId(projectId);
-    if (project.getSourceType() == SourceType.UPLOAD) {
-      s3UploadService.deleteFile(project.getFileKey());
-    }
-    projectRepository.delete(project);
-
-    return new ProjectDeleteResponse(projectId, true);
   }
 
   @Transactional
@@ -177,21 +173,20 @@ public class ProjectService {
 
     List<Segment> segments = segmentRepository.findByIdIn(segmentIds);
 
-    if (segments.size() != segmentIds.size()) {
-      throw new IllegalArgumentException("존재하지 않는 segment가 포함되어 있습니다.");
-    }
-    boolean hasInvalidSegment =
-        segments.stream()
-            .anyMatch(segment -> !segment.getJob().getProject().getId().equals(projectId));
+    validateSegments(segments, segmentIds, projectId);
+    updateTranslatedTexts(segments, request.segments());
 
-    if (hasInvalidSegment) {
-      throw new IllegalArgumentException("다른 프로젝트의 segment는 수정할 수 없습니다.");
-    }
-    savedWordRepository.deleteBySegmentIdsAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+    List<SegmentWord> savedTranslatedWords = recreateTranslatedSegmentWords(segmentIds, segments);
+    List<ProjectResultSegmentResponse> segmentResponses =
+        createProjectResultSegmentResponses(segments, savedTranslatedWords);
 
-    segmentWordRepository.deleteBySegmentIdInAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+    return new ProjectResultUpdateResponse(project.getId(), segmentResponses);
+  }
+
+  private void updateTranslatedTexts(
+      List<Segment> segments, List<ProjectResultSegmentUpdateRequest> segmentRequests) {
     Map<Long, String> translatedTextBySegmentId =
-        request.segments().stream()
+        segmentRequests.stream()
             .collect(
                 Collectors.toMap(
                     ProjectResultSegmentUpdateRequest::segmentId,
@@ -199,10 +194,10 @@ public class ProjectService {
 
     segments.forEach(
         segment -> segment.updateTranslatedText(translatedTextBySegmentId.get(segment.getId())));
-    List<SegmentWord> newTranslatedWords = createTranslationSegmentWords(segments);
+  }
 
-    List<SegmentWord> savedTranslatedWords = segmentWordRepository.saveAll(newTranslatedWords);
-
+  private List<ProjectResultSegmentResponse> createProjectResultSegmentResponses(
+      List<Segment> segments, List<SegmentWord> savedTranslatedWords) {
     Map<Long, List<ProjectResultSegmentResponse.ProjectResultSegmentWordResponse>>
         translatedWordsBySegmentId =
             savedTranslatedWords.stream()
@@ -219,17 +214,38 @@ public class ProjectService {
                                     segmentWord.getEndTime()),
                             Collectors.toList())));
 
-    List<ProjectResultSegmentResponse> segmentResponses =
-        segments.stream()
-            .map(
-                segment ->
-                    new ProjectResultSegmentResponse(
-                        segment.getId(),
-                        segment.getTranslatedText(),
-                        translatedWordsBySegmentId.getOrDefault(segment.getId(), List.of())))
-            .toList();
+    return segments.stream()
+        .map(
+            segment ->
+                new ProjectResultSegmentResponse(
+                    segment.getId(),
+                    segment.getTranslatedText(),
+                    translatedWordsBySegmentId.getOrDefault(segment.getId(), List.of())))
+        .toList();
+  }
 
-    return new ProjectResultUpdateResponse(project.getId(), segmentResponses);
+  private List<SegmentWord> recreateTranslatedSegmentWords(
+      List<Long> segmentIds, List<Segment> segments) {
+    savedWordRepository.deleteBySegmentIdsAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+    segmentWordRepository.deleteBySegmentIdInAndWordType(segmentIds, SegmentWordType.TRANSLATION);
+
+    List<SegmentWord> newTranslatedWords = createTranslationSegmentWords(segments);
+
+    return segmentWordRepository.saveAll(newTranslatedWords);
+  }
+
+  private void validateSegments(List<Segment> segments, List<Long> segmentIds, Long projectId) {
+    if (segments.size() != segmentIds.size()) {
+      throw new IllegalArgumentException("존재하지 않는 segment가 포함되어 있습니다.");
+    }
+
+    boolean hasInvalidSegment =
+        segments.stream()
+            .anyMatch(segment -> !segment.getJob().getProject().getId().equals(projectId));
+
+    if (hasInvalidSegment) {
+      throw new IllegalArgumentException("다른 프로젝트의 segment는 수정할 수 없습니다.");
+    }
   }
 
   private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {

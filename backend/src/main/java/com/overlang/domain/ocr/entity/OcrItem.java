@@ -3,6 +3,8 @@ package com.overlang.domain.ocr.entity;
 import com.overlang.domain.common.BaseTimeEntity;
 import com.overlang.domain.job.entity.Job;
 import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.*;
 
 @Entity
@@ -84,6 +86,9 @@ public class OcrItem extends BaseTimeEntity {
   @Column(name = "animation_end_time")
   private Double animationEndTime;
 
+  @OneToMany(mappedBy = "ocrItem", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<OcrItemLine> lines = new ArrayList<>();
+
   public OcrItem(
       Job job,
       Double startTime,
@@ -131,5 +136,9 @@ public class OcrItem extends BaseTimeEntity {
     this.animationType = animationType;
     this.animationStartTime = animationStartTime;
     this.animationEndTime = animationEndTime;
+  }
+
+  public void addLine(OcrItemLine line) {
+    this.lines.add(line);
   }
 }

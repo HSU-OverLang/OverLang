@@ -19,18 +19,22 @@ public class SavedWordController {
 
   private final SavedWordService savedWordService;
 
+  private Long getMemberId(HttpServletRequest request) {
+    return (Long) request.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+  }
+
   @Operation(summary = "저장 단어 생성", description = "사용자가 선택한 단어를 저장합니다.")
   @PostMapping("/saved-words")
   public ApiResponse<SavedWordResponse> createSavedWord(
       HttpServletRequest httpRequest, @RequestBody SavedWordCreateRequest request) {
-    Long memberId = (Long) httpRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpRequest);
     return ApiResponse.success(savedWordService.createSavedWord(memberId, request));
   }
 
   @Operation(summary = "내 저장 단어 목록 조회", description = "사용자가 저장한 단어 목록을 최신순으로 조회합니다.")
   @GetMapping("/me/saved-words")
   public ApiResponse<List<SavedWordResponse>> getMySavedWords(HttpServletRequest httpRequest) {
-    Long memberId = (Long) httpRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpRequest);
     return ApiResponse.success(savedWordService.getMySavedWords(memberId));
   }
 
@@ -38,7 +42,7 @@ public class SavedWordController {
   @DeleteMapping("/saved-words/{savedWordId}")
   public ApiResponse<Void> deleteSavedWord(
       HttpServletRequest httpRequest, @PathVariable Long savedWordId) {
-    Long memberId = (Long) httpRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpRequest);
     savedWordService.deleteSavedWord(memberId, savedWordId);
     return ApiResponse.success(null);
   }
@@ -47,7 +51,7 @@ public class SavedWordController {
   @PostMapping("/me/saved-words/{savedWordId}/examples")
   public ApiResponse<SavedWordExampleResponse> generateExamples(
       HttpServletRequest httpRequest, @PathVariable Long savedWordId) {
-    Long memberId = (Long) httpRequest.getAttribute(AuthInterceptor.AUTH_MEMBER_ID);
+    Long memberId = getMemberId(httpRequest);
     return ApiResponse.success(savedWordService.generateExamples(memberId, savedWordId));
   }
 }

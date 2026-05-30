@@ -3,7 +3,6 @@ package com.overlang.domain.job.service;
 import com.overlang.api.dto.job.*;
 import com.overlang.domain.cache.service.ResultCacheService;
 import com.overlang.domain.cache.service.ResultCopyService;
-import com.overlang.domain.file.service.S3UploadService;
 import com.overlang.domain.job.entity.CurrentStage;
 import com.overlang.domain.job.entity.Job;
 import com.overlang.domain.job.entity.JobStatus;
@@ -16,7 +15,6 @@ import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.repository.ProjectRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,16 +24,12 @@ public class JobService {
 
   private final ProjectRepository projectRepository;
   private final JobRepository jobRepository;
-  private final S3UploadService s3UploadService;
   private final JobQueueProducer jobQueueProducer;
   private final ResultCacheService resultCacheService;
   private final ResultCopyService resultCopyService;
   private final JobResultService jobResultService;
   private final JobQueuePayloadFactory jobQueuePayloadFactory;
   private final WorkerAuthService workerAuthService;
-
-  @Value("${worker.secret}")
-  private String workerSecret;
 
   @Transactional
   public JobCreateResponse createJob(Long projectId, Long memberId, JobCreateRequest request) {
@@ -92,16 +86,25 @@ public class JobService {
     return JobDetailResponse.from(job);
   }
 
+  @Transactional(readOnly = true)
+  public JobValidResponse validateJob(Long jobId) {
+    return new JobValidResponse(jobRepository.existsById(jobId));
+  }
+
   @Transactional
-  public JobRetryResponse retryJob(Long projectId, Long memberId) {
+  public JobRetryResponse retryJob(Long projectId, Long memberId, JobRetryRequest request) {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
     Job latestJob = findLatestJobByProjectId(project.getId());
+
+    if (request.jobType() == null) {
+      throw new IllegalArgumentException("jobType은 필수입니다.");
+    }
 
     if (latestJob.getStatus() != JobStatus.FAILED) {
       throw new IllegalArgumentException("FAILED 상태의 작업만 재처리할 수 있습니다.");
     }
 
-    Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob));
+    Job savedJob = jobRepository.save(createRetryJobEntity(project, latestJob, request));
 
     enqueueJob(project, savedJob);
 
@@ -119,7 +122,13 @@ public class JobService {
     workerAuthService.validateWorkerSecret(requestWorkerSecret);
     validateCallbackJobId(pathJobId, request.jobId());
 
-    Job job = findJobById(pathJobId);
+    var optionalJob = jobRepository.findById(pathJobId);
+
+    if (optionalJob.isEmpty()) {
+      return new JobCallbackResponse(pathJobId, false);
+    }
+
+    Job job = optionalJob.get();
 
     switch (request.status()) {
       case RUNNING -> handleRunningCallback(job, request);
@@ -135,12 +144,6 @@ public class JobService {
     if (!pathJobId.equals(bodyJobId)) {
       throw new IllegalArgumentException("URI jobId와 Body jobId가 일치하지 않습니다.");
     }
-  }
-
-  private Job findJobById(Long jobId) {
-    return jobRepository
-        .findById(jobId)
-        .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
   }
 
   private void handleRunningCallback(Job job, JobCallbackRequest request) {
@@ -194,10 +197,11 @@ public class JobService {
         request.translationProvider());
   }
 
-  private Job createRetryJobEntity(Project project, Job latestJob) {
+  private Job createRetryJobEntity(Project project, Job latestJob, JobRetryRequest request) {
+
     return new Job(
         project,
-        latestJob.getJobType(),
+        request.jobType(),
         latestJob.getSourceLanguage(),
         latestJob.getTargetLanguage(),
         latestJob.getTranslationProvider());

@@ -2,6 +2,7 @@ package com.overlang.api.controller;
 
 import com.overlang.api.dto.job.JobCallbackRequest;
 import com.overlang.api.dto.job.JobCallbackResponse;
+import com.overlang.api.dto.job.JobValidResponse;
 import com.overlang.domain.job.service.JobService;
 import com.overlang.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,16 @@ import org.springframework.web.bind.annotation.*;
 public class InternalJobController {
 
   private final JobService jobService;
+
+  @Operation(
+      summary = "AI 작업 유효성 확인",
+      description = "AI Worker가 분석 시작 전 Job이 아직 유효한지 확인하는 내부 API입니다.")
+  @GetMapping("/{jobId}/valid")
+  public ApiResponse<JobValidResponse> validateJob(@PathVariable Long jobId) {
+    JobValidResponse response = jobService.validateJob(jobId);
+
+    return ApiResponse.success(response);
+  }
 
   @Operation(
       summary = "AI 작업 콜백 처리",

@@ -43,6 +43,21 @@ from ai.translation import create_translation_service
 
 ProgressCallback = Callable[[CurrentStage, float, dict[str, Any] | None], None]
 
+RECOVERABLE_ISSUE_MESSAGES = {
+    "OCR_FAILED": "OCR processing failed; available non-OCR results were saved.",
+    "TRANSLATION_FAILED": (
+        "Translation processing failed; original recognition results were saved."
+    ),
+    "LEARNING_FAILED": (
+        "Learning analysis failed; available recognition and translation results were saved."
+    ),
+}
+RECOVERABLE_ISSUE_PRIORITY = (
+    "OCR_FAILED",
+    "TRANSLATION_FAILED",
+    "LEARNING_FAILED",
+)
+
 SOFT_SPLIT_WORDS = {
     # English
     "i",
@@ -242,27 +257,36 @@ def run_pipeline(
             pipeline_steps.append("STT")
 
         if job_type in {JobType.FULL_ANALYSIS.value, JobType.OCR_ONLY.value}:
-            _report_progress(progress_callback, CurrentStage.OCR_FRAME_EXTRACTION, 45.0)
-            frames = extract_frames(
-                source_path,
-                directories["frames"],
-                interval_seconds=float(runtime_options["frame_interval"]),
-            )
-            frames = annotate_frame_changes(
-                frames,
-                change_threshold=float(runtime_options["ocr_change_threshold"]),
-            )
-            save_intermediate(resolved_job_id, "frame_extraction", frames)
+            try:
+                _report_progress(progress_callback, CurrentStage.OCR_FRAME_EXTRACTION, 45.0)
+                frames = extract_frames(
+                    source_path,
+                    directories["frames"],
+                    interval_seconds=float(runtime_options["frame_interval"]),
+                )
+                frames = annotate_frame_changes(
+                    frames,
+                    change_threshold=float(runtime_options["ocr_change_threshold"]),
+                )
+                save_intermediate(resolved_job_id, "frame_extraction", frames)
 
-            _report_progress(progress_callback, CurrentStage.OCR_TEXT_DETECTION, 55.0)
-            ocr_items = _run_ocr_stage(normalized_job, frames)
-            save_intermediate(
-                resolved_job_id,
-                "ocr_items",
-                [ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items],
-            )
-            pipeline_steps.append("OCR_FRAME_EXTRACTION")
-            pipeline_steps.append("OCR_TEXT_DETECTION")
+                _report_progress(progress_callback, CurrentStage.OCR_TEXT_DETECTION, 55.0)
+                ocr_items = _run_ocr_stage(normalized_job, frames)
+                save_intermediate(
+                    resolved_job_id,
+                    "ocr_items",
+                    [ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items],
+                )
+                pipeline_steps.append("OCR_FRAME_EXTRACTION")
+                pipeline_steps.append("OCR_TEXT_DETECTION")
+            except Exception as error:
+                if (
+                    job_type != JobType.FULL_ANALYSIS.value
+                    or _is_fatal_processing_error(error)
+                ):
+                    raise
+
+                _append_recoverable_warning(warnings, "OCR_FAILED", error)
 
         resolved_source_language = _resolve_source_language(
             normalized_job.source_language,
@@ -270,38 +294,44 @@ def run_pipeline(
         )
         if _should_run_translation(normalized_job, resolved_source_language):
             _report_progress(progress_callback, CurrentStage.TRANSLATION, 80.0)
-            warnings.extend(
-                _run_translation_stage(
-                    normalized_job,
-                    subtitles,
-                    ocr_items,
-                    resolved_source_language,
+            try:
+                warnings.extend(
+                    _run_translation_stage(
+                        normalized_job,
+                        subtitles,
+                        ocr_items,
+                        resolved_source_language,
+                    )
                 )
-            )
-            subtitles = _split_translated_subtitles_for_rendering(
-                subtitles,
-                target_language=normalized_job.target_language,
-                max_duration_seconds=float(
-                    runtime_options["translated_subtitle_max_seconds"]
-                ),
-                max_text_length=int(runtime_options["translated_subtitle_max_chars"]),
-                min_split_duration_seconds=float(
-                    runtime_options["translated_subtitle_min_split_seconds"]
-                ),
-            )
-            save_intermediate(
-                resolved_job_id,
-                "translation",
-                {
-                    "subtitles": [
-                        subtitle.model_dump(by_alias=True) for subtitle in subtitles
-                    ],
-                    "ocrItems": [
-                        ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items
-                    ],
-                },
-            )
-            pipeline_steps.append("TRANSLATION")
+                subtitles = _split_translated_subtitles_for_rendering(
+                    subtitles,
+                    target_language=normalized_job.target_language,
+                    max_duration_seconds=float(
+                        runtime_options["translated_subtitle_max_seconds"]
+                    ),
+                    max_text_length=int(runtime_options["translated_subtitle_max_chars"]),
+                    min_split_duration_seconds=float(
+                        runtime_options["translated_subtitle_min_split_seconds"]
+                    ),
+                )
+                save_intermediate(
+                    resolved_job_id,
+                    "translation",
+                    {
+                        "subtitles": [
+                            subtitle.model_dump(by_alias=True) for subtitle in subtitles
+                        ],
+                        "ocrItems": [
+                            ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items
+                        ],
+                    },
+                )
+                pipeline_steps.append("TRANSLATION")
+            except Exception as error:
+                if _is_fatal_processing_error(error):
+                    raise
+
+                _append_recoverable_warning(warnings, "TRANSLATION_FAILED", error)
 
         if _should_run_learning_analysis(normalized_job, subtitles):
             _report_progress(progress_callback, CurrentStage.LLM_ANALYSIS, 85.0)
@@ -319,7 +349,7 @@ def run_pipeline(
                     )
                     pipeline_steps.append("LLM_ANALYSIS")
             except Exception as error:
-                warnings.append(f"Learning data generation failed: {error}")
+                _append_recoverable_warning(warnings, "LEARNING_FAILED", error)
 
         _report_progress(progress_callback, CurrentStage.FINALIZING, 90.0)
         result = AnalysisResult(
@@ -332,7 +362,7 @@ def run_pipeline(
                 source_language=resolved_source_language,
                 target_language=normalized_job.target_language,
                 pipeline=pipeline_steps,
-                fallback_used=False,
+                fallback_used=_has_recoverable_warning(warnings),
             ),
             warnings=warnings,
         )
@@ -352,6 +382,40 @@ def run_pipeline(
         return result
     finally:
         cleanup(resolved_job_id, keep_result_files=keep_intermediate_files)
+
+
+def resolve_completion_error(warnings: list[str]) -> tuple[str | None, str | None]:
+    issue_codes = [
+        code
+        for code in RECOVERABLE_ISSUE_PRIORITY
+        if any(warning.startswith(f"{code}:") for warning in warnings)
+    ]
+    if not issue_codes:
+        return None, None
+
+    message = " ".join(RECOVERABLE_ISSUE_MESSAGES[code] for code in issue_codes)
+    return issue_codes[0], message
+
+
+def _append_recoverable_warning(
+    warnings: list[str],
+    issue_code: str,
+    error: Exception,
+) -> None:
+    detail = str(error).strip() or error.__class__.__name__
+    warning = f"{issue_code}: {RECOVERABLE_ISSUE_MESSAGES[issue_code]} Detail: {detail}"
+    if warning not in warnings:
+        warnings.append(warning)
+
+
+def _has_recoverable_warning(warnings: list[str]) -> bool:
+    error_code, _ = resolve_completion_error(warnings)
+    return error_code is not None
+
+
+def _is_fatal_processing_error(error: Exception) -> bool:
+    error_message = str(error).lower()
+    return "out of memory" in error_message or "cuda failed" in error_message
 
 
 def _normalize_job(

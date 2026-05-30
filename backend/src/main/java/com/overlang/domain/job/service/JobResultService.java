@@ -1,11 +1,7 @@
 package com.overlang.domain.job.service;
 
-import com.overlang.api.dto.job.CallbackLearningDataRequest;
-import com.overlang.api.dto.job.CallbackOcrItemRequest;
-import com.overlang.api.dto.job.JobCallbackRequest;
-import com.overlang.api.dto.ocr.BlurRegionRequest;
+import com.overlang.api.dto.job.*;
 import com.overlang.api.dto.ocr.OcrItemResponse;
-import com.overlang.api.dto.ocr.OcrStyleRequest;
 import com.overlang.api.dto.segment.SegmentResponse;
 import com.overlang.api.dto.segment.SegmentWordResponse;
 import com.overlang.domain.common.LanguageCode;
@@ -15,6 +11,7 @@ import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.repository.LearningContentRepository;
 import com.overlang.domain.ocr.entity.OcrItem;
 import com.overlang.domain.ocr.repository.OcrItemRepository;
+import com.overlang.domain.ocr.service.OcrItemFactory;
 import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.entity.SegmentWord;
@@ -41,6 +38,7 @@ public class JobResultService {
   private final LearningContentRepository learningContentRepository;
   private final SavedWordRepository savedWordRepository;
   private final SegmentWordTokenizerProvider tokenizerProvider;
+  private final OcrItemFactory ocrItemFactory;
 
   @Transactional(readOnly = true)
   public List<SegmentResponse> getSegments(Long jobId, Long memberId) {
@@ -108,22 +106,15 @@ public class JobResultService {
     learningContentRepository.deleteByJobId(jobId);
   }
 
+  private Segment toSegment(Job job, CallbackSegmentRequest s) {
+    return new Segment(
+        job, s.startTime(), s.endTime(), s.seq(), s.text(), s.translatedText(), s.languageCode());
+  }
+
   public void saveSegments(Job job, JobCallbackRequest request) {
     if (request.segments() == null) return;
 
-    List<Segment> segments =
-        request.segments().stream()
-            .map(
-                s ->
-                    new Segment(
-                        job,
-                        s.startTime(),
-                        s.endTime(),
-                        s.seq(),
-                        s.text(),
-                        s.translatedText(),
-                        s.languageCode()))
-            .toList();
+    List<Segment> segments = request.segments().stream().map(s -> toSegment(job, s)).toList();
 
     List<Segment> savedSegments = segmentRepository.saveAll(segments);
 
@@ -176,51 +167,21 @@ public class JobResultService {
   public void saveOcrItems(Job job, JobCallbackRequest request) {
     if (request.ocrItems() == null) return;
 
-    List<OcrItem> ocrItems = request.ocrItems().stream().map(o -> toOcrItem(job, o)).toList();
-
+    List<OcrItem> ocrItems =
+        request.ocrItems().stream().map(o -> ocrItemFactory.create(job, o)).toList();
     ocrItemRepository.saveAll(ocrItems);
   }
 
-  private OcrItem toOcrItem(Job job, CallbackOcrItemRequest o) {
-    OcrStyleRequest style = o.style();
-    BlurRegionRequest blurRegion = style != null ? style.blurRegion() : null;
+  private LearningContent toLearningContent(Job job, CallbackLearningContentRequest content) {
 
-    return new OcrItem(
+    return new LearningContent(
         job,
-        o.startTime(),
-        o.endTime(),
-        o.originText(),
-        o.translatedText(),
-        o.boundingBox().x(),
-        o.boundingBox().y(),
-        o.boundingBox().w(),
-        o.boundingBox().h(),
-        o.confidence(),
-        style != null ? style.backgroundColor() : null,
-        style != null ? style.dominantBackgroundColor() : null,
-        style != null ? style.textColor() : null,
-        blurRegion != null ? blurRegion.x() : null,
-        blurRegion != null ? blurRegion.y() : null,
-        blurRegion != null ? blurRegion.w() : null,
-        blurRegion != null ? blurRegion.h() : null,
-        style != null ? style.fontSizeRatio() : null,
-        style != null ? style.fontWeight() : null,
-        style != null ? style.textAlign() : null,
-        getAnimationType(style),
-        getAnimationStartTime(style),
-        getAnimationEndTime(style));
-  }
-
-  private String getAnimationType(OcrStyleRequest style) {
-    return style != null && style.animation() != null ? style.animation().type() : null;
-  }
-
-  private Double getAnimationStartTime(OcrStyleRequest style) {
-    return style != null && style.animation() != null ? style.animation().startTime() : null;
-  }
-
-  private Double getAnimationEndTime(OcrStyleRequest style) {
-    return style != null && style.animation() != null ? style.animation().endTime() : null;
+        content.contentType(),
+        content.textType(),
+        content.title(),
+        content.content(),
+        content.startTime(),
+        content.endTime());
   }
 
   public void saveLearningContents(Job job, CallbackLearningDataRequest learningData) {
@@ -229,18 +190,7 @@ public class JobResultService {
     }
 
     List<LearningContent> learningContents =
-        learningData.contents().stream()
-            .map(
-                content ->
-                    new LearningContent(
-                        job,
-                        content.contentType(),
-                        content.textType(),
-                        content.title(),
-                        content.content(),
-                        content.startTime(),
-                        content.endTime()))
-            .toList();
+        learningData.contents().stream().map(content -> toLearningContent(job, content)).toList();
 
     learningContentRepository.saveAll(learningContents);
   }

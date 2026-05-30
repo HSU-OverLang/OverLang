@@ -17,6 +17,8 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
   Optional<Job> findTopByProjectIdOrderByCreatedAtDesc(Long projectId);
 
+  Optional<Job> findTopByProjectIdAndStatusOrderByCreatedAtDesc(Long projectId, JobStatus status);
+
   Optional<Job> findByIdAndProjectMemberId(Long jobId, Long memberId);
 
   boolean existsByIdAndProjectMemberId(Long jobId, Long memberId);
