@@ -19,6 +19,7 @@ import com.overlang.domain.segment.entity.SegmentWordType;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
 import com.overlang.domain.segment.tokenizer.SegmentWordTokenizerProvider;
+import com.overlang.global.exception.job.JobNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -94,7 +95,7 @@ public class JobResultService {
 
   private void validateJobOwner(Long jobId, Long memberId) {
     if (!jobRepository.existsByIdAndProjectMemberId(jobId, memberId)) {
-      throw new IllegalArgumentException("작업을 찾을 수 없습니다.");
+      throw new JobNotFoundException();
     }
   }
 

@@ -1,6 +1,8 @@
 package com.overlang.global.advice;
 
 import com.overlang.global.auth.UnauthorizedException;
+import com.overlang.global.exception.BusinessException;
+import com.overlang.global.exception.ErrorCode;
 import com.overlang.global.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,14 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException e) {
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
         .body(ApiResponse.error("AUTH_001", e.getMessage()));
+  }
+
+  @ExceptionHandler(BusinessException.class)
+  public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
+    ErrorCode errorCode = e.getErrorCode();
+
+    return ResponseEntity.status(errorCode.getHttpStatus())
+        .body(ApiResponse.error(errorCode.getCode(), e.getMessage()));
   }
 
   @ExceptionHandler(IllegalArgumentException.class)

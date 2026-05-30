@@ -13,6 +13,8 @@ import com.overlang.domain.savedword.entity.SavedWord;
 import com.overlang.domain.segment.entity.Segment;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import com.overlang.domain.segment.tokenizer.SegmentWordTokenizerProvider;
+import com.overlang.global.exception.external.OpenAiResponseParseException;
+import com.overlang.global.exception.segment.SegmentNotFoundException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +124,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
     try {
       return objectMapper.readValue(outputText, resultType);
     } catch (JsonProcessingException e) {
-      throw new RuntimeException(errorMessage, e);
+      throw new OpenAiResponseParseException();
     }
   }
 
@@ -132,9 +134,7 @@ public class WordsExplainServiceImpl implements WordsExplainService {
 
   private Optional<LearningContent> findMatchedExpression(WordsExplainRequest request) {
     Segment segment =
-        segmentRepository
-            .findById(request.segmentId())
-            .orElseThrow(() -> new IllegalArgumentException("세그먼트를 찾을 수 없습니다."));
+        segmentRepository.findById(request.segmentId()).orElseThrow(SegmentNotFoundException::new);
 
     String clickedWord = normalize(request.word());
 

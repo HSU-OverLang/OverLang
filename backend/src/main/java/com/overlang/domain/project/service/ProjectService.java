@@ -17,6 +17,11 @@ import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.entity.SegmentWordType;
 import com.overlang.domain.segment.repository.SegmentRepository;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
+import com.overlang.global.exception.member.MemberNotFoundException;
+import com.overlang.global.exception.project.InvalidProjectSegmentException;
+import com.overlang.global.exception.project.ProjectNotFoundException;
+import com.overlang.global.exception.project.ProjectVideoNotFoundException;
+import com.overlang.global.exception.segment.SegmentNotFoundException;
 import com.overlang.global.util.YoutubeUrlUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,10 +49,7 @@ public class ProjectService {
   private final LearningContentRepository learningContentRepository;
 
   public ProjectCreateResponse createProject(Long memberId, ProjectCreateRequest request) {
-    Member member =
-        memberRepository
-            .findById(memberId)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+    Member member = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
 
     Project savedProject = projectRepository.save(createProjectEntity(member, request));
 
@@ -118,7 +120,7 @@ public class ProjectService {
     Project project = findProjectByIdAndMemberId(projectId, memberId);
 
     if (project.getFileKey() == null || project.getFileKey().isBlank()) {
-      throw new IllegalArgumentException("업로드된 영상이 없습니다.");
+      throw new ProjectVideoNotFoundException();
     }
 
     return s3UploadService.generatePresignedGetUrl(project.getFileKey());
@@ -236,7 +238,7 @@ public class ProjectService {
 
   private void validateSegments(List<Segment> segments, List<Long> segmentIds, Long projectId) {
     if (segments.size() != segmentIds.size()) {
-      throw new IllegalArgumentException("존재하지 않는 segment가 포함되어 있습니다.");
+      throw new SegmentNotFoundException();
     }
 
     boolean hasInvalidSegment =
@@ -244,14 +246,14 @@ public class ProjectService {
             .anyMatch(segment -> !segment.getJob().getProject().getId().equals(projectId));
 
     if (hasInvalidSegment) {
-      throw new IllegalArgumentException("다른 프로젝트의 segment는 수정할 수 없습니다.");
+      throw new InvalidProjectSegmentException();
     }
   }
 
   private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
     return projectRepository
         .findByIdAndMemberId(projectId, memberId)
-        .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+        .orElseThrow(ProjectNotFoundException::new);
   }
 
   private List<SegmentWord> createTranslationSegmentWords(List<Segment> segments) {
