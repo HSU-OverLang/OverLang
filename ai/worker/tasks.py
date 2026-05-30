@@ -13,7 +13,7 @@ from ai.api.schemas import (
     JobType,
     SourceType,
 )
-from ai.pipeline.callback_client import send_callback
+from ai.pipeline.callback_client import is_backend_job_valid, send_callback
 from ai.pipeline.run_pipeline import resolve_completion_error, run_pipeline
 from ai.pipeline.youtube_service import (
     YoutubeDownloadError,
@@ -63,6 +63,20 @@ def _execute_job_task(self, job_payload: dict):
             self.request.id,
             callback_job_id,
         )
+        if not is_backend_job_valid(callback_job_id):
+            logger.info(
+                "Task skipped because backend job is no longer valid: jobId=%s",
+                callback_job_id,
+            )
+            self.update_state(
+                state=JobStatus.COMPLETED.value,
+                meta=_build_task_meta(100.0, CurrentStage.FINALIZING),
+            )
+            return {
+                "jobId": callback_job_id,
+                "skipped": True,
+                "reason": "BACKEND_JOB_NOT_VALID",
+            }
 
         def progress_callback(
             current_stage: CurrentStage,
