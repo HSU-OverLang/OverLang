@@ -9,10 +9,12 @@ from ai.api.schemas import (
     AnalysisMetadata,
     AnalysisRequest,
     AnalysisResult,
+    BoundingBox,
     CurrentStage,
     JobType,
     LearningData,
     OcrItem,
+    OcrLine,
     SubtitleSegment,
     TranslationProvider,
     WordTiming,
@@ -217,22 +219,37 @@ def run_pipeline(
         _report_progress(progress_callback, CurrentStage.QUEUED, 0.0)
         save_intermediate(resolved_job_id, "request", _serialize_model(normalized_job))
 
-        source_path = resolve_input_source(normalized_job, directories["video"])
-        if not source_path.exists():
-            raise FileNotFoundError(f"Input source not found: {source_path}")
-
         job_type = _enum_value(normalized_job.job_type)
-        if job_type == JobType.TRANSLATION_ONLY.value:
-            raise NotImplementedError(
-                f"{_enum_value(normalized_job.job_type)} is not wired into run_pipeline yet."
-            )
-
         subtitles: list[SubtitleSegment] = []
         ocr_items: list[OcrItem] = []
         learning_data: LearningData | None = None
         pipeline_steps: list[str] = []
         warnings: list[str] = []
         audio_path: Path | None = None
+
+        if job_type == JobType.TRANSLATION_ONLY.value:
+            subtitles = _build_subtitles_from_worker_payload(normalized_job)
+            ocr_items = _build_ocr_items_from_worker_payload(normalized_job)
+            if not subtitles and not ocr_items:
+                raise ValueError(
+                    "TRANSLATION_ONLY requires at least one segment or OCR item."
+                )
+            save_intermediate(
+                resolved_job_id,
+                "translation_input",
+                {
+                    "subtitles": [
+                        subtitle.model_dump(by_alias=True) for subtitle in subtitles
+                    ],
+                    "ocrItems": [
+                        ocr_item.model_dump(by_alias=True) for ocr_item in ocr_items
+                    ],
+                },
+            )
+        else:
+            source_path = resolve_input_source(normalized_job, directories["video"])
+            if not source_path.exists():
+                raise FileNotFoundError(f"Input source not found: {source_path}")
 
         if job_type in {JobType.FULL_ANALYSIS.value, JobType.STT_ONLY.value}:
             _report_progress(progress_callback, CurrentStage.AUDIO_EXTRACTION, 10.0)
@@ -441,6 +458,56 @@ def _resolve_job_id(
         return job.job_id
 
     return "local-run"
+
+
+def _build_subtitles_from_worker_payload(
+    job: AnalysisRequest | WorkerJobPayload,
+) -> list[SubtitleSegment]:
+    if not isinstance(job, WorkerJobPayload):
+        raise ValueError("TRANSLATION_ONLY requires a backend worker payload.")
+
+    return [
+        SubtitleSegment(
+            seq=segment.seq,
+            start_time=segment.start_time,
+            end_time=segment.end_time,
+            text=segment.text,
+            translated_text=None,
+            language_code=job.source_language,
+        )
+        for segment in job.segments
+    ]
+
+
+def _build_ocr_items_from_worker_payload(
+    job: AnalysisRequest | WorkerJobPayload,
+) -> list[OcrItem]:
+    if not isinstance(job, WorkerJobPayload):
+        raise ValueError("TRANSLATION_ONLY requires a backend worker payload.")
+
+    return [
+        _build_ocr_item_from_worker_payload(item)
+        for item in job.ocr_items
+    ]
+
+
+def _build_ocr_item_from_worker_payload(item: Any) -> OcrItem:
+    bounding_box = BoundingBox(
+        x=item.bounding_box.x,
+        y=item.bounding_box.y,
+        w=item.bounding_box.width,
+        h=item.bounding_box.height,
+    )
+    return OcrItem(
+        start_time=item.start_time,
+        end_time=item.end_time,
+        origin_text=item.origin_text,
+        translated_text=None,
+        bounding_box=bounding_box,
+        confidence=None,
+        lines=[OcrLine(origin_text=item.origin_text, bounding_box=bounding_box)],
+        style=None,
+    )
 
 
 def _run_stt_stage(

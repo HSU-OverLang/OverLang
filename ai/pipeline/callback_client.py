@@ -12,6 +12,47 @@ from ai.api.schemas import CallbackPayload
 logger = logging.getLogger(__name__)
 
 
+def is_backend_job_valid(job_id: str | int) -> bool:
+    base_url = os.getenv("BACKEND_INTERNAL_BASE_URL")
+    if not base_url:
+        logger.info(
+            "Job validity check skipped because BACKEND_INTERNAL_BASE_URL is not configured "
+            "(jobId=%s)",
+            job_id,
+        )
+        return True
+
+    valid_url = f"{base_url.rstrip('/')}/api/v1/internal/jobs/{job_id}/valid"
+    request = urllib.request.Request(valid_url, method="GET")
+
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            response_body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        error_body = error.read().decode("utf-8", errors="replace")
+        logger.warning(
+            "Job validity check HTTP error: jobId=%s httpStatus=%s body=%s",
+            job_id,
+            error.code,
+            error_body,
+        )
+        return True
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        logger.warning("Job validity check failed: jobId=%s error=%s", job_id, error)
+        return True
+
+    data = response_body.get("data") if isinstance(response_body, dict) else None
+    if not isinstance(data, dict) or "valid" not in data:
+        logger.warning(
+            "Job validity response is invalid: jobId=%s body=%s",
+            job_id,
+            response_body,
+        )
+        return True
+
+    return bool(data["valid"])
+
+
 def send_callback(payload: CallbackPayload) -> None:
     base_url = os.getenv("BACKEND_INTERNAL_BASE_URL")
     worker_secret = os.getenv("WORKER_SECRET")

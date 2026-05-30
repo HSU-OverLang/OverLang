@@ -16,6 +16,7 @@ BOLD_DARK_PIXEL_RATIO_THRESHOLD = 0.18
 def build_ocr_style(
     frame_path: str | None,
     bounding_box: BoundingBox,
+    line_count: int = 1,
 ) -> OcrStyle | None:
     if not frame_path:
         return None
@@ -48,7 +49,7 @@ def build_ocr_style(
         background_color=background_color,
         dominant_background_color=dominant_background_color,
         text_color=text_color,
-        font_size_ratio=_estimate_font_size_ratio(bounding_box),
+        font_size_ratio=_estimate_font_size_ratio(bounding_box, line_count),
         font_weight=_estimate_font_weight(pixels),
         text_align=_estimate_text_align(bounding_box),
         blur_region=_expand_box(
@@ -117,8 +118,13 @@ def _readable_text_color(background_color: str) -> str:
     return "#000000" if luminance >= 160 else "#FFFFFF"
 
 
-def _estimate_font_size_ratio(bounding_box: BoundingBox) -> float:
-    return round(max(0.0, bounding_box.h), 6)
+def _estimate_font_size_ratio(
+    bounding_box: BoundingBox,
+    line_count: int,
+) -> float:
+    safe_line_count = max(1, line_count)
+    line_height_ratio = bounding_box.h / safe_line_count
+    return round(max(0.0, line_height_ratio * 0.82), 6)
 
 
 def _estimate_font_weight(pixels: np.ndarray) -> str:

@@ -120,6 +120,27 @@ class AnalysisRequest(CamelModel):
         return self.file_url
 
 
+class WorkerSegmentPayload(CamelModel):
+    seq: int
+    start_time: float
+    end_time: float
+    text: str
+
+
+class WorkerBoundingBoxPayload(CamelModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class WorkerOcrItemPayload(CamelModel):
+    start_time: float
+    end_time: float
+    origin_text: str
+    bounding_box: WorkerBoundingBoxPayload
+
+
 class WorkerJobPayload(CamelModel):
     job_id: int | str
     project_id: int | str
@@ -132,6 +153,8 @@ class WorkerJobPayload(CamelModel):
     source_language: str | None = None
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
+    segments: list[WorkerSegmentPayload] = Field(default_factory=list)
+    ocr_items: list[WorkerOcrItemPayload] = Field(default_factory=list)
 
     @field_validator("source_language", "target_language", mode="before")
     @classmethod
@@ -173,6 +196,17 @@ class BoundingBox(CamelModel):
     h: float
 
 
+class OcrAnimation(CamelModel):
+    type: str
+    start_time: float
+    end_time: float
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_animation_type(cls, value: str) -> str:
+        return str(value).strip().upper()
+
+
 class OcrStyle(CamelModel):
     background_color: str | None = None
     dominant_background_color: str | None = None
@@ -181,7 +215,20 @@ class OcrStyle(CamelModel):
     font_weight: str | None = None
     text_align: str | None = None
     blur_region: BoundingBox | None = None
-    animation: dict[str, Any] | None = None
+    animation: OcrAnimation | None = None
+
+    @field_validator("font_weight", "text_align", mode="before")
+    @classmethod
+    def normalize_style_keyword(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return str(value).strip().upper()
+
+
+class OcrLine(CamelModel):
+    origin_text: str
+    bounding_box: BoundingBox
 
 
 class OcrItem(CamelModel):
@@ -191,6 +238,7 @@ class OcrItem(CamelModel):
     translated_text: str | None = None
     bounding_box: BoundingBox
     confidence: float | None = None
+    lines: list[OcrLine] = Field(default_factory=list)
     style: OcrStyle | None = None
 
 

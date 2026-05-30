@@ -76,6 +76,25 @@ services:
       - ai
     command: celery -A ai.worker.celery_app worker --loglevel=info --pool=solo
 
+  ai-queue-consumer:
+    profiles: ["gpu-only"]
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    container_name: overlang_ai_queue_consumer
+    volumes:
+      - ./ai:/app/ai
+    env_file:
+      - ./ai/.env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+      - ai-worker
+    command: python -m ai.worker.job_queue_consumer
+
   # Database & Cache
   redis:
     image: redis:7-alpine
