@@ -243,6 +243,12 @@ export function DashboardPage() {
                 <>
                   <span className="text-sm text-slate-500 mr-1">{selectedIds.size}개 선택</span>
                   <button
+                    onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+                    className="px-4 py-2.5 border border-slate-200 bg-white text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
+                  >
+                    취소
+                  </button>
+                  <button
                     onClick={handleBulkDelete}
                     disabled={selectedIds.size === 0 || bulkDeleteLoading}
                     className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-xl font-semibold text-sm hover:bg-red-400 disabled:opacity-40 transition-colors shadow-sm"
@@ -255,12 +261,6 @@ export function DashboardPage() {
                       </svg>
                     )}
                     {bulkDeleteLoading ? '삭제 중...' : '삭제'}
-                  </button>
-                  <button
-                    onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}
-                    className="px-4 py-2.5 border border-slate-200 bg-white text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
-                  >
-                    취소
                   </button>
                 </>
               ) : (
@@ -397,7 +397,7 @@ export function DashboardPage() {
                       navigate(`/translate/${pid}`);
                     }
                   }}
-                  className={`group bg-white rounded-2xl border transition-all duration-200 ${
+                  className={`group bg-white rounded-2xl border transition-all duration-200 ${menuOpenId === pid ? 'relative z-10' : ''} ${
                     selectMode
                       ? isSelected
                         ? 'border-emerald-400 ring-2 ring-emerald-100 cursor-pointer shadow-sm'
@@ -459,12 +459,6 @@ export function DashboardPage() {
                       </div>
                     )}
 
-                    {/* 상태 뱃지 */}
-                    <div className={`absolute top-2.5 right-2.5 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm ${statusCfg.badge}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
-                      {statusCfg.label}
-                    </div>
-
                     {/* 소스 타입 뱃지 */}
                     <div className={`absolute top-2.5 left-2.5 text-xs font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm ${
                       isYoutube ? 'bg-red-500/90 text-white' : 'bg-black/50 text-white'
@@ -495,7 +489,7 @@ export function DashboardPage() {
                         {project.title}
                       </h3>
 
-                      {pid && !selectMode && isClickable && (
+                      {pid && !selectMode && (
                         <div className="relative shrink-0 mt-0.5" ref={menuOpenId === pid ? menuRef : undefined}>
                           <button
                             onClick={e => {
@@ -510,7 +504,7 @@ export function DashboardPage() {
                           </button>
 
                           {menuOpenId === pid && (
-                            <div className="absolute right-0 top-full mt-1.5 w-40 rounded-2xl bg-white shadow-xl shadow-slate-200/80 border border-slate-100 overflow-hidden z-20 py-1.5">
+                            <div className="absolute right-0 top-full mt-1.5 w-40 rounded-2xl bg-white shadow-xl shadow-slate-200/80 border border-slate-100 overflow-hidden z-50 py-1.5">
                               <button
                                 onClick={e => {
                                   e.stopPropagation();
@@ -567,7 +561,14 @@ export function DashboardPage() {
                       )}
                     </div>
 
-                    <p className="text-xs text-slate-400">{formatDate(project.createdAt)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-slate-400 flex-1">{formatDate(project.createdAt)}</p>
+                      {/* 상태 뱃지 (카드 하단으로 이동) */}
+                      <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusCfg.badge}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
+                        {statusCfg.label}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

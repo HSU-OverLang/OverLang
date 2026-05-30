@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getJobDetail, retryJob } from '@/api/video';
+import { getJobDetail, retryJob, ApiError } from '@/api/video';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { Header } from '@/components/layout/Header';
 
 // ── 단계 정의 ─────────────────────────────────────────────
 const STAGES = [
@@ -11,6 +12,7 @@ const STAGES = [
   { key: 'WHISPER_ALIGNMENT',    label: '타임스탬프 정렬',  desc: '각 단어의 정확한 시간 위치를 맞춰요' },
   { key: 'OCR_FRAME_EXTRACTION', label: '프레임 샘플링',    desc: '자막이 포함된 장면을 골라내요' },
   { key: 'OCR_TEXT_DETECTION',   label: '화면 텍스트 추출', desc: 'OCR 엔진으로 화면 글자를 읽어요' },
+  { key: 'TRANSLATION',          label: '번역',             desc: '인식된 텍스트를 목표 언어로 번역해요' },
   { key: 'LLM_ANALYSIS',         label: 'AI 문장 분석',     desc: '문장 구조와 의미를 심층 분석해요' },
   { key: 'MERGING_RESULTS',      label: '결과 병합',        desc: '음성·화면 데이터를 하나로 합쳐요' },
   { key: 'FINALIZING',           label: '최종 저장',        desc: '분석 결과를 저장하고 마무리해요' },
@@ -54,8 +56,10 @@ export function ProcessingPage() {
   const handleRetry = async () => {
     if (!projectId) return;
     setRetrying(true);
+    // 번역 단계에서 실패한 경우 TRANSLATION_ONLY, 그 외는 FULL_ANALYSIS
+    const jobType = currentStage === 'TRANSLATION' ? 'TRANSLATION_ONLY' : 'FULL_ANALYSIS';
     try {
-      const result = await retryJob(projectId);
+      const result = await retryJob(projectId, jobType);
       // 새 jobId로 같은 페이지 리셋
       navigate('/processing', {
         replace: true,
@@ -92,8 +96,14 @@ export function ProcessingPage() {
         setErrorCode(detail.errorCode ?? null);
         setErrorMessage(detail.errorMessage ?? null);
       }
-    } catch {
-      // 폴링 중 네트워크 오류는 무시하고 다음 주기에 재시도
+    } catch (e: unknown) {
+      // 404: 프로젝트/Job이 삭제된 경우 → polling 중단 후 대시보드로 이동
+      if (e instanceof ApiError && e.status === 404) {
+        stopPolling();
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      // 그 외 네트워크 오류는 무시하고 다음 주기에 재시도
     }
   };
 
@@ -132,11 +142,16 @@ export function ProcessingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50/30 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50/30">
+      <Header />
+      <div className="flex items-center justify-center p-6 pt-8">
       <div className="w-full max-w-md">
 
-        {/* 로고 */}
-        <div className="flex items-center justify-center gap-2 mb-8">
+        {/* 로고 - 클릭 시 대시보드 이동 */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="flex items-center justify-center gap-2 mb-8 mx-auto hover:opacity-80 transition-opacity"
+        >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600">
             <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -144,7 +159,7 @@ export function ProcessingPage() {
             </svg>
           </div>
           <span className="text-lg font-bold text-slate-800">OverLang</span>
-        </div>
+        </button>
 
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
 
@@ -162,13 +177,10 @@ export function ProcessingPage() {
               </div>
 
               <div className="rounded-xl bg-red-50 border border-red-200 px-5 py-4 mb-6">
-                {errorCode && (
-                  <p className="text-xs font-mono text-red-400 mb-1">{errorCode}</p>
-                )}
                 <p className="text-sm text-red-700 leading-relaxed">
-                  {errorCode && ERROR_MESSAGES[errorCode]
+                  {(errorCode && ERROR_MESSAGES[errorCode])
                     ? ERROR_MESSAGES[errorCode]
-                    : errorMessage ?? '알 수 없는 오류가 발생했습니다.'}
+                    : '처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'}
                 </p>
               </div>
 
@@ -308,6 +320,7 @@ export function ProcessingPage() {
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
