@@ -4,7 +4,7 @@ import os
 import statistics
 from typing import Any
 
-from ai.api.schemas import BoundingBox, OcrItem, OcrLine
+from ai.api.schemas import BoundingBox, OcrAnimation, OcrItem, OcrLine
 from ai.ocr.overlay_style import build_ocr_style
 
 LINE_VERTICAL_OVERLAP_THRESHOLD = 0.45
@@ -500,9 +500,11 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
         confidence = round(sum(confidence_values) / len(confidence_values), 4)
 
     coverage_box = _track_coverage_bbox(track)
+    lines = _build_ocr_item_lines(track, coverage_box)
     style = build_ocr_style(
         track.get("styleFramePath"),
         coverage_box,
+        line_count=len(lines),
     )
     if style is not None:
         style.animation = _build_track_animation(track)
@@ -514,7 +516,7 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
         translated_text=None,
         bounding_box=coverage_box,
         confidence=confidence,
-        lines=_build_ocr_item_lines(track, coverage_box),
+        lines=lines,
         style=style,
     )
 
@@ -603,7 +605,7 @@ def _resolve_track_end_time(track: dict[str, Any]) -> float:
     return round(trimmed_end_time, 3)
 
 
-def _build_track_animation(track: dict[str, Any]) -> dict[str, Any] | None:
+def _build_track_animation(track: dict[str, Any]) -> OcrAnimation | None:
     if not _has_progressive_text_candidates(track):
         return None
 
@@ -616,11 +618,11 @@ def _build_track_animation(track: dict[str, Any]) -> dict[str, Any] | None:
     if float(end_time) <= float(start_time):
         return None
 
-    return {
-        "type": "TYPEWRITER",
-        "startTime": round(float(start_time), 3),
-        "endTime": round(float(end_time), 3),
-    }
+    return OcrAnimation(
+        type="TYPEWRITER",
+        start_time=round(float(start_time), 3),
+        end_time=round(float(end_time), 3),
+    )
 
 
 def _track_coverage_bbox(track: dict[str, Any]) -> BoundingBox:

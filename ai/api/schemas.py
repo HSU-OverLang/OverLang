@@ -196,6 +196,17 @@ class BoundingBox(CamelModel):
     h: float
 
 
+class OcrAnimation(CamelModel):
+    type: str
+    start_time: float
+    end_time: float
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_animation_type(cls, value: str) -> str:
+        return str(value).strip().upper()
+
+
 class OcrStyle(CamelModel):
     background_color: str | None = None
     dominant_background_color: str | None = None
@@ -204,7 +215,15 @@ class OcrStyle(CamelModel):
     font_weight: str | None = None
     text_align: str | None = None
     blur_region: BoundingBox | None = None
-    animation: dict[str, Any] | None = None
+    animation: OcrAnimation | None = None
+
+    @field_validator("font_weight", "text_align", mode="before")
+    @classmethod
+    def normalize_style_keyword(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return str(value).strip().upper()
 
 
 class OcrLine(CamelModel):
