@@ -233,7 +233,14 @@ export function StudyPage() {
     }
     setWordsLoading(true);
     getMySavedWords()
-      .then(data => setWords(data))
+      .then(data => {
+        setWords(data);
+        // 페이지 진입 시 모든 단어 분석 미리 로드
+        data.forEach(word => {
+          handleAnalyzeRelations(word);
+          handleGenerateExamples(word);
+        });
+      })
       .catch(err => {
         console.error('[OverLang] 단어 목록 로드 실패:', err);
         setWords([]);
@@ -425,70 +432,54 @@ export function StudyPage() {
                       : 'border-slate-100 bg-slate-50 hover:border-emerald-200 hover:bg-white hover:shadow-sm'
                   }`}
                 >
-                  {/* 카드 메인 행 */}
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      {/* 단어 + 뱃지 + 날짜 */}
-                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <h3 className="text-sm font-bold text-slate-800">{word.word}</h3>
-                        {word.lang && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white border border-slate-200 text-slate-400 uppercase tracking-wide">
-                            {word.lang.split('-')[0]}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">
-                          {new Date(word.createdAt).toLocaleDateString('ko-KR')}
+                  {/* 카드 메인 행 - 전체 클릭으로 펼치기 */}
+                  <div
+                    className="px-4 pt-3 pb-2.5 cursor-pointer select-none"
+                    onClick={() => {
+                      setExpandedId(isExpanded ? null : String(word.savedWordId));
+                    }}
+                  >
+                    {/* 단어 + 뱃지 */}
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <h3 className="text-sm font-bold text-slate-800">{word.word}</h3>
+                      {word.lang && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white border border-slate-200 text-slate-400 uppercase tracking-wide">
+                          {word.lang.split('-')[0]}
                         </span>
-                      </div>
-
-                      {/* 뜻 */}
-                      {word.meaning && (
-                        <p className="text-xs text-slate-500 leading-relaxed">{word.meaning}</p>
                       )}
-
-                      {/* 출처 태그 */}
-                      {word.projectTitle && (
-                        <p className="text-[10px] text-emerald-500 mt-0.5">📌 {word.projectTitle}</p>
-                      )}
+                      {/* 펼침 인디케이터 */}
+                      <svg className={`h-3 w-3 text-slate-300 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
 
-                    {/* 우측 버튼 묶음 */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* 뜻 */}
+                    {word.meaning && (
+                      <p className="text-xs text-slate-500 leading-relaxed mb-1.5">{word.meaning}</p>
+                    )}
+
+                    {/* 하단 행: 출처 + 날짜 + TTS + 삭제 */}
+                    <div className="flex items-center gap-1.5">
+                      {word.projectTitle
+                        ? <p className="text-[10px] text-emerald-500 flex-1 truncate">📌 {word.projectTitle}</p>
+                        : <div className="flex-1" />
+                      }
+                      <span className="text-[10px] text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5 shrink-0">
+                        {new Date(word.createdAt).toLocaleDateString('ko-KR')}
+                      </span>
                       {/* TTS */}
                       <button
-                        onClick={() => handleTTS(word.word, word.lang)}
-                        className="flex h-7 w-7 items-center justify-center rounded-xl bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-all"
+                        onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-all shrink-0"
                       >
                         <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
                         </svg>
                       </button>
-
-                      {/* 펼치기 */}
-                      <button
-                        onClick={() => {
-                          const newExpanded = isExpanded ? null : String(word.savedWordId);
-                          setExpandedId(newExpanded);
-                          if (!isExpanded) {
-                            if (!relations) handleAnalyzeRelations(word);
-                            if (!examples) handleGenerateExamples(word);
-                          }
-                        }}
-                        className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${
-                          isExpanded
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                            : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600'
-                        }`}
-                      >
-                        <svg className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-
                       {/* 삭제 */}
                       <button
-                        onClick={() => handleDelete(word.savedWordId)}
-                        className="flex h-7 w-7 items-center justify-center rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50 hover:border-red-100 border border-transparent transition-all"
+                        onClick={e => { e.stopPropagation(); handleDelete(word.savedWordId); }}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50 hover:border-red-100 border border-transparent transition-all shrink-0"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

@@ -1,5 +1,15 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from './client';
 
+// HTTP 에러에 status 코드를 담는 커스텀 에러
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // Backend는 { status, data } 래퍼로 응답을 감싸므로 unwrap 처리
 async function unwrap<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -8,7 +18,7 @@ async function unwrap<T>(res: Response): Promise<T> {
       const body = await res.json();
       message = body?.message ?? message;
     } catch { /* ignore */ }
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   const json = await res.json();
   return (json.data ?? json) as T;
@@ -146,15 +156,26 @@ export interface SegmentResult {
   translatedWords: SegmentWord[];
 }
 
+export interface OcrItemAnimation {
+  type: 'TYPEWRITER' | 'FADE' | 'NONE';
+  startTime: number;
+  endTime: number;
+}
+
 export interface OcrItemStyle {
-  animation?: 'typing' | 'fade' | 'none';
-  fontSizeRatio?: number;
-  fontWeight?: 'normal' | 'bold';
-  textAlign?: 'left' | 'center' | 'right';
-  /** 원문 글자색 (예: "#e63946", "rgb(230,57,70)") - AI가 추출한 값 */
+  backgroundColor?: string;
+  dominantBackgroundColor?: string;
   textColor?: string;
-  /** 원문 배경색 (예: "#f1faee") - AI가 추출한 값 */
-  bgColor?: string;
+  fontSizeRatio?: number;
+  fontWeight?: 'BOLD' | 'NORMAL';
+  textAlign?: 'LEFT' | 'CENTER' | 'RIGHT';
+  blurRegion?: { x: number; y: number; w: number; h: number };
+  animation?: OcrItemAnimation;
+}
+
+export interface OcrItemLine {
+  originText: string;
+  boundingBox: { x: number; y: number; w: number; h: number };
 }
 
 export interface OcrItemResult {
@@ -166,6 +187,7 @@ export interface OcrItemResult {
   translatedText: string | null;
   boundingBox: { x: number; y: number; w: number; h: number };
   confidence: number;
+  lines?: OcrItemLine[];
   style?: OcrItemStyle;
 }
 
@@ -224,8 +246,11 @@ export interface RetryJobResult {
 }
 
 /** 실패한 분석 재처리 요청 */
-export async function retryJob(projectId: number): Promise<RetryJobResult> {
-  const res = await apiPost(`/v1/projects/${projectId}/jobs/retry`, {});
+export async function retryJob(
+  projectId: number,
+  jobType: 'FULL_ANALYSIS' | 'TRANSLATION_ONLY' = 'FULL_ANALYSIS'
+): Promise<RetryJobResult> {
+  const res = await apiPost(`/v1/projects/${projectId}/jobs/retry`, { jobType });
   return unwrap<RetryJobResult>(res);
 }
 
@@ -262,6 +287,7 @@ export interface LearningContentItem {
   learningContentId: number;
   title: string;
   content: string;
+  textType?: 'ORIGINAL' | 'TRANSLATION';
   startTime: number | null;
   endTime: number | null;
 }

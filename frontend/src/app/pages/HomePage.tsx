@@ -29,11 +29,12 @@ function useTypingEffect(text: string, speed = 60, startDelay = 400) {
   return { displayed, done };
 }
 
-// 파티클 캔버스
-function ParticleCanvas() {
+// 떠다니는 문자 캔버스 (알파벳·한글·히라가나·가타카나·한자)
+function FloatingChars() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouse = useRef({ x: -9999, y: -9999 });
-  const particles = useRef<{ x: number; y: number; vx: number; vy: number; r: number; alpha: number; color: string }[]>([]);
+  type CharParticle = { x: number; y: number; vx: number; vy: number; char: string; fontSize: number; alpha: number; color: string; rotation: number; rotSpeed: number };
+  const chars = useRef<CharParticle[]>([]);
   const raf = useRef<number>(0);
 
   useEffect(() => {
@@ -42,75 +43,57 @@ function ParticleCanvas() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
+    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
     resize();
     window.addEventListener('resize', resize);
 
     const COLORS = ['#10b981', '#14b8a6', '#6366f1', '#a78bfa', '#f59e0b'];
-    for (let i = 0; i < 60; i++) {
-      particles.current.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        r: Math.random() * 3 + 1,
-        alpha: Math.random() * 0.5 + 0.2,
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      });
-    }
+    const POOL = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가나다라마바사아자차카타파하기니디리미비시이지치키티피히あいうえおかきくけこさしすせそたちつてとなにぬねのアイウエオカキクケコサシスセソタチツテトナニヌネノ茶山水火木金土日月星語言文字学習'.split('');
+
+    chars.current = Array.from({ length: 55 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.45,
+      vy: (Math.random() - 0.5) * 0.45,
+      char: POOL[Math.floor(Math.random() * POOL.length)],
+      fontSize: Math.random() * 38 + 12,
+      alpha: Math.random() * 0.28 + 0.07,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.012,
+    }));
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      particles.current.forEach(p => {
+      chars.current.forEach(p => {
         const dx = p.x - mouse.current.x;
         const dy = p.y - mouse.current.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 120) {
-          const force = (120 - dist) / 120;
-          p.vx += (dx / dist) * force * 0.5;
-          p.vy += (dy / dist) * force * 0.5;
+        if (dist < 130 && dist > 0) {
+          const force = (130 - dist) / 130;
+          p.vx += (dx / dist) * force * 0.55;
+          p.vy += (dy / dist) * force * 0.55;
         }
-        p.vx *= 0.97;
-        p.vy *= 0.97;
-        p.x += p.vx;
-        p.y += p.vy;
+        p.vx *= 0.97; p.vy *= 0.97;
+        p.x += p.vx; p.y += p.vy;
+        p.rotation += p.rotSpeed;
         if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
         if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
         p.x = Math.max(0, Math.min(canvas.width, p.x));
         p.y = Math.max(0, Math.min(canvas.height, p.y));
 
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.font = `bold ${p.fontSize}px sans-serif`;
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.alpha;
-        ctx.fill();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.char, 0, 0);
+        ctx.restore();
         ctx.globalAlpha = 1;
       });
-
-      for (let i = 0; i < particles.current.length; i++) {
-        for (let j = i + 1; j < particles.current.length; j++) {
-          const a = particles.current[i];
-          const b = particles.current[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 100) {
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = '#10b981';
-            ctx.globalAlpha = (1 - dist / 100) * 0.12;
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
-        }
-      }
-
       raf.current = requestAnimationFrame(animate);
     };
     animate();
@@ -131,13 +114,7 @@ function ParticleCanvas() {
     };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ zIndex: 0 }}
-    />
-  );
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }} />;
 }
 
 // 방향별 슬라이드 + 순차 등장 헬퍼 컴포넌트
@@ -171,7 +148,7 @@ export function HomePage() {
   const [visible, setVisible] = useState<Set<number>>(new Set([0]));
 
   const { displayed: typedLine1, done: line1Done } = useTypingEffect('영상 속 언어를', 70, 300);
-  const { displayed: typedLine2 } = useTypingEffect('완전히 이해하세요', 70, line1Done ? 100 : 99999);
+  const { displayed: typedLine2, done: line2Done } = useTypingEffect('완전히 이해하세요.', 70, line1Done ? 100 : 99999);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -207,24 +184,21 @@ export function HomePage() {
         {/* ── 1. Hero ── */}
         <div style={{ scrollSnapAlign: 'start', height: '100%' }}>
           <div className="h-full relative flex flex-col items-center justify-center px-6 text-center overflow-hidden bg-white">
-            <ParticleCanvas />
+            <FloatingChars />
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-200 to-transparent pointer-events-none" />
 
-            {/* 뱃지 */}
-            <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 mb-7">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-sm font-medium text-emerald-700">AI 기반 영상 언어 학습 플랫폼</span>
-            </div>
-
             {/* 헤드라인 (타이핑 효과) */}
-            <h1 className="relative z-10 text-5xl md:text-7xl font-black leading-[1.08] text-slate-900 tracking-tight max-w-3xl">
-              <span className="block">{typedLine1}<span className="inline-block w-0.5 h-[0.9em] bg-slate-900 align-middle ml-1 animate-pulse" /></span>
-              <span className="block bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent min-h-[1.1em]">
+            <h1 className="relative z-10 text-5xl md:text-7xl font-black leading-[1.08] text-slate-900 tracking-normal max-w-3xl">
+              <span className="block">
+                {typedLine1}
+                {!line2Done && <span className="inline-block w-0.5 h-[0.9em] bg-slate-900 align-middle ml-1 animate-pulse" />}
+              </span>
+              <span className="block text-emerald-500 min-h-[1.1em]">
                 {typedLine2}
               </span>
             </h1>
 
-            <p className="relative z-10 mt-6 max-w-md text-lg text-slate-500 leading-relaxed font-normal">
+            <p className="relative z-10 mt-6 text-lg text-slate-500 leading-relaxed font-normal whitespace-nowrap">
               음성 자막부터 화면 텍스트까지, AI가 영상 속 모든 언어를 통합 번역합니다.
             </p>
 
@@ -254,10 +228,9 @@ export function HomePage() {
             <div className="relative w-full max-w-5xl">
               <div className="text-center mb-6">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1 mb-3">
-                  <span className="h-1 w-1 rounded-full bg-emerald-500" />Demo
                 </span>
                 <h2 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight">
-                  실제로 이렇게 <span className="text-emerald-600">동작합니다</span>
+                  실제로 이렇게 <span className="text-emerald-600">동작합니다.</span>
                 </h2>
                 <p className="mt-2 text-slate-500 text-sm">음성 자막과 화면 텍스트를 동시에 번역하는 OverLang</p>
               </div>
@@ -270,16 +243,15 @@ export function HomePage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-green-400/80" />
                   <span className="ml-3 text-xs text-slate-400 font-mono">overlang — 실시간 번역</span>
                 </div>
-                <video
-                  src="/OverLang.mp4"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  controls
-                  className="w-full block"
-                  style={{ maxHeight: '55vh', objectFit: 'contain', background: '#0f172a' }}
-                />
+                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    src="https://www.youtube.com/embed/TfoY9JN3bec?autoplay=0&rel=0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute inset-0 w-full h-full"
+                    style={{ border: 'none' }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -304,7 +276,7 @@ export function HomePage() {
               </Anim>
               <Anim from="up" vis={visible.has(2)} delay={240}>
                 <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                  영상 흐름을 끊지 않고, 자막 속 궁금한 단어를 드래그하면 뜻·발음·예문을 즉시 확인하고 학습 노트에 저장할 수 있어요.
+                  영상 흐름을 끊지 않고, 자막 속 궁금한 단어를 드래그하면 <span className="whitespace-nowrap">뜻·발음·예문</span>을 즉시 확인하고 학습 노트에 저장할 수 있어요.
                 </p>
               </Anim>
               <Anim from="up" vis={visible.has(2)} delay={360}>
@@ -536,9 +508,7 @@ export function HomePage() {
 
             <div className="relative w-full max-w-5xl">
               <Anim from="up" vis={visible.has(5)} delay={0} className="text-center mb-10">
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-teal-600 bg-teal-50 border border-teal-100 rounded-full px-3 py-1 mb-4">
-                  <span className="h-1 w-1 rounded-full bg-teal-500" />All Features
-                </span>
+
                 <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight">
                   영상 시청이 곧 <span className="text-teal-600">언어 학습</span>
                 </h2>
@@ -613,17 +583,12 @@ export function HomePage() {
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_theme(colors.emerald.50),_transparent_70%)] pointer-events-none" />
 
             <div className="relative max-w-xl">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1 mb-7">
-                <span className="h-1 w-1 rounded-full bg-emerald-500" />Get Started
-              </span>
-              <h2 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-tight mb-6">
-                지금 바로<br />
-                <span className="bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent">
-                  시작하세요
-                </span>
+
+              <h2 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-tight mb-6 whitespace-nowrap">
+                지금 바로 <span className="text-emerald-500">시작하세요</span>
               </h2>
-              <p className="text-lg text-slate-500 font-normal mb-10 leading-relaxed">
-                무료로 시작하고, 영상 시청과 동시에<br />자연스럽게 언어를 학습하세요.
+              <p className="text-lg text-slate-500 font-normal mb-10 leading-relaxed whitespace-nowrap">
+                무료로 시작하고, 영상 시청과 동시에 자연스럽게 언어를 학습하세요.
               </p>
               <button
                 onClick={() => navigate(user ? '/upload' : '/join')}

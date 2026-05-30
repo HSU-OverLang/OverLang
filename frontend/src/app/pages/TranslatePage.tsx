@@ -103,10 +103,13 @@ function TypingOcrText({
   }, [text, durationSec]);
 
   return (
-    <p className="text-white w-full leading-tight px-0.5" style={{ whiteSpace: 'pre-line', ...style }}>
+    <p className="w-full leading-tight px-0.5" style={{ whiteSpace: 'pre-line', ...style }}>
       {displayed}
       {displayed.length < text.length && (
-        <span className="inline-block w-[2px] h-[1em] bg-white/80 ml-[1px] animate-pulse align-middle" />
+        <span
+          className="inline-block w-[2px] h-[1em] ml-[1px] animate-pulse align-middle opacity-80"
+          style={{ backgroundColor: (style?.color as string) ?? '#ffffff' }}
+        />
       )}
     </p>
   );
@@ -150,11 +153,20 @@ interface OcrOverlay {
   h: number;
   startSec: number;
   endSec: number;
+  confidence?: number;
+  lines?: Array<{
+    originText: string;
+    boundingBox: { x: number; y: number; w: number; h: number };
+  }>;
   style?: {
-    animation?: 'typing' | 'fade' | 'none';
+    animation?: { type: 'TYPEWRITER' | 'FADE' | 'NONE'; startTime: number; endTime: number };
     fontSizeRatio?: number;
-    fontWeight?: 'normal' | 'bold';
-    textAlign?: 'left' | 'center' | 'right';
+    fontWeight?: 'BOLD' | 'NORMAL';
+    textAlign?: 'LEFT' | 'CENTER' | 'RIGHT';
+    textColor?: string;
+    backgroundColor?: string;
+    dominantBackgroundColor?: string;
+    blurRegion?: { x: number; y: number; w: number; h: number };
   };
 }
 
@@ -218,6 +230,8 @@ export function TranslatePage() {
   // 영상 재생 시간 추적
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoWrapperRef = useRef<HTMLDivElement>(null);
+  const [wrapperHeight, setWrapperHeight] = useState(400);
   const ytPlayerRef = useRef<any>(null);
   const ytTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -463,18 +477,24 @@ export function TranslatePage() {
           const ocrItems = ocrResult.value;
           console.log('[OverLang] OCR 아이템:', ocrItems);
           if (ocrItems.length > 0) {
-            setOcrData(ocrItems.map((item: OcrItemResult) => ({
-              id: item.ocrItemId,
-              original: item.originText,
-              translation: cleanTranslation(item.translatedText, item.originText),
-              x: item.boundingBox.x * 100,
-              y: item.boundingBox.y * 100,
-              w: item.boundingBox.w * 100,
-              h: item.boundingBox.h * 100,
-              style: item.style,
-              startSec: item.startTime,
-              endSec: item.endTime,
-            })));
+            setOcrData(
+              ocrItems
+                .filter((item: OcrItemResult) => (item.confidence ?? 1) > 0.3) // 노이즈 필터링
+                .map((item: OcrItemResult) => ({
+                  id: item.ocrItemId,
+                  original: item.originText,
+                  translation: cleanTranslation(item.translatedText, item.originText),
+                  x: item.boundingBox.x * 100,
+                  y: item.boundingBox.y * 100,
+                  w: item.boundingBox.w * 100,
+                  h: item.boundingBox.h * 100,
+                  confidence: item.confidence,
+                  lines: item.lines,
+                  style: item.style,
+                  startSec: item.startTime,
+                  endSec: item.endTime,
+                }))
+            );
           }
         } else {
           console.warn('[OverLang] OCR 로드 실패 (무시):', ocrResult.reason);
@@ -543,6 +563,19 @@ export function TranslatePage() {
     };
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // 비디오 래퍼 높이 추적 (fontSizeRatio → px 변환용)
+  useEffect(() => {
+    const el = videoWrapperRef.current;
+    if (!el) return;
+    setWrapperHeight(el.offsetHeight);
+    const ro = new ResizeObserver(entries => {
+      const h = entries[0]?.contentRect.height;
+      if (h) setWrapperHeight(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // 비디오 시간 업데이트 핸들러 (구간 반복 포함)
@@ -674,9 +707,17 @@ export function TranslatePage() {
         targetLanguage: targetLang.split('-')[0].toUpperCase(),
       });
       if (requestId !== explainRequestIdRef.current) return;
-      setSelectedWord(prev =>
-        prev ? { ...prev, meaning: result.meaning, relatedWords: result.relatedWords, matchedExpression: result.matchedExpression } : prev,
-      );
+      setSelectedWord(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          // matchedExpression=true이면 API가 준 word(전체 표현)로 교체
+          word: result.matchedExpression && result.word ? result.word : prev.word,
+          meaning: result.meaning,
+          relatedWords: result.relatedWords,
+          matchedExpression: result.matchedExpression,
+        };
+      });
     } catch (err) {
       if (requestId !== explainRequestIdRef.current) return;
       setWordError('단어 분석에 실패했습니다. 찜하기는 여전히 가능합니다.');
@@ -744,9 +785,17 @@ export function TranslatePage() {
       });
       // 이 요청이 가장 최신인 경우에만 결과 반영 (레이스 컨디션 방지)
       if (requestId !== explainRequestIdRef.current) return;
-      setSelectedWord(prev =>
-        prev ? { ...prev, meaning: result.meaning, relatedWords: result.relatedWords, matchedExpression: result.matchedExpression } : prev,
-      );
+      setSelectedWord(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          // matchedExpression=true이면 API가 준 word(전체 표현)로 교체
+          word: result.matchedExpression && result.word ? result.word : prev.word,
+          meaning: result.meaning,
+          relatedWords: result.relatedWords,
+          matchedExpression: result.matchedExpression,
+        };
+      });
     } catch (err) {
       if (requestId !== explainRequestIdRef.current) return;
       console.error('[OverLang] 단어 분석 실패:', err);
@@ -999,6 +1048,7 @@ export function TranslatePage() {
             {/* 내부 래퍼: 비디오와 OCR이 항상 같은 크기를 공유 */}
             {/* fullscreen 시 aspect-ratio + max 제약으로 contain 동작 */}
             <div
+              ref={videoWrapperRef}
               className={`relative w-full${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ''}`}
               style={isFullscreen ? undefined : { height: 'calc((100vh - 53px) * 2 / 3)' }}
             >
@@ -1023,16 +1073,23 @@ export function TranslatePage() {
             {/* OCR 오버레이 - 재생 중일 때만 표시 */}
             {showOcr && isPlaying && activeOcr.map(ocr => {
               if (!ocr.translation) return null;
-              const fontSizeRatio = ocr.style?.fontSizeRatio ?? 1;
-              const fontWeight = ocr.style?.fontWeight ?? 'bold';
-              const textAlign = ocr.style?.textAlign ?? 'center';
-              const animation = ocr.style?.animation ?? 'none';
-              // px 고정값 기반 + fontSizeRatio로 미세 조정
-              // overflow: visible 처리로 잘림 방지
-              const baseFontPx = ocrFontSize === 'small' ? 11 : ocrFontSize === 'large' ? 22 : 15;
-              const fontSize = `${Math.round(baseFontPx * fontSizeRatio)}px`;
-
+              const fontSizeRatio = ocr.style?.fontSizeRatio;
+              // API는 대문자 'BOLD'/'NORMAL', CSS는 소문자 필요
+              const fontWeight = (ocr.style?.fontWeight ?? 'BOLD').toLowerCase();
+              // API는 대문자 'LEFT'/'CENTER'/'RIGHT', CSS는 소문자 필요
+              const textAlignRaw = ocr.style?.textAlign ?? 'LEFT';
+              const textAlign = textAlignRaw.toLowerCase() as 'left' | 'center' | 'right';
+              const animationType = ocr.style?.animation?.type ?? 'NONE';
+              // fontSizeRatio: 영상 높이 대비 글자 크기 비율 → 실제 px 변환
+              // sizeMultiplier: 사용자 폰트 크기 설정 반영
+              const sizeMultiplier = ocrFontSize === 'small' ? 0.75 : ocrFontSize === 'large' ? 1.3 : 1.0;
+              const fontSize = fontSizeRatio != null
+                ? `${Math.round(wrapperHeight * fontSizeRatio * sizeMultiplier)}px`
+                : ocrFontSize === 'small' ? '11px' : ocrFontSize === 'large' ? '20px' : '14px';
               const textColor = ocr.style?.textColor ?? '#ffffff';
+              const bgColor = ocr.style?.backgroundColor ?? ocr.style?.dominantBackgroundColor ?? 'rgba(0,0,0,0.55)';
+              const blurRegion = ocr.style?.blurRegion;
+
               const textStyle: React.CSSProperties = {
                 fontSize,
                 fontWeight,
@@ -1044,37 +1101,55 @@ export function TranslatePage() {
               };
 
               return (
-                <div
-                  key={ocr.id}
-                  className="absolute"
-                  style={{
-                    left: `${ocr.x}%`,
-                    top: `${ocr.y}%`,
-                    width: `${ocr.w}%`,
-                    minHeight: `${ocr.h}%`,
-                    // overflow visible: 텍스트가 박스보다 길어도 잘리지 않음
-                    overflow: 'visible',
-                    pointerEvents: 'none',
-                    backgroundColor: ocr.style?.bgColor ?? 'rgba(0, 0, 0, 0.55)',
-                    backdropFilter: 'blur(3px)',
-                    WebkitBackdropFilter: 'blur(3px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center',
-                    padding: '2px 5px',
-                  }}
-                >
-                  {animation === 'typing' ? (
-                    <TypingOcrText
-                      text={ocr.translation}
-                      durationSec={ocr.endSec - ocr.startSec}
-                      style={textStyle}
+                <div key={ocr.id} className="contents">
+                  {/* blurRegion: 원본 영상 배경을 블러 처리하는 레이어 */}
+                  {blurRegion && (
+                    <div
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: `${blurRegion.x * 100}%`,
+                        top: `${blurRegion.y * 100}%`,
+                        width: `${blurRegion.w * 100}%`,
+                        height: `${blurRegion.h * 100}%`,
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        // dominantBackgroundColor가 있으면 우선 사용 (영상과 가장 비슷한 배경색)
+                        backgroundColor: ocr.style?.dominantBackgroundColor
+                          ? `${ocr.style.dominantBackgroundColor}cc`
+                          : `${bgColor}aa`,
+                      }}
                     />
-                  ) : (
-                    <p className="w-full leading-tight" style={textStyle}>
-                      {ocr.translation}
-                    </p>
                   )}
+                  {/* 번역 텍스트 오버레이 */}
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${ocr.x}%`,
+                      top: `${ocr.y}%`,
+                      width: `${ocr.w}%`,
+                      minHeight: `${ocr.h}%`,
+                      overflow: 'visible',
+                      pointerEvents: 'none',
+                      backgroundColor: blurRegion ? 'transparent' : bgColor,
+                      ...(!blurRegion ? { backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' } : {}),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center',
+                      padding: '2px 5px',
+                    }}
+                  >
+                    {animationType === 'TYPEWRITER' ? (
+                      <TypingOcrText
+                        text={ocr.translation}
+                        durationSec={ocr.style?.animation ? ocr.style.animation.endTime - ocr.style.animation.startTime : ocr.endSec - ocr.startSec}
+                        style={textStyle}
+                      />
+                    ) : (
+                      <p className="w-full leading-tight" style={textStyle}>
+                        {ocr.translation}
+                      </p>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -1449,30 +1524,48 @@ export function TranslatePage() {
                           {sub.original ? (
                             // 백엔드 토크나이저 결과 우선 사용 (일본어/중국어 형태소 분석 지원)
                             // words가 없으면 공백 분리 폴백
-                            (sub.words && sub.words.length > 0
-                              ? sub.words.map((w, i) => (
-                                  <span
-                                    key={w.segmentWordId ?? i}
-                                    onClick={e => { e.stopPropagation(); handleWordClick(sub, w.word, 'ORIGINAL'); }}
-                                    className="cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
-                                  >
-                                    {w.word}
-                                  </span>
-                                ))
-                              : sub.original.split(/(\s+)/).map((token, i) => {
-                                  const isSpace = /^\s+$/.test(token);
-                                  if (isSpace) return <span key={i}>&nbsp;</span>;
-                                  return (
+                            (() => {
+                              // 현재 자막이 선택된 단어/표현의 출처인지 확인
+                              const isSelectedSub = selectedWord?.originalSentence === sub.original;
+                              // 관용표현 하이라이트: matchedExpression=true면 API가 준 word(표현 전체)가 포함하는 토큰들 강조
+                              const getTokenHighlight = (token: string): string => {
+                                if (!isSelectedSub || !selectedWord) return '';
+                                if (selectedWord.matchedExpression) {
+                                  // 관용표현: 표현 전체 문자열에 토큰이 포함되는지 확인
+                                  return selectedWord.word.includes(token)
+                                    ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-300'
+                                    : '';
+                                }
+                                // 단일 단어: 정확히 일치하는 토큰만 강조
+                                return selectedWord.word === token
+                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
+                                  : '';
+                              };
+
+                              return sub.words && sub.words.length > 0
+                                ? sub.words.map((w, i) => (
                                     <span
-                                      key={i}
-                                      onClick={e => { e.stopPropagation(); handleWordClick(sub, token, 'ORIGINAL'); }}
-                                      className="cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+                                      key={w.segmentWordId ?? i}
+                                      onClick={e => { e.stopPropagation(); handleWordClick(sub, w.word, 'ORIGINAL'); }}
+                                      className={`cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors ${getTokenHighlight(w.word)}`}
                                     >
-                                      {token}
+                                      {w.word}
                                     </span>
-                                  );
-                                })
-                            )
+                                  ))
+                                : sub.original.split(/(\s+)/).map((token, i) => {
+                                    const isSpace = /^\s+$/.test(token);
+                                    if (isSpace) return <span key={i}>&nbsp;</span>;
+                                    return (
+                                      <span
+                                        key={i}
+                                        onClick={e => { e.stopPropagation(); handleWordClick(sub, token, 'ORIGINAL'); }}
+                                        className={`cursor-pointer rounded px-0.5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors ${getTokenHighlight(token)}`}
+                                      >
+                                        {token}
+                                      </span>
+                                    );
+                                  });
+                            })()
                           ) : (
                             <span className="text-slate-300">원문 없음</span>
                           )}
@@ -1534,6 +1627,14 @@ export function TranslatePage() {
                       <div className="space-y-3">
                         <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-center">
                           <p className="text-xl font-extrabold text-emerald-700">{selectedWord.word}</p>
+                          {selectedWord.matchedExpression && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              관용 표현
+                            </span>
+                          )}
                           <p className="text-xs text-emerald-400 mt-1 font-mono">{selectedWord.timestamp}</p>
                           <button
                             onClick={() => {
@@ -1583,9 +1684,9 @@ export function TranslatePage() {
                         <div className="rounded-xl bg-slate-50 p-3 space-y-1.5">
                           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">원문 문장</p>
                           <p className="text-xs text-slate-700 leading-relaxed">
-                            {selectedWord.originalSentence.split(new RegExp(`(${selectedWord.word})`, 'i')).map((part, i) =>
+                            {selectedWord.originalSentence.split(new RegExp(`(${selectedWord.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')).map((part, i) =>
                               part.toLowerCase() === selectedWord.word.toLowerCase()
-                                ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5">{part}</mark>
+                                ? <mark key={i} className={`rounded px-0.5 not-italic ${selectedWord.matchedExpression ? 'bg-amber-200 text-amber-900' : 'bg-yellow-200 text-yellow-900'}`}>{part}</mark>
                                 : part
                             )}
                           </p>
@@ -1639,7 +1740,7 @@ export function TranslatePage() {
 
           {/* ── ③ 관용 표현 ── */}
           {activeTab === '관용표현' && (
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex-1 overflow-y-auto px-3 py-3">
               {!learningContents || learningContents.expressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
@@ -1651,15 +1752,16 @@ export function TranslatePage() {
                   <p className="text-xs text-slate-400">AI 분석이 완료된 영상에서 확인할 수 있어요</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-3">
-                    <p className="text-xs font-bold text-slate-700">💬 관용 표현</p>
-                    <span className="text-[10px] text-slate-400">{learningContents.expressions.length}개 · 클릭 시 해당 구간 이동</span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2 mb-3 px-1">
+                    <span className="text-base">💬</span>
+                    <p className="text-xs font-bold text-slate-700">관용 표현</p>
+                    <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">{learningContents.expressions.length}개</span>
                   </div>
-                  {learningContents.expressions.map(ex => (
+                  {learningContents.expressions.map((ex, idx) => (
                     <div
                       key={ex.learningContentId}
-                      className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 cursor-pointer hover:border-emerald-200 hover:bg-emerald-50/40 transition-all group"
+                      className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-emerald-100/50 transition-all group"
                       onClick={() => {
                         if (ex.startTime != null) {
                           if (videoRef.current) { videoRef.current.currentTime = ex.startTime; videoRef.current.play(); }
@@ -1667,19 +1769,28 @@ export function TranslatePage() {
                         }
                       }}
                     >
-                      <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-sm font-semibold text-slate-800 italic mb-1">"{ex.title}"</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">{ex.content}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
+                      {/* 상단: 인덱스 + 표현 제목 + 타임코드 */}
+                      <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold shrink-0">
+                          {idx + 1}
+                        </span>
+                        <p className="flex-1 text-sm font-bold text-slate-800 italic leading-snug">
+                          "{ex.title}"
+                        </p>
                         {ex.startTime != null && (
-                          <span className="text-[10px] font-mono text-emerald-500 group-hover:text-emerald-600 font-medium">
+                          <span className="flex items-center gap-1 text-[10px] font-mono bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-2 py-0.5 rounded-full shrink-0 transition-colors">
+                            <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
                             {secToTimecode(ex.startTime)}
                           </span>
                         )}
-                        <svg className="h-3.5 w-3.5 text-slate-300 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                      </div>
+                      {/* 하단: 설명 */}
+                      <div className="px-3.5 pb-3 pt-0">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2.5 border border-slate-100">
+                          <p className="text-xs text-slate-600 leading-relaxed">{ex.content}</p>
+                        </div>
                       </div>
                     </div>
                   ))}

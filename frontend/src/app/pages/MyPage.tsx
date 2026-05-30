@@ -51,7 +51,7 @@ export function MyPage() {
           const recent: RecentProject[] = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
           const filtered = recent.filter(p => existingIds.has(p.id ?? p.projectId));
           localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(filtered));
-          setRecentProjects(filtered.slice(0, 4));
+          setRecentProjects(filtered.slice(0, 3));
         } catch { setRecentProjects([]); }
       })
       .catch(() => {
@@ -59,7 +59,7 @@ export function MyPage() {
         // API 실패 시 localStorage 그대로 사용
         try {
           const recent: RecentProject[] = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]');
-          setRecentProjects(recent.slice(0, 4));
+          setRecentProjects(recent.slice(0, 3));
         } catch { setRecentProjects([]); }
       });
 
@@ -123,10 +123,13 @@ export function MyPage() {
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-2xl bg-white p-5 shadow-sm text-center">
+          <div
+            className="rounded-2xl bg-white p-5 shadow-sm text-center cursor-pointer hover:bg-emerald-50 transition-colors"
+            onClick={() => navigate('/dashboard')}
+          >
             <p className="text-2xl mb-1">🎬</p>
             <p className="text-2xl font-extrabold text-slate-800">{totalProjects}</p>
-            <p className="text-xs text-slate-400 mt-0.5">총 프로젝트</p>
+            <p className="text-xs text-emerald-500 mt-0.5 font-medium">총 프로젝트 →</p>
           </div>
           <div
             className="rounded-2xl bg-white p-5 shadow-sm text-center cursor-pointer hover:bg-emerald-50 transition-colors"
@@ -141,7 +144,7 @@ export function MyPage() {
         {/* 최근 프로젝트 */}
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-slate-800 text-lg">최근 클릭한 프로젝트</h2>
+            <h2 className="font-bold text-slate-800 text-lg">최근 시청한 프로젝트</h2>
             <button
               onClick={() => navigate('/dashboard')}
               className="text-sm font-medium text-emerald-600 hover:text-emerald-500 transition-colors flex items-center gap-1"
