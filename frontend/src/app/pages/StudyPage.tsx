@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getMySavedWords, deleteSavedWord, explainWord, generateWordExamples } from '@/api/words';
 import type { SavedWordResult, ExampleItem } from '@/api/words';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { Header } from '@/components/layout/Header';
 
 // API ExampleItem을 그대로 사용 (sentence, translatedSentence)
 type ExampleSentence = ExampleItem;
@@ -72,61 +73,132 @@ function WordNetworkSVG({ word, relatedWords }: {
   word: string;
   relatedWords: string[];
 }) {
-  const cx = 170, cy = 97;
-  // 최대 4개 노드: 왼쪽 상단, 왼쪽 하단, 오른쪽 상단, 오른쪽 하단
-  const nodePos = [
-    { x: 42,  y: 52  },
-    { x: 42,  y: 142 },
-    { x: 298, y: 52  },
-    { x: 298, y: 142 },
-  ];
-  const nodeColors = [
-    { stroke: '#818cf8', fill: '#eef2ff', text: '#3730a3' },
-    { stroke: '#818cf8', fill: '#eef2ff', text: '#3730a3' },
-    { stroke: '#818cf8', fill: '#eef2ff', text: '#3730a3' },
-    { stroke: '#818cf8', fill: '#eef2ff', text: '#3730a3' },
-  ];
+  const visible = relatedWords.slice(0, 6);
+  if (visible.length === 0) return null;
 
-  const truncate = (s: string, max = 7) => s.length > max ? s.slice(0, max - 1) + '…' : s;
-  const visible = relatedWords.slice(0, 4);
+  const W = 440, H = 240;
+  const cx = W / 2, cy = H / 2;
+  const NH = 32;           // node pill height
+  const charW = 7;         // approx px per character at fontSize=14
+  const hPad = 24;         // horizontal padding inside pill
+  const yStep = 62;        // vertical gap between sibling nodes
+
+  // 중심 pill 반폭
+  const cnHW = Math.max(48, Math.ceil(word.length * charW / 2) + hPad);
+
+  // 단어 분배: 앞 절반 왼쪽, 뒷 절반 오른쪽
+  const leftCount = Math.floor(visible.length / 2);
+  const leftWords  = visible.slice(0, leftCount);
+  const rightWords = visible.slice(leftCount);
+
+  // 색상 팔레트 (branch + border)
+  const COLORS = ['#10b981', '#06b6d4', '#6366f1', '#f97316', '#ec4899', '#84cc16'];
+
+  // 노드 계산 — 바깥 엣지를 SVG 가장자리에 고정
+  const buildNodes = (words: string[], side: 'left' | 'right', colorOffset: number) => {
+    const n = words.length;
+    return words.map((w, i) => {
+      const hw = Math.max(36, Math.ceil(w.length * charW / 2) + hPad);
+      // 바깥 엣지 x = 6 (left) or W-6 (right), 중심 = 바깥엣지 ± hw
+      const nx = side === 'left' ? 6 + hw : W - 6 - hw;
+      const yOff = n <= 1 ? 0 : -((n - 1) * yStep) / 2 + i * yStep;
+      return {
+        word: w, x: nx, y: cy + yOff, hw,
+        color: COLORS[(colorOffset + i) % COLORS.length],
+      };
+    });
+  };
+
+  const leftNodes  = buildNodes(leftWords,  'left',  0);
+  const rightNodes = buildNodes(rightWords, 'right', leftCount);
+
+  // 브랜치 시작 y: 중심에서 노드 방향으로 30% 이동 (coggle 팬아웃)
+  const makePath = (n: { x: number; y: number; hw: number }, side: 'left' | 'right') => {
+    const sy = cy + (n.y - cy) * 0.28;   // 중심 pill 위 출발 y
+    const sx = side === 'left' ? cx - cnHW : cx + cnHW;
+    const ex = side === 'left' ? n.x + n.hw : n.x - n.hw;
+    const ey = n.y;
+    // 수평 제어점 거리
+    const hd = Math.max(30, Math.abs(ex - sx) * 0.42);
+    const cp1x = side === 'left' ? sx - hd : sx + hd;
+    const cp2x = side === 'left' ? ex + hd : ex - hd;
+    return `M ${sx} ${sy} C ${cp1x} ${sy} ${cp2x} ${ey} ${ex} ${ey}`;
+  };
+
+  const gradId = `cg-${word.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+  const renderNode = (
+    n: { word: string; x: number; y: number; hw: number; color: string },
+    side: 'left' | 'right',
+    key: string,
+  ) => (
+    <g key={key}>
+      {/* 곡선 브랜치 */}
+      <path
+        d={makePath(n, side)}
+        stroke={n.color}
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+        opacity="0.8"
+      />
+      {/* 노드 pill */}
+      <rect
+        x={n.x - n.hw} y={n.y - NH / 2}
+        width={n.hw * 2} height={NH}
+        rx="16"
+        fill="white"
+        stroke={n.color}
+        strokeWidth="1.5"
+      />
+      <text
+        x={n.x} y={n.y + 5}
+        textAnchor="middle"
+        fontSize="14"
+        fill="#1e293b"
+        fontWeight="600"
+        fontFamily="system-ui, -apple-system, sans-serif"
+      >
+        {n.word}
+      </text>
+    </g>
+  );
 
   return (
-    <svg viewBox="0 0 340 194" className="w-full h-44">
-      {/* 연결선 */}
-      {visible.map((_, i) => {
-        const p = nodePos[i];
-        const dx = p.x < cx ? 28 : -28;
-        return (
-          <line key={`line-${i}`}
-            x1={p.x < cx ? cx - 43 : cx + 43} y1={cy}
-            x2={p.x + dx} y2={p.y}
-            stroke="#c7d2fe" strokeWidth="1.5" strokeDasharray="5 3" opacity="0.9"
-          />
-        );
-      })}
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: '210px' }}>
+      <defs>
+        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#34d399" />
+          <stop offset="100%" stopColor="#059669" />
+        </linearGradient>
+        <filter id="cshadow" x="-20%" y="-30%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#10b981" floodOpacity="0.25" />
+        </filter>
+      </defs>
 
-      {/* 중심 노드 */}
-      <circle cx={cx} cy={cy} r="43" fill="#f0fdf4" stroke="#10b981" strokeWidth="2.5" />
-      <text x={cx} y={cy + 5} textAnchor="middle" fontSize="13" fill="#065f46" fontWeight="700">
-        {truncate(word, 9)}
+      {/* 왼쪽 노드 */}
+      {leftNodes.map((n, i) => renderNode(n, 'left', `l${i}`))}
+      {/* 오른쪽 노드 */}
+      {rightNodes.map((n, i) => renderNode(n, 'right', `r${i}`))}
+
+      {/* 중심 노드 (맨 위에 렌더) */}
+      <rect
+        x={cx - cnHW} y={cy - NH / 2 - 2}
+        width={cnHW * 2} height={NH + 4}
+        rx="18"
+        fill={`url(#${gradId})`}
+        filter="url(#cshadow)"
+      />
+      <text
+        x={cx} y={cy + 5}
+        textAnchor="middle"
+        fontSize="14"
+        fill="white"
+        fontWeight="700"
+        fontFamily="system-ui, -apple-system, sans-serif"
+      >
+        {word}
       </text>
-
-      {/* 관련 단어 노드 */}
-      {visible.map((rw, i) => {
-        const p = nodePos[i];
-        const c = nodeColors[i];
-        return (
-          <g key={`node-${i}`}>
-            <circle cx={p.x} cy={p.y} r="28" fill={c.fill} stroke={c.stroke} strokeWidth="1.5" />
-            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="9" fill={c.text} fontWeight="500">
-              {truncate(rw)}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* 관련 단어 레이블 */}
-      <text x="170" y="14" textAnchor="middle" fontSize="8" fill="#6366f1" fontWeight="700" letterSpacing="0.5">유의어</text>
     </svg>
   );
 }
@@ -245,33 +317,16 @@ export function StudyPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Header />
 
-      {/* ── 헤더 ── */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm">
-        <div className="mx-auto max-w-3xl px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-slate-100 transition-colors"
-            >
-              <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 shadow-sm">
-                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800">학습 노트</p>
-                <p className="text-xs text-slate-400">{wordsLoading ? '불러오는 중...' : `${words.length}개 저장됨`}</p>
-              </div>
-            </div>
+      <div className="mx-auto max-w-3xl px-6 py-6 space-y-4">
+
+        {/* ── 페이지 타이틀 + 뷰 전환 ── */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">학습 노트</h1>
+            <p className="text-xs text-slate-400 mt-0.5">{wordsLoading ? '불러오는 중...' : `${words.length}개 저장됨`}</p>
           </div>
-
           {/* 뷰 전환 */}
           <div className="flex items-center gap-0.5 rounded-xl bg-slate-100 p-1">
             {(['list', 'card'] as const).map(v => (
@@ -302,9 +357,6 @@ export function StudyPage() {
             ))}
           </div>
         </div>
-      </header>
-
-      <div className="mx-auto max-w-3xl px-6 py-6 space-y-4">
 
         {/* 검색 */}
         <div className="relative">
@@ -358,7 +410,7 @@ export function StudyPage() {
 
         {/* ── 목록 뷰 ── */}
         {!wordsLoading && view === 'list' && filtered.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {filtered.map(word => {
               const isExpanded = expandedId === String(word.savedWordId);
               const relations = relationsMap[word.savedWordId];
@@ -367,226 +419,157 @@ export function StudyPage() {
               return (
                 <div
                   key={word.savedWordId}
-                  className={`rounded-2xl bg-white shadow-sm border transition-all duration-200 ${
+                  className={`rounded-2xl border transition-all duration-200 ${
                     isExpanded
-                      ? 'border-orange-200 shadow-md'
-                      : 'border-slate-200 hover:border-orange-100 hover:shadow-md'
+                      ? 'border-emerald-200 bg-white shadow-sm'
+                      : 'border-slate-100 bg-slate-50 hover:border-emerald-200 hover:bg-white hover:shadow-sm'
                   }`}
                 >
-                  {/* 카드 상단 */}
-                  <div className="p-5">
-                    <div className="flex items-start gap-3 justify-between">
-                      <div className="flex-1 min-w-0">
-
-                        {/* 단어 + 뱃지 + TTS */}
-                        <div className="flex items-center flex-wrap gap-2 mb-2.5">
-                          <h3 className="text-xl font-extrabold text-slate-800 leading-none">{word.word}</h3>
-                          {word.lang && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-wide">
-                              {word.lang.split('-')[0]}
-                            </span>
-                          )}
-                          <button
-                            onClick={() => handleTTS(word.word, word.lang)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-50 hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors"
-                          >
-                            <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                            </svg>
-                          </button>
-                        </div>
-
-                        {/* AI 뜻 */}
-                        {word.meaning && (
-                          <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2 leading-relaxed border border-amber-100">
-                            {word.meaning}
-                          </p>
-                        )}
-
-                        {/* 원문 (단어 하이라이트) */}
-                        <p className="text-sm text-slate-600 leading-relaxed mt-2">
-                          {word.originalSentence?.split(new RegExp(`(${word.word})`, 'i')).map((part, i) =>
-                            part.toLowerCase() === word.word.toLowerCase()
-                              ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5 not-italic font-semibold">{part}</mark>
-                              : part
-                          )}
-                        </p>
-                        {word.translatedSentence && (
-                          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{word.translatedSentence}</p>
-                        )}
-
-                        {/* 메타 */}
-                        <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
-                          {word.projectTitle && (
-                            <span className="flex items-center gap-1 truncate max-w-[120px]">
-                              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-                              </svg>
-                              <span className="truncate">{word.projectTitle}</span>
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1 shrink-0">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {new Date(word.createdAt).toLocaleDateString('ko-KR')}
+                  {/* 카드 메인 행 */}
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      {/* 단어 + 뱃지 + 날짜 */}
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                        <h3 className="text-sm font-bold text-slate-800">{word.word}</h3>
+                        {word.lang && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white border border-slate-200 text-slate-400 uppercase tracking-wide">
+                            {word.lang.split('-')[0]}
                           </span>
-                        </div>
+                        )}
+                        <span className="text-[10px] text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">
+                          {new Date(word.createdAt).toLocaleDateString('ko-KR')}
+                        </span>
                       </div>
+
+                      {/* 뜻 */}
+                      {word.meaning && (
+                        <p className="text-xs text-slate-500 leading-relaxed">{word.meaning}</p>
+                      )}
+
+                      {/* 출처 태그 */}
+                      {word.projectTitle && (
+                        <p className="text-[10px] text-emerald-500 mt-0.5">📌 {word.projectTitle}</p>
+                      )}
+                    </div>
+
+                    {/* 우측 버튼 묶음 */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* TTS */}
+                      <button
+                        onClick={() => handleTTS(word.word, word.lang)}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-all"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                        </svg>
+                      </button>
+
+                      {/* 펼치기 */}
+                      <button
+                        onClick={() => {
+                          const newExpanded = isExpanded ? null : String(word.savedWordId);
+                          setExpandedId(newExpanded);
+                          if (!isExpanded) {
+                            if (!relations) handleAnalyzeRelations(word);
+                            if (!examples) handleGenerateExamples(word);
+                          }
+                        }}
+                        className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${
+                          isExpanded
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                            : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600'
+                        }`}
+                      >
+                        <svg className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
 
                       {/* 삭제 */}
                       <button
                         onClick={() => handleDelete(word.savedWordId)}
-                        className="text-slate-300 hover:text-red-400 transition-colors shrink-0"
+                        className="flex h-7 w-7 items-center justify-center rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50 hover:border-red-100 border border-transparent transition-all"
                       >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
-
-                    {/* 액션 버튼 */}
-                    <div className="flex items-center gap-2 mt-4 pt-3.5 border-t border-slate-100">
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : String(word.savedWordId))}
-                        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                          isExpanded
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-slate-100 text-slate-500 hover:bg-orange-50 hover:text-orange-600'
-                        }`}
-                      >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                        </svg>
-                        유의어
-                        {relations && relations !== 'loading' && (
-                          <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-orange-400 inline-block" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (!isExpanded) setExpandedId(String(word.savedWordId));
-                          if (!examples) handleGenerateExamples(word);
-                        }}
-                        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                          examples && examples !== 'loading'
-                            ? 'bg-violet-100 text-violet-700'
-                            : 'bg-slate-100 text-slate-500 hover:bg-violet-50 hover:text-violet-600'
-                        }`}
-                      >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        AI 예문
-                        {examples && examples !== 'loading' && (
-                          <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-violet-400 inline-block" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : String(word.savedWordId))}
-                        className="ml-auto flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        {isExpanded ? '접기' : '펼치기'}
-                        <svg className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
 
-                  {/* ── 확장 영역 ── */}
+                  {/* 확장 영역 - 원문 + 액션 버튼 */}
                   {isExpanded && (
-                    <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-6">
-
-                      {/* 단어망 */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">유의어</p>
+                    <div className="border-t border-slate-100 px-4 py-3 bg-white rounded-b-2xl">
+                      {/* 원문 */}
+                      {word.originalSentence && (
+                        <div className="mb-3">
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {word.originalSentence?.split(new RegExp(`(${word.word})`, 'i')).map((part, i) =>
+                              part.toLowerCase() === word.word.toLowerCase()
+                                ? <mark key={i} className="bg-yellow-100 text-yellow-800 rounded px-0.5 not-italic font-semibold">{part}</mark>
+                                : part
+                            )}
+                          </p>
+                          {word.translatedSentence && (
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{word.translatedSentence}</p>
+                          )}
                         </div>
+                      )}
 
-                        {!relations ? (
-                          <button
-                            onClick={() => handleAnalyzeRelations(word)}
-                            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-7 text-sm text-slate-400 hover:border-orange-300 hover:text-orange-500 transition-all group"
-                          >
-                            <svg className="h-5 w-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                            </svg>
-                            유의어 분석하기
-                          </button>
-                        ) : relations === 'loading' ? (
-                          <div className="flex flex-col items-center justify-center py-10 gap-3">
-                            <div className="w-7 h-7 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin" />
-                            <p className="text-xs text-slate-400">AI 분석 중...</p>
-                          </div>
-                        ) : (
-                          <div>
-                            <WordNetworkSVG
-                              word={word.word}
-                              relatedWords={relations}
-                            />
-                            <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                              {relations.map((rw, i) => (
-                                <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600">
-                                  {rw}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* AI 예문 */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">AI 예문</p>
-                          </div>
+                    {/* 유의어 영역 */}
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">유의어</p>
+                      {relations === 'loading' ? (
+                        <div className="flex items-center gap-2 py-2">
+                          <div className="w-4 h-4 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin" />
+                          <p className="text-xs text-slate-400">AI 분석 중...</p>
                         </div>
-
-                        {!examples ? (
-                          <button
-                            onClick={() => handleGenerateExamples(word)}
-                            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-7 text-sm text-slate-400 hover:border-violet-300 hover:text-violet-500 transition-all group"
-                          >
-                            <svg className="h-5 w-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            AI 예문 생성하기 (미리보기)
-                          </button>
-                        ) : examples === 'loading' ? (
-                          <div className="flex flex-col items-center justify-center py-10 gap-3">
-                            <div className="w-7 h-7 rounded-full border-2 border-violet-200 border-t-violet-500 animate-spin" />
-                            <p className="text-xs text-slate-400">예문 생성 중...</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {examples.map((ex, i) => (
-                              <div key={i} className="rounded-xl bg-slate-50 border border-slate-100 p-4 space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider">예문 {i + 1}</span>
-                                  <button
-                                    onClick={e => { e.stopPropagation(); handleTTS(ex.sentence); }}
-                                    className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 hover:bg-violet-200 text-violet-500 transition-colors"
-                                  >
-                                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                                    </svg>
-                                  </button>
-                                </div>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed">{ex.sentence}</p>
-                                <p className="text-xs text-slate-400 leading-relaxed">{ex.translatedSentence}</p>
-                              </div>
+                      ) : relations ? (
+                        <div>
+                          <WordNetworkSVG word={word.word} relatedWords={relations} />
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {relations.map((rw, i) => (
+                              <span key={i} className="text-xs px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 font-medium">
+                                {rw}
+                              </span>
                             ))}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
+
+                    {/* AI 예문 영역 */}
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">AI 예문</p>
+                      {examples === 'loading' ? (
+                        <div className="flex items-center gap-2 py-2">
+                          <div className="w-4 h-4 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin" />
+                          <p className="text-xs text-slate-400">예문 생성 중...</p>
+                        </div>
+                      ) : examples ? (
+                        <div className="space-y-2">
+                          {examples.map((ex, i) => (
+                            <div key={i} className="rounded-xl bg-white border border-slate-100 p-3 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">예문 {i + 1}</span>
+                                <button
+                                  onClick={e => { e.stopPropagation(); handleTTS(ex.sentence); }}
+                                  className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-500 transition-colors"
+                                >
+                                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                                  </svg>
+                                </button>
+                              </div>
+                              <p className="text-xs text-slate-700 font-medium leading-relaxed">{ex.sentence}</p>
+                              <p className="text-[11px] text-slate-400 leading-relaxed">{ex.translatedSentence}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                   )}
                 </div>
               );

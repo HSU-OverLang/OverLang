@@ -75,6 +75,43 @@ function AutoTextarea({ value, onChange, onMouseUp, onClick, placeholder, classN
   );
 }
 
+// ── OCR 타이핑 애니메이션 컴포넌트 ─────────────────────
+function TypingOcrText({
+  text,
+  durationSec,
+  style,
+}: {
+  text: string;
+  durationSec: number;
+  style?: React.CSSProperties;
+}) {
+  const [displayed, setDisplayed] = useState('');
+
+  useEffect(() => {
+    setDisplayed('');
+    const chars = text.length;
+    if (chars === 0) return;
+    // 표시 시간의 70% 안에 타이핑 완료
+    const intervalMs = Math.max(20, Math.min(80, (durationSec * 700) / chars));
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= chars) clearInterval(timer);
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [text, durationSec]);
+
+  return (
+    <p className="text-white w-full leading-tight px-0.5" style={{ whiteSpace: 'pre-line', ...style }}>
+      {displayed}
+      {displayed.length < text.length && (
+        <span className="inline-block w-[2px] h-[1em] bg-white/80 ml-[1px] animate-pulse align-middle" />
+      )}
+    </p>
+  );
+}
+
 // [en->ko] 같은 접두사 제거 + 원문과 동일하거나 의미없는 번역 필터링
 function cleanTranslation(translated: string | null, original: string): string {
   if (!translated) return '';
@@ -113,6 +150,12 @@ interface OcrOverlay {
   h: number;
   startSec: number;
   endSec: number;
+  style?: {
+    animation?: 'typing' | 'fade' | 'none';
+    fontSizeRatio?: number;
+    fontWeight?: 'normal' | 'bold';
+    textAlign?: 'left' | 'center' | 'right';
+  };
 }
 
 // ── 목 데이터 ──────────────────────────────────────────
@@ -132,7 +175,7 @@ const MOCK_OCR: OcrOverlay[] = [
 ];
 
 type RightPanel = 'word' | 'sentence' | null;
-type ActiveTab = '요약' | '자막' | '빈출단어' | '관용표현';
+type ActiveTab = '요약' | '자막' | '관용표현';
 
 const SAVED_WORDS_KEY = 'overlang_saved_words';
 const STUDY_TIME_KEY = 'overlang_study_minutes';
@@ -159,7 +202,7 @@ export function TranslatePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ projectId: string }>();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout, profileImageUrl } = useAuth();
   const { videoSrc, targetLanguage } =
     (location.state as { videoSrc?: string; targetLanguage?: string }) ?? {};
   // URL params 우선, state 폴백
@@ -293,9 +336,25 @@ export function TranslatePage() {
   const [saveToast, setSaveToast] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
+  // 프로필 드롭다운
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    if (profileDropdownOpen) document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [profileDropdownOpen]);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [showOcr, setShowOcr] = useState(true);
   const [showSubtitle, setShowSubtitle] = useState(true);
+  const [subtitlePosition, setSubtitlePosition] = useState<'overlay' | 'bottom'>('overlay');
+  const [subtitleFontSize, setSubtitleFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [ocrFontSize, setOcrFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('자막');
   const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
@@ -412,6 +471,7 @@ export function TranslatePage() {
               y: item.boundingBox.y * 100,
               w: item.boundingBox.w * 100,
               h: item.boundingBox.h * 100,
+              style: item.style,
               startSec: item.startTime,
               endSec: item.endTime,
             })));
@@ -790,66 +850,138 @@ export function TranslatePage() {
     <div className="h-screen bg-white flex flex-col overflow-hidden">
 
       {/* ── 상단 헤더 ── */}
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
-            <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <header className="flex items-center justify-between px-5 py-0 h-14 border-b border-slate-100 bg-white/95 backdrop-blur-sm shrink-0">
+        {/* 좌측: 뒤로가기 + 로고 */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-1.5 h-8 pl-2 pr-3 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all text-sm"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
+            대시보드
           </button>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
-              <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          <div className="w-px h-4 bg-slate-200" />
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-600">
+              <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
               </svg>
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-800">자막 편집 & 학습</p>
-              <p className="text-xs text-slate-400">
-                {dataLoading ? '자막 불러오는 중...' : `AI 기반 번역 및 의미 분석 · ${subtitles.length}개 자막`}
-              </p>
-            </div>
+            <span className="text-sm font-bold text-slate-800 tracking-tight">OverLang</span>
+            <span className="hidden sm:block text-slate-300 text-sm">/</span>
+            <span className="hidden sm:block text-sm text-slate-400 truncate max-w-[200px]">
+              {dataLoading ? '불러오는 중...' : `자막 ${subtitles.length}개`}
+            </span>
           </div>
         </div>
 
+        {/* 우측: 학습 노트 + 프로필 */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/study')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-orange-500 hover:bg-orange-50 transition-colors"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            학습 노트 ({savedWordsCount})
-          </button>
-          <button
-            onClick={handleSaveSubtitles}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-              saveToast ? 'bg-emerald-500 text-white' : 'bg-emerald-600 text-white hover:bg-emerald-500'
-            }`}
-          >
-            {saveToast ? (
-              <>
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                저장 완료
-              </>
-            ) : (
-              <>
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                저장
-              </>
+            <span className="hidden sm:block">학습 노트</span>
+            {savedWordsCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1">
+                {savedWordsCount}
+              </span>
             )}
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-            </svg>
-            공유하기
-          </button>
+
+          <div className="w-px h-4 bg-slate-200" />
+
+          {/* 사용자 프로필 드롭다운 */}
+          <div className="relative" ref={profileDropdownRef}>
+            <button
+              onClick={() => setProfileDropdownOpen(o => !o)}
+              className={`flex items-center gap-2 h-8 pl-1.5 pr-2.5 rounded-xl transition-all ${
+                profileDropdownOpen ? 'bg-slate-100' : 'hover:bg-slate-100'
+              }`}
+            >
+              <div className="h-6 w-6 rounded-full overflow-hidden shrink-0 bg-violet-100">
+                {profileImageUrl ? (
+                  <img src={profileImageUrl} className="h-full w-full object-cover" alt="" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-violet-600">
+                    <span className="text-[10px] font-bold text-white">
+                      {(user?.displayName ?? user?.email ?? 'U')[0].toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <span className="hidden sm:block text-sm font-medium text-slate-700 max-w-[80px] truncate">
+                {user?.displayName ?? user?.email?.split('@')[0] ?? '사용자'}
+              </span>
+              <svg
+                className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${profileDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {profileDropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden z-50">
+                <div className="px-4 py-3.5 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full overflow-hidden shrink-0 bg-violet-100">
+                      {profileImageUrl ? (
+                        <img src={profileImageUrl} className="h-full w-full object-cover" alt="" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-violet-600">
+                          <span className="text-xs font-bold text-white">
+                            {(user?.displayName ?? user?.email ?? 'U')[0].toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">
+                        {user?.displayName ?? user?.email?.split('@')[0]}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="py-1.5">
+                  {[
+                    { label: '마이페이지', to: '/mypage', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+                    { label: '학습 노트', to: '/study', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+                  ].map(item => (
+                    <button
+                      key={item.to}
+                      onClick={() => { navigate(item.to); setProfileDropdownOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors text-left"
+                    >
+                      <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                      </svg>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mx-3 border-t border-slate-100" />
+                <div className="py-1.5">
+                  <button
+                    onClick={async () => { setProfileDropdownOpen(false); await logout(); navigate('/'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors text-left"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    로그아웃
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -889,28 +1021,63 @@ export function TranslatePage() {
             )}
 
             {/* OCR 오버레이 - 재생 중일 때만 표시 */}
-            {showOcr && isPlaying && activeOcr.map(ocr => (
-              ocr.translation ? (
+            {showOcr && isPlaying && activeOcr.map(ocr => {
+              if (!ocr.translation) return null;
+              const fontSizeRatio = ocr.style?.fontSizeRatio ?? 1;
+              const fontWeight = ocr.style?.fontWeight ?? 'bold';
+              const textAlign = ocr.style?.textAlign ?? 'center';
+              const animation = ocr.style?.animation ?? 'none';
+              // px 고정값 기반 + fontSizeRatio로 미세 조정
+              // overflow: visible 처리로 잘림 방지
+              const baseFontPx = ocrFontSize === 'small' ? 11 : ocrFontSize === 'large' ? 22 : 15;
+              const fontSize = `${Math.round(baseFontPx * fontSizeRatio)}px`;
+
+              const textColor = ocr.style?.textColor ?? '#ffffff';
+              const textStyle: React.CSSProperties = {
+                fontSize,
+                fontWeight,
+                textAlign,
+                whiteSpace: 'pre-line',
+                lineHeight: 1.2,
+                letterSpacing: '-0.01em',
+                color: textColor,
+              };
+
+              return (
                 <div
                   key={ocr.id}
-                  className="absolute overflow-hidden flex items-center justify-center"
+                  className="absolute"
                   style={{
                     left: `${ocr.x}%`,
                     top: `${ocr.y}%`,
                     width: `${ocr.w}%`,
-                    height: `${ocr.h}%`,
+                    minHeight: `${ocr.h}%`,
+                    // overflow visible: 텍스트가 박스보다 길어도 잘리지 않음
+                    overflow: 'visible',
+                    pointerEvents: 'none',
+                    backgroundColor: ocr.style?.bgColor ?? 'rgba(0, 0, 0, 0.55)',
+                    backdropFilter: 'blur(3px)',
+                    WebkitBackdropFilter: 'blur(3px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center',
+                    padding: '2px 5px',
                   }}
                 >
-                  <div className="w-full h-full bg-black/45 backdrop-blur-[2px] flex items-center justify-center rounded-sm">
-                    <p className="text-white text-center leading-tight px-1"
-                      style={{ fontSize: `clamp(8px, ${ocr.h * 0.45}vw, 14px)` }}
-                    >
+                  {animation === 'typing' ? (
+                    <TypingOcrText
+                      text={ocr.translation}
+                      durationSec={ocr.endSec - ocr.startSec}
+                      style={textStyle}
+                    />
+                  ) : (
+                    <p className="w-full leading-tight" style={textStyle}>
                       {ocr.translation}
                     </p>
-                  </div>
+                  )}
                 </div>
-              ) : null
-            ))}
+              );
+            })}
 
             {/* 구간 반복 표시 */}
             {repeatRange && (
@@ -929,50 +1096,26 @@ export function TranslatePage() {
             )}
 
 
-            {/* 토글 버튼 그룹 */}
-            <div className="absolute top-3 right-3 flex flex-col gap-1.5">
-              {/* OCR 토글 */}
-              <button
-                onClick={() => setShowOcr(v => !v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  showOcr
-                    ? 'bg-black/60 text-white hover:bg-black/80'
-                    : 'bg-black/60 text-slate-400 hover:bg-black/80'
+            {/* 영상 안 자막 오버레이 (subtitlePosition === 'overlay') */}
+            {showSubtitle && subtitlePosition === 'overlay' && activeSubtitle && (() => {
+              // OCR 아이템이 하단 영역(y+h > 70%)에 걸칠 때만 자막을 상단으로 이동
+              const ocrBlocksBottom = showOcr && activeOcr.some(o => (o.y + o.h) > 70);
+              return (
+              <div
+                className={`absolute left-0 right-0 flex justify-center px-4 pointer-events-none transition-all ${
+                  ocrBlocksBottom ? 'top-5' : 'bottom-8'
                 }`}
               >
-                {showOcr ? (
-                  <>
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    OCR 표시중
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                    OCR 숨김
-                  </>
-                )}
-              </button>
-
-              {/* 자막 토글 */}
-              <button
-                onClick={() => setShowSubtitle(v => !v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  showSubtitle
-                    ? 'bg-black/60 text-white hover:bg-black/80'
-                    : 'bg-black/60 text-slate-400 hover:bg-black/80'
-                }`}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                </svg>
-                {showSubtitle ? '자막 표시중' : '자막 숨김'}
-              </button>
-            </div>
+                <div className="bg-black/65 backdrop-blur-[2px] rounded-lg px-4 py-2 max-w-[90%] text-center">
+                  <p className={`text-white font-semibold leading-snug ${
+                    subtitleFontSize === 'small' ? 'text-xs' : subtitleFontSize === 'large' ? 'text-base' : 'text-sm'
+                  }`}>
+                    {activeSubtitle.translation || activeSubtitle.original}
+                  </p>
+                </div>
+              </div>
+              );
+            })()}
 
             {/* 현재 재생 시간 표시 */}
             {!youtubeId && (
@@ -983,28 +1126,103 @@ export function TranslatePage() {
             </div>{/* 내부 래퍼 끝 */}
           </div>{/* 외부 컨테이너 끝 */}
 
-          {/* 안내 카드 */}
-          <div className="flex gap-3 px-4 py-2.5 border-t border-slate-100 shrink-0">
-            <div className="flex items-center gap-2 flex-1 rounded-lg bg-blue-50 px-3 py-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-500 shrink-0">
-                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          {/* ── 영상 컨트롤 바 ── */}
+          <div className="flex items-center gap-1.5 px-4 py-2 border-t border-slate-100 bg-slate-50 shrink-0 flex-wrap">
+
+            {/* 자막 ON/OFF */}
+            <button
+              onClick={() => setShowSubtitle(v => !v)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                showSubtitle ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-400'
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+              자막
+            </button>
+
+            {/* OCR ON/OFF */}
+            <button
+              onClick={() => setShowOcr(v => !v)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                showOcr ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              OCR
+            </button>
+
+            <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+            {/* 자막 위치 */}
+            <div className="flex items-center rounded-lg bg-slate-200 p-0.5 gap-0.5">
+              <button
+                onClick={() => setSubtitlePosition('overlay')}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                  subtitlePosition === 'overlay' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
                 </svg>
-              </div>
-              <p className="text-xs text-slate-600">화면 텍스트 위치 기반 OCR 번역</p>
+                영상 안
+              </button>
+              <button
+                onClick={() => setSubtitlePosition('bottom')}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                  subtitlePosition === 'bottom' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                영상 아래
+              </button>
             </div>
-            <div className="flex items-center gap-2 flex-1 rounded-lg bg-orange-50 px-3 py-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 shrink-0">
-                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <p className="text-xs text-slate-600">단어 드래그로 즉시 의미 확인</p>
+
+            <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+            {/* 자막 폰트 크기 */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-400 font-medium mr-0.5">자막</span>
+              {(['small', 'medium', 'large'] as const).map(size => (
+                <button
+                  key={size}
+                  onClick={() => setSubtitleFontSize(size)}
+                  className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                    subtitleFontSize === size ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {size === 'small' ? '작게' : size === 'medium' ? '중간' : '크게'}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+            {/* OCR 폰트 크기 */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-400 font-medium mr-0.5">OCR</span>
+              {(['small', 'medium', 'large'] as const).map(size => (
+                <button
+                  key={size}
+                  onClick={() => setOcrFontSize(size)}
+                  className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                    ocrFontSize === size ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {size === 'small' ? '작게' : size === 'medium' ? '중간' : '크게'}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* 자막 전체 스크롤 리스트 */}
-          {showSubtitle && (
+          {showSubtitle && subtitlePosition === 'bottom' && (
             <div
               ref={bottomSubRef}
               className="flex-1 overflow-y-auto border-t border-slate-100"
@@ -1048,8 +1266,8 @@ export function TranslatePage() {
 
           {/* 탭 헤더 */}
           <div className="flex items-center border-b border-slate-200 shrink-0 px-2 bg-white">
-            {(['요약', '자막', '빈출단어', '관용표현'] as ActiveTab[]).map((tab, i) => {
-              const labels: Record<ActiveTab, string> = { '요약': '① 영상 요약', '자막': '② 자막 목록', '빈출단어': '③ 빈출 단어', '관용표현': '④ 관용 표현' };
+            {(['요약', '자막', '관용표현'] as ActiveTab[]).map((tab, i) => {
+              const labels: Record<ActiveTab, string> = { '요약': '영상 요약', '자막': '자막 목록', '관용표현': '관용 표현' };
               const isActive = activeTab === tab;
               return (
                 <button
@@ -1072,9 +1290,9 @@ export function TranslatePage() {
             <div className="flex-1 overflow-y-auto">
               {!learningContents ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-100">
-                    <svg className="h-7 w-7 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+                    <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
                   </div>
                   <p className="text-sm text-slate-500 font-medium">학습 콘텐츠가 없습니다</p>
@@ -1085,39 +1303,64 @@ export function TranslatePage() {
                   <p className="text-sm text-slate-400">요약 데이터가 없습니다</p>
                 </div>
               ) : (
-                <div>
-                  {/* 헤더 배너 */}
-                  <div className="bg-gradient-to-br from-violet-500 to-purple-600 px-5 pt-5 pb-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-[10px] font-bold tracking-widest text-violet-200 uppercase">AI Summary</span>
-                      <span className="flex items-center gap-1 text-[10px] text-violet-300 bg-white/10 rounded-full px-2 py-0.5">
-                        <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-                        </svg>
-                        영상 기반 요약
-                      </span>
+                <div className="px-4 pt-4 pb-2">
+                  {/* 섹션 헤더 */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 shrink-0">
+                      <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
                     </div>
-                    <p className="text-white font-bold text-base leading-snug">영상 핵심 내용 요약</p>
-                    <p className="text-violet-200 text-xs mt-1">
-                      {learningContents.summary.content.length}자 · 약 {Math.ceil(learningContents.summary.content.length / 200)}분 읽기
-                    </p>
+                    <p className="text-sm font-bold text-slate-800">AI 영상 요약</p>
                   </div>
 
-                  {/* 요약 본문 */}
-                  <div className="px-5 py-5">
-                    <div className="space-y-3">
+                  {/* 요약 본문 박스 */}
+                  <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3.5 mb-3">
+                    <p className="text-xs font-bold text-emerald-700 mb-2">📋 영상 요약</p>
+                    <div className="space-y-2">
                       {learningContents.summary.content.split(/\n+/).filter(Boolean).map((para, i) => (
-                        <p key={i} className="text-sm text-slate-700 leading-relaxed">{para}</p>
+                        <p key={i} className="text-xs text-slate-600 leading-relaxed">{para}</p>
                       ))}
                     </div>
+                  </div>
 
-                    {/* 하단 뱃지 */}
-                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
-                      <svg className="h-3.5 w-3.5 text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <p className="text-[11px] text-slate-400">AI가 영상 자막을 분석하여 자동 생성한 요약입니다</p>
-                    </div>
+                  {/* 하단 메타 */}
+                  <p className="text-[10px] text-slate-400 flex items-center gap-1 px-1">
+                    <svg className="h-3 w-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    AI가 영상 자막을 분석하여 자동 생성 · {learningContents.summary.content.length}자
+                  </p>
+                </div>
+              )}
+
+              {/* ── 빈출 단어 ── */}
+              {learningContents && learningContents.keywords.length > 0 && (
+                <div className="border-t border-slate-100 mt-3">
+                  <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-700">🔑 빈출 단어</p>
+                    <span className="text-[10px] text-slate-400">{learningContents.keywords.length}개 · 클릭 시 해당 구간 이동</span>
+                  </div>
+                  <div className="px-4 pb-4 flex flex-wrap gap-2">
+                    {learningContents.keywords.map((kw) => (
+                      <button
+                        key={kw.learningContentId}
+                        onClick={() => {
+                          if (kw.startTime != null) {
+                            if (videoRef.current) { videoRef.current.currentTime = kw.startTime; videoRef.current.play(); }
+                            else if (ytPlayerRef.current) { ytPlayerRef.current.seekTo(kw.startTime, true); }
+                          }
+                        }}
+                        className="group flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-emerald-50 hover:border-emerald-200 border border-transparent text-slate-600 hover:text-emerald-700 rounded-xl px-3 py-1.5 font-medium transition-all"
+                      >
+                        {kw.title}
+                        {kw.startTime != null && (
+                          <span className="text-[10px] font-mono text-slate-400 group-hover:text-emerald-500">
+                            {secToTimecode(kw.startTime)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1135,12 +1378,26 @@ export function TranslatePage() {
                     {dataLoading ? '불러오는 중...' : `${subtitles.length}개의 자막`}
                   </p>
                   <button
-                    onClick={handleAddSubtitle}
-                    className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
+                    onClick={handleSaveSubtitles}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                      saveToast ? 'bg-emerald-500 text-white' : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    }`}
                   >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
+                    {saveToast ? (
+                      <>
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        저장 완료
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        저장
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -1380,93 +1637,13 @@ export function TranslatePage() {
             </div>
           )}
 
-          {/* ── ③ 빈출 단어 ── */}
-          {activeTab === '빈출단어' && (
-            <div className="flex-1 overflow-y-auto">
-              {!learningContents || learningContents.keywords.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
-                    <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-slate-500 font-medium">빈출 단어가 없습니다</p>
-                  <p className="text-xs text-slate-400">AI 분석이 완료된 영상에서 확인할 수 있어요</p>
-                </div>
-              ) : (
-                <div>
-                  {/* 헤더 */}
-                  <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-slate-700">핵심 단어 · 표현</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{learningContents.keywords.length}개 · 클릭하면 해당 구간으로 이동</p>
-                    </div>
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1">
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      AI 분석
-                    </span>
-                  </div>
-
-                  <div className="px-3 pb-4 space-y-2">
-                    {learningContents.keywords.map((kw, idx) => {
-                      const rankColors = [
-                        'from-amber-400 to-yellow-400 text-white',   // 1위
-                        'from-slate-400 to-slate-300 text-white',    // 2위
-                        'from-orange-400 to-amber-500 text-white',   // 3위
-                      ];
-                      const rankBg = idx < 3 ? rankColors[idx] : null;
-                      return (
-                        <div
-                          key={kw.learningContentId}
-                          className="rounded-2xl border border-slate-200 bg-white overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group"
-                          onClick={() => {
-                            if (kw.startTime != null) {
-                              if (videoRef.current) { videoRef.current.currentTime = kw.startTime; videoRef.current.play(); }
-                              else if (ytPlayerRef.current) { ytPlayerRef.current.seekTo(kw.startTime, true); }
-                            }
-                          }}
-                        >
-                          <div className="flex items-stretch">
-                            {/* 왼쪽 순위 바 */}
-                            <div className={`flex flex-col items-center justify-center w-10 shrink-0 ${rankBg ? `bg-gradient-to-b ${rankBg}` : 'bg-slate-50'}`}>
-                              <span className={`text-xs font-extrabold ${rankBg ? '' : 'text-slate-400'}`}>
-                                {idx + 1}
-                              </span>
-                            </div>
-                            {/* 본문 */}
-                            <div className="flex-1 min-w-0 px-3 py-3">
-                              <p className="text-sm font-bold text-slate-800 leading-snug mb-1">{kw.title}</p>
-                              <p className="text-xs text-slate-500 leading-relaxed">{kw.content}</p>
-                            </div>
-                            {/* 타임스탬프 */}
-                            {kw.startTime != null && (
-                              <div className="flex flex-col items-center justify-center px-3 shrink-0 border-l border-slate-100 group-hover:border-emerald-100 group-hover:bg-emerald-50/50 transition-colors">
-                                <svg className="h-3.5 w-3.5 text-emerald-400 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">{secToTimecode(kw.startTime)}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── ④ 관용 표현 ── */}
+          {/* ── ③ 관용 표현 ── */}
           {activeTab === '관용표현' && (
             <div className="flex-1 overflow-y-auto px-4 py-4">
               {!learningContents || learningContents.expressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
-                    <svg className="h-7 w-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+                    <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
@@ -1475,10 +1652,14 @@ export function TranslatePage() {
                 </div>
               ) : (
                 <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-xs font-bold text-slate-700">💬 관용 표현</p>
+                    <span className="text-[10px] text-slate-400">{learningContents.expressions.length}개 · 클릭 시 해당 구간 이동</span>
+                  </div>
                   {learningContents.expressions.map(ex => (
                     <div
                       key={ex.learningContentId}
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 cursor-pointer hover:border-amber-400 hover:bg-amber-100/60 transition-colors"
+                      className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 cursor-pointer hover:border-emerald-200 hover:bg-emerald-50/40 transition-all group"
                       onClick={() => {
                         if (ex.startTime != null) {
                           if (videoRef.current) { videoRef.current.currentTime = ex.startTime; videoRef.current.play(); }
@@ -1486,16 +1667,20 @@ export function TranslatePage() {
                         }
                       }}
                     >
-                      <p className="text-sm font-semibold text-amber-700 mb-1">{ex.title}</p>
-                      <p className="text-xs text-slate-600 leading-relaxed">{ex.content}</p>
-                      {ex.startTime != null && (
-                        <p className="text-[10px] text-slate-400 mt-1.5 font-mono flex items-center gap-1">
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {secToTimecode(ex.startTime)}
-                        </p>
-                      )}
+                      <div className="flex-1 min-w-0 mr-3">
+                        <p className="text-sm font-semibold text-slate-800 italic mb-1">"{ex.title}"</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">{ex.content}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {ex.startTime != null && (
+                          <span className="text-[10px] font-mono text-emerald-500 group-hover:text-emerald-600 font-medium">
+                            {secToTimecode(ex.startTime)}
+                          </span>
+                        )}
+                        <svg className="h-3.5 w-3.5 text-slate-300 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
                   ))}
                 </div>

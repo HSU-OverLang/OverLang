@@ -1,3 +1,9 @@
+# Video files (large assets)
+*.mp4
+*.mov
+*.avi
+*.mkv
+
 # Logs
 logs
 *.log

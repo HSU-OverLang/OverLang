@@ -5,6 +5,7 @@ import { getProjects } from '@/api/video';
 import type { ProjectResult } from '@/api/video';
 import { getMySavedWords } from '@/api/words';
 import { cn } from '@/utils/cn';
+import { Header } from '@/components/layout/Header';
 
 const RECENT_PROJECTS_KEY = 'overlang_recent_projects';
 
@@ -79,9 +80,10 @@ export function MyPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Header />
 
       {/* ── 프로필 헤더 ── */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-500 px-6 pt-12 pb-20">
+      <div className="bg-gradient-to-br from-emerald-600 to-teal-500 px-6 pt-8 pb-20">
         <div className="mx-auto max-w-5xl flex items-end justify-between">
           <div className="flex items-center gap-5">
             <div className="relative">
@@ -139,7 +141,7 @@ export function MyPage() {
         {/* 최근 프로젝트 */}
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-slate-800 text-lg">최근 프로젝트</h2>
+            <h2 className="font-bold text-slate-800 text-lg">최근 클릭한 프로젝트</h2>
             <button
               onClick={() => navigate('/dashboard')}
               className="text-sm font-medium text-emerald-600 hover:text-emerald-500 transition-colors flex items-center gap-1"

@@ -146,6 +146,17 @@ export interface SegmentResult {
   translatedWords: SegmentWord[];
 }
 
+export interface OcrItemStyle {
+  animation?: 'typing' | 'fade' | 'none';
+  fontSizeRatio?: number;
+  fontWeight?: 'normal' | 'bold';
+  textAlign?: 'left' | 'center' | 'right';
+  /** 원문 글자색 (예: "#e63946", "rgb(230,57,70)") - AI가 추출한 값 */
+  textColor?: string;
+  /** 원문 배경색 (예: "#f1faee") - AI가 추출한 값 */
+  bgColor?: string;
+}
+
 export interface OcrItemResult {
   ocrItemId: number;
   jobId: number;
@@ -155,6 +166,7 @@ export interface OcrItemResult {
   translatedText: string | null;
   boundingBox: { x: number; y: number; w: number; h: number };
   confidence: number;
+  style?: OcrItemStyle;
 }
 
 /** 프로젝트의 Job 목록 조회 */
