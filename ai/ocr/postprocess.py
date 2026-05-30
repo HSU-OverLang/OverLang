@@ -85,7 +85,7 @@ def build_ocr_items(
     frame_timestamps: list[float] | None = None,
     text_similarity_threshold: float = 0.9,
     bbox_tolerance: float = 0.04,
-    min_confidence: float = 0.3,
+    min_confidence: float = 0.45,
     min_text_length: int = 2,
     max_special_char_ratio: float = 0.6,
     edge_margin: float = 0.0,

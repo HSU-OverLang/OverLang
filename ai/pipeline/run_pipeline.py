@@ -1998,7 +1998,7 @@ def _extract_runtime_options(
         "ocr_min_confidence": float(
             options.get(
                 "ocr_min_confidence",
-                os.getenv("AI_OCR_MIN_CONFIDENCE", "0.3"),
+                os.getenv("AI_OCR_MIN_CONFIDENCE", "0.45"),
             )
         ),
         "ocr_min_text_length": int(
