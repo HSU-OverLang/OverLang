@@ -371,6 +371,7 @@ export function TranslatePage() {
   const [ocrFontSize, setOcrFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('자막');
+  const [expandedKeyword, setExpandedKeyword] = useState<number | null>(null);
   const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
   const [wordLoading, setWordLoading] = useState(false);
   const [wordError, setWordError] = useState<string | null>(null);
@@ -1416,26 +1417,43 @@ export function TranslatePage() {
                     <p className="text-xs font-bold text-slate-700">🔑 빈출 단어</p>
                     <span className="text-[10px] text-slate-400">{learningContents.keywords.length}개 · 클릭 시 해당 구간 이동</span>
                   </div>
-                  <div className="px-4 pb-4 flex flex-wrap gap-2">
-                    {learningContents.keywords.map((kw) => (
-                      <button
-                        key={kw.learningContentId}
-                        onClick={() => {
-                          if (kw.startTime != null) {
-                            if (videoRef.current) { videoRef.current.currentTime = kw.startTime; videoRef.current.play(); }
-                            else if (ytPlayerRef.current) { ytPlayerRef.current.seekTo(kw.startTime, true); }
-                          }
-                        }}
-                        className="group flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-emerald-50 hover:border-emerald-200 border border-transparent text-slate-600 hover:text-emerald-700 rounded-xl px-3 py-1.5 font-medium transition-all"
-                      >
-                        {kw.title}
-                        {kw.startTime != null && (
-                          <span className="text-[10px] font-mono text-slate-400 group-hover:text-emerald-500">
-                            {secToTimecode(kw.startTime)}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                  <div className="px-4 pb-4 flex flex-col gap-2">
+                    {learningContents.keywords.map((kw) => {
+                      const isExpanded = expandedKeyword === kw.learningContentId;
+                      return (
+                        <div key={kw.learningContentId} className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors"
+                            onClick={() => setExpandedKeyword(isExpanded ? null : kw.learningContentId)}
+                          >
+                            <span className="flex-1 text-left text-sm font-bold text-amber-600">{kw.title}</span>
+                            {kw.startTime != null && (
+                              <button
+                                className="flex items-center gap-1 text-[10px] font-mono bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2 py-0.5 rounded-full shrink-0 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (videoRef.current) { videoRef.current.currentTime = kw.startTime!; videoRef.current.play(); }
+                                  else if (ytPlayerRef.current) { ytPlayerRef.current.seekTo(kw.startTime!, true); }
+                                }}
+                              >
+                                <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                {secToTimecode(kw.startTime)}
+                              </button>
+                            )}
+                            <svg className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-3 pb-3">
+                              <div className="rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
+                                <p className="text-xs text-slate-600 leading-relaxed">{kw.content}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1527,16 +1545,21 @@ export function TranslatePage() {
                             (() => {
                               // 현재 자막이 선택된 단어/표현의 출처인지 확인
                               const isSelectedSub = selectedWord?.originalSentence === sub.original;
-                              // 관용표현 하이라이트: matchedExpression=true면 API가 준 word(표현 전체)가 포함하는 토큰들 강조
+
+                              // 관용표현: 표현 전체를 하나의 하이라이트로 렌더링
+                              if (isSelectedSub && selectedWord?.matchedExpression && selectedWord.word) {
+                                const escaped = selectedWord.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                const parts = sub.original.split(new RegExp(`(${escaped})`, 'i'));
+                                return parts.map((part, i) =>
+                                  part.toLowerCase() === selectedWord.word.toLowerCase()
+                                    ? <mark key={i} className="bg-amber-100 text-amber-800 rounded px-0.5 not-italic">{part}</mark>
+                                    : <span key={i}>{part}</span>
+                                );
+                              }
+
+                              // 단일 단어 하이라이트
                               const getTokenHighlight = (token: string): string => {
                                 if (!isSelectedSub || !selectedWord) return '';
-                                if (selectedWord.matchedExpression) {
-                                  // 관용표현: 표현 전체 문자열에 토큰이 포함되는지 확인
-                                  return selectedWord.word.includes(token)
-                                    ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-300'
-                                    : '';
-                                }
-                                // 단일 단어: 정확히 일치하는 토큰만 강조
                                 return selectedWord.word === token
                                   ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
                                   : '';
