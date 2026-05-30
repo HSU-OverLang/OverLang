@@ -120,6 +120,27 @@ class AnalysisRequest(CamelModel):
         return self.file_url
 
 
+class WorkerSegmentPayload(CamelModel):
+    seq: int
+    start_time: float
+    end_time: float
+    text: str
+
+
+class WorkerBoundingBoxPayload(CamelModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class WorkerOcrItemPayload(CamelModel):
+    start_time: float
+    end_time: float
+    origin_text: str
+    bounding_box: WorkerBoundingBoxPayload
+
+
 class WorkerJobPayload(CamelModel):
     job_id: int | str
     project_id: int | str
@@ -132,6 +153,8 @@ class WorkerJobPayload(CamelModel):
     source_language: str | None = None
     target_language: str | None = None
     translation_provider: TranslationProvider = TranslationProvider.DEFAULT
+    segments: list[WorkerSegmentPayload] = Field(default_factory=list)
+    ocr_items: list[WorkerOcrItemPayload] = Field(default_factory=list)
 
     @field_validator("source_language", "target_language", mode="before")
     @classmethod
