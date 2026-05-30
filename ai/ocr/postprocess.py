@@ -31,6 +31,10 @@ TRACK_CENTER_DISTANCE_RATIO = 2.5
 TRACK_CENTER_DISTANCE_MIN = 0.08
 TRACK_RELATED_TEXT_THRESHOLD = 0.55
 TRACK_TOKEN_OVERLAP_THRESHOLD = 0.5
+STABLE_MIN_DETECTIONS = 3
+STABLE_MIN_AVG_CONFIDENCE = 0.6
+STABLE_HIGH_CONFIDENCE_MIN_DETECTIONS = 2
+STABLE_HIGH_CONFIDENCE = 0.75
 PROGRESSIVE_TEXT_MIN_LENGTH = 2
 PROGRESSIVE_TEXT_MIN_LENGTH_RATIO = 0.35
 PROGRESSIVE_TEXT_SCORE = 0.88
@@ -162,20 +166,27 @@ def _create_track(
     raw_item: dict[str, Any],
     frame_interval_seconds: float,
 ) -> dict[str, Any]:
+    is_carried_forward = bool(raw_item.get("carriedForward"))
+    real_confidence_values = []
+    if not is_carried_forward and raw_item.get("confidence") is not None:
+        real_confidence_values.append(raw_item.get("confidence"))
+
     return {
         "startTime": float(raw_item["timestamp"]),
         "endTime": round(float(raw_item["timestamp"]) + frame_interval_seconds, 3),
         "originText": raw_item["originText"],
         "textCandidates": [_build_text_candidate(raw_item)],
         "boundingBox": raw_item["boundingBox"],
-        "boundingBoxValues": [raw_item["boundingBox"]],
+        "boundingBoxValues": [] if is_carried_forward else [raw_item["boundingBox"]],
         "confidenceValues": [raw_item.get("confidence")],
+        "realConfidenceValues": real_confidence_values,
+        "realDetectionCount": 0 if is_carried_forward else 1,
         "mergedItemCountValues": [int(raw_item.get("mergedItemCount", 1))],
         "frameIntervalSeconds": frame_interval_seconds,
         "lastTimestamp": float(raw_item["timestamp"]),
         "missingFrameCount": 0,
         "styleFramePath": raw_item.get("framePath"),
-        "carriedFrameCount": 1 if raw_item.get("carriedForward") else 0,
+        "carriedFrameCount": 1 if is_carried_forward else 0,
     }
 
 
@@ -192,7 +203,13 @@ def _extend_track(
     track["mergedItemCountValues"].append(int(raw_item.get("mergedItemCount", 1)))
     if not raw_item.get("carriedForward"):
         track["boundingBoxValues"].append(raw_item["boundingBox"])
-    track["boundingBox"] = _median_bbox(track["boundingBoxValues"])
+        track["realDetectionCount"] = int(track.get("realDetectionCount", 0)) + 1
+        if raw_item.get("confidence") is not None:
+            track.setdefault("realConfidenceValues", []).append(
+                raw_item.get("confidence")
+            )
+    if track["boundingBoxValues"]:
+        track["boundingBox"] = _median_bbox(track["boundingBoxValues"])
     if not raw_item.get("carriedForward") and raw_item.get("framePath"):
         track["styleFramePath"] = raw_item.get("framePath")
     if raw_item.get("carriedForward"):
@@ -492,7 +509,7 @@ def _is_edge_noise(
 def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
     confidence_values = [
         float(confidence)
-        for confidence in track["confidenceValues"]
+        for confidence in _track_real_confidence_values(track)
         if confidence is not None
     ]
     confidence = None
@@ -554,24 +571,85 @@ def _build_ocr_item_lines(
 
 def _should_keep_track(track: dict[str, Any]) -> bool:
     resolved_text = _resolve_track_text(track)
-    duration = float(track["endTime"]) - float(track["startTime"])
-    real_detection_count = len(track.get("boundingBoxValues", []))
-    max_confidence = max(
-        (
-            float(confidence)
-            for confidence in track.get("confidenceValues", [])
-            if confidence is not None
-        ),
-        default=0.0,
-    )
+    real_detection_count = _track_real_detection_count(track)
+    confidence_values = _track_real_confidence_values(track)
+    max_confidence = max(confidence_values, default=0.0)
     if _is_low_value_text(resolved_text, max_confidence):
         return False
 
-    return (
-        duration >= MIN_OCR_ITEM_DURATION_SECONDS
-        or real_detection_count >= 2
-        or max_confidence >= 0.75
+    if real_detection_count <= 0:
+        return False
+
+    avg_confidence = (
+        sum(confidence_values) / len(confidence_values)
+        if confidence_values
+        else 0.0
     )
+    return _is_stable_track(
+        real_detection_count,
+        avg_confidence,
+        max_confidence,
+    )
+
+
+def _track_real_detection_count(track: dict[str, Any]) -> int:
+    return int(
+        track.get(
+            "realDetectionCount",
+            len(track.get("boundingBoxValues", [])),
+        )
+    )
+
+
+def _track_real_confidence_values(track: dict[str, Any]) -> list[float]:
+    confidence_values = track.get("realConfidenceValues")
+    if confidence_values is None:
+        confidence_values = track.get("confidenceValues", [])
+
+    return [
+        float(confidence)
+        for confidence in confidence_values
+        if confidence is not None
+    ]
+
+
+def _is_stable_track(
+    real_detection_count: int,
+    avg_confidence: float,
+    max_confidence: float,
+) -> bool:
+    if (
+        real_detection_count >= _stable_min_detections()
+        and avg_confidence >= _stable_min_avg_confidence()
+    ):
+        return True
+
+    return (
+        real_detection_count >= _stable_high_confidence_min_detections()
+        and max_confidence >= _stable_high_confidence()
+    )
+
+
+def _stable_min_detections() -> int:
+    return _int_env("AI_OCR_STABLE_MIN_DETECTIONS", STABLE_MIN_DETECTIONS)
+
+
+def _stable_min_avg_confidence() -> float:
+    return _float_env(
+        "AI_OCR_STABLE_MIN_AVG_CONFIDENCE",
+        STABLE_MIN_AVG_CONFIDENCE,
+    )
+
+
+def _stable_high_confidence_min_detections() -> int:
+    return _int_env(
+        "AI_OCR_STABLE_HIGH_CONFIDENCE_MIN_DETECTIONS",
+        STABLE_HIGH_CONFIDENCE_MIN_DETECTIONS,
+    )
+
+
+def _stable_high_confidence() -> float:
+    return _float_env("AI_OCR_STABLE_HIGH_CONFIDENCE", STABLE_HIGH_CONFIDENCE)
 
 
 def _resolve_track_start_time(track: dict[str, Any]) -> float:
