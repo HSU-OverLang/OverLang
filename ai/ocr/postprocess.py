@@ -45,6 +45,8 @@ LOW_IMPORTANCE_TEXT_MAX_LENGTH = 0
 MAX_REPEATED_CHAR_RATIO = 0.75
 MAX_CONSECUTIVE_DUPLICATE_TOKENS = 0
 SINGLE_LETTER_TOKEN_RATIO_THRESHOLD = 0.8
+MIN_BBOX_WIDTH = 0.025
+MIN_BBOX_HEIGHT = 0.015
 DEFAULT_ALLOWED_SHORT_TEXTS = {
     "am",
     "bye",
@@ -238,6 +240,9 @@ def _is_valid_raw_item(
         return False
 
     if _is_edge_noise(raw_item["boundingBox"], edge_margin):
+        return False
+
+    if _is_too_small_bbox(raw_item["boundingBox"]):
         return False
 
     raw_item["originText"] = text
@@ -457,6 +462,14 @@ def _single_letter_token_ratio_threshold() -> float:
     )
 
 
+def _min_bbox_width() -> float:
+    return _float_env("AI_OCR_MIN_BBOX_WIDTH", MIN_BBOX_WIDTH)
+
+
+def _min_bbox_height() -> float:
+    return _float_env("AI_OCR_MIN_BBOX_HEIGHT", MIN_BBOX_HEIGHT)
+
+
 def _max_consecutive_duplicate_tokens() -> int:
     return _int_env(
         "AI_OCR_MAX_CONSECUTIVE_DUPLICATE_TOKENS",
@@ -504,6 +517,13 @@ def _is_edge_noise(
     )
 
     return touches_edge and area <= 0.01
+
+
+def _is_too_small_bbox(bounding_box: BoundingBox) -> bool:
+    return (
+        bounding_box.w < _min_bbox_width()
+        or bounding_box.h < _min_bbox_height()
+    )
 
 
 def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
