@@ -13,7 +13,7 @@ DEFAULT_OCR_REGIONS = "full,top,center,bottom"
 DEFAULT_REFINE_ENABLED = True
 DEFAULT_REFINE_SCALE = 2.0
 DEFAULT_REFINE_PADDING = 0.015
-DEFAULT_REFINE_MIN_CONFIDENCE = 0.2
+DEFAULT_REFINE_MIN_CONFIDENCE = 0.45
 DEFAULT_OCR_PREPROCESS_VARIANTS = "original,contrast,threshold"
 PRESET_OCR_REGIONS = {
     "full": (0.0, 0.0, 1.0, 1.0),
@@ -43,6 +43,8 @@ class EasyOcrService:
         frame_path: str | Path,
         frame_index: int,
         timestamp: float,
+        regions: list[tuple[str, tuple[float, float, float, float]]] | None = None,
+        preprocess_variants: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         source_path = Path(frame_path)
         if not source_path.exists():
@@ -55,10 +57,12 @@ class EasyOcrService:
             for region_name, crop_box in _iter_ocr_regions(
                 image_width,
                 image_height,
+                regions,
             ):
                 crop_image = rgb_image.crop(crop_box)
                 for variant_name, prepared_image in _iter_preprocessed_images(
-                    crop_image
+                    crop_image,
+                    preprocess_variants,
                 ):
                     results = self.reader.readtext(np.asarray(prepared_image))
 
@@ -146,9 +150,10 @@ def _read_image_size(image_path: Path) -> tuple[int, int]:
 def _iter_ocr_regions(
     image_width: int,
     image_height: int,
+    configured_regions: list[tuple[str, tuple[float, float, float, float]]] | None = None,
 ) -> list[tuple[str, tuple[int, int, int, int]]]:
     regions = []
-    for region_name, ratios in _resolve_ocr_regions():
+    for region_name, ratios in configured_regions or _resolve_ocr_regions():
         left_ratio, top_ratio, right_ratio, bottom_ratio = ratios
         left = int(image_width * left_ratio)
         top = int(image_height * top_ratio)
@@ -180,13 +185,19 @@ def _resolve_ocr_regions() -> list[tuple[str, tuple[float, float, float, float]]
     return regions or [("full", PRESET_OCR_REGIONS["full"])]
 
 
-def _iter_preprocessed_images(crop_image: Image.Image) -> list[tuple[str, Image.Image]]:
+def _iter_preprocessed_images(
+    crop_image: Image.Image,
+    preprocess_variants: list[str] | None = None,
+) -> list[tuple[str, Image.Image]]:
     variants = []
-    configured_variants = os.getenv(
-        "AI_OCR_PREPROCESS_VARIANTS",
-        DEFAULT_OCR_PREPROCESS_VARIANTS,
-    )
-    for raw_variant_name in configured_variants.split(","):
+    configured_variants = preprocess_variants
+    if configured_variants is None:
+        configured_variants = os.getenv(
+            "AI_OCR_PREPROCESS_VARIANTS",
+            DEFAULT_OCR_PREPROCESS_VARIANTS,
+        ).split(",")
+
+    for raw_variant_name in configured_variants:
         variant_name = raw_variant_name.strip().lower()
         if not variant_name:
             continue
