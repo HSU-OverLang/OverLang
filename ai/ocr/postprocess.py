@@ -53,6 +53,11 @@ MIN_BBOX_HEIGHT = 0.015
 GIBBERISH_ALPHA_MIN_LENGTH = 4
 GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD = 0.15
 TRANSLATION_MIN_CONFIDENCE = 0.6
+LOW_PRIORITY_VARIANT_MIN_CONFIDENCE = 0.7
+DEFAULT_LOW_PRIORITY_OCR_VARIANTS = {
+    "invert_threshold",
+    "threshold",
+}
 DEFAULT_ALLOWED_SHORT_TEXTS = {
     "am",
     "bye",
@@ -251,6 +256,9 @@ def _is_valid_raw_item(
 
     confidence = raw_item.get("confidence")
     if confidence is not None and float(confidence) < min_confidence:
+        return False
+
+    if _is_low_priority_variant_below_threshold(raw_item, confidence):
         return False
 
     if _is_low_value_text(text, confidence):
@@ -638,6 +646,57 @@ def _is_too_small_bbox(bounding_box: BoundingBox) -> bool:
     )
 
 
+def _is_low_priority_variant_below_threshold(
+    raw_item: dict[str, Any],
+    confidence: Any | None,
+) -> bool:
+    if confidence is None:
+        return False
+
+    variant_name = _ocr_variant_name(raw_item)
+    if variant_name not in _low_priority_ocr_variants():
+        return False
+
+    return float(confidence) < _low_priority_variant_min_confidence()
+
+
+def _ocr_variant_name(raw_item: dict[str, Any]) -> str:
+    if raw_item.get("refined"):
+        return "refined"
+
+    return str(raw_item.get("ocrVariant") or "original").strip().lower()
+
+
+def _ocr_variant_priority(raw_item: dict[str, Any]) -> int:
+    variant_name = _ocr_variant_name(raw_item)
+    if variant_name == "refined":
+        return 4
+
+    if variant_name == "original":
+        return 3
+
+    if variant_name == "contrast":
+        return 2
+
+    if variant_name in _low_priority_ocr_variants():
+        return 1
+
+    return 0
+
+
+def _low_priority_ocr_variants() -> set[str]:
+    return DEFAULT_LOW_PRIORITY_OCR_VARIANTS | _env_text_set(
+        "AI_OCR_LOW_PRIORITY_VARIANTS",
+    )
+
+
+def _low_priority_variant_min_confidence() -> float:
+    return _float_env(
+        "AI_OCR_LOW_PRIORITY_VARIANT_MIN_CONFIDENCE",
+        LOW_PRIORITY_VARIANT_MIN_CONFIDENCE,
+    )
+
+
 def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
     confidence_values = [
         float(confidence)
@@ -864,6 +923,7 @@ def _deduplicate_overlapping_frame_items(
     sorted_items = sorted(
         raw_items,
         key=lambda item: (
+            _ocr_variant_priority(item),
             float(item.get("confidence") or 0.0),
             item["boundingBox"].w * item["boundingBox"].h,
         ),
