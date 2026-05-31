@@ -99,6 +99,14 @@ _COMMON_WORDS = {
     "would",
 }
 
+EXPRESSION_CONTENT_LABELS = (
+    "직역",
+    "실제 의미",
+    "자연스러운 번역",
+    "사용 상황",
+    "원문 표현",
+)
+
 
 def generate_learning_data(
     subtitles: list[SubtitleSegment],
@@ -238,11 +246,13 @@ def _build_learning_instructions(
         "Those are generated later by an on-demand word explanation API. "
         "Use SUMMARY for one concise video or section summary and set textType to ORIGINAL. "
         "Use EXPRESSION for idioms, natural phrases, repeated sentence patterns, or expressions that need context. "
-        "For EXPRESSION content, include literal meaning, actual meaning, natural translation, and usage context when relevant. "
+        "For every EXPRESSION content, use this exact newline-separated format with no extra labels: "
+        "'직역: ...\\n실제 의미: ...\\n자연스러운 번역: ...\\n사용 상황: ...\\n원문 표현: ...'. "
+        "If a field is not applicable, write '해당 없음' after the label. "
         "Create ORIGINAL EXPRESSION items from the source text. "
         "When translatedText is present, you must create at least two EXPRESSION items with textType TRANSLATION using translated phrases from translatedText as title. "
         "TRANSLATION items are required so learners can select translated sentence words and still receive expression guidance. "
-        "For each TRANSLATION EXPRESSION item, set content to explain the translated phrase and mention the matching original expression. "
+        "For TRANSLATION EXPRESSION items, the 원문 표현 field must contain the matching original source expression. "
         "Use KEYWORD only for a small number of repeated or theme-critical source words, not every vocabulary item, and set textType to ORIGINAL. "
         "For KEYWORD and EXPRESSION, set title to the original word or phrase from the source text, "
         "except TRANSLATION items must set title to the translated phrase from translatedText. "
@@ -274,6 +284,12 @@ def _parse_learning_data(data: dict) -> LearningData:
             text_type = SelectedTextType.ORIGINAL.value
         if not title or not content:
             continue
+        if content_type == LearningContentType.EXPRESSION.value:
+            content = _normalize_expression_content(
+                content,
+                title=title,
+                text_type=SelectedTextType(text_type),
+            )
 
         contents.append(
             LearningContent(
@@ -294,6 +310,71 @@ def _generate_fallback(subtitles: list[SubtitleSegment]) -> LearningData:
     contents.extend(_build_fallback_expressions(subtitles))
     contents.extend(_build_fallback_keywords(subtitles))
     return LearningData(contents=contents)
+
+
+def _normalize_expression_content(
+    content: str,
+    title: str,
+    text_type: SelectedTextType,
+) -> str:
+    values = _parse_labeled_expression_content(content)
+    if values:
+        return _format_expression_content(
+            literal_meaning=values.get("직역") or "해당 없음",
+            actual_meaning=values.get("실제 의미") or values.get("의미") or content,
+            natural_translation=values.get("자연스러운 번역") or title,
+            usage_context=values.get("사용 상황") or values.get("문맥") or content,
+            original_expression=values.get("원문 표현")
+            or ("해당 없음" if text_type == SelectedTextType.ORIGINAL else content),
+        )
+
+    return _format_expression_content(
+        literal_meaning="해당 없음",
+        actual_meaning=content,
+        natural_translation=title,
+        usage_context=content,
+        original_expression="해당 없음"
+        if text_type == SelectedTextType.ORIGINAL
+        else content,
+    )
+
+
+def _parse_labeled_expression_content(content: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+
+        label, value = line.split(":", 1)
+        normalized_label = label.strip()
+        if normalized_label in EXPRESSION_CONTENT_LABELS:
+            values[normalized_label] = value.strip()
+
+    return values
+
+
+def _format_expression_content(
+    literal_meaning: str,
+    actual_meaning: str,
+    natural_translation: str,
+    usage_context: str,
+    original_expression: str,
+) -> str:
+    return "\n".join(
+        [
+            f"직역: {_normalize_expression_field(literal_meaning)}",
+            f"실제 의미: {_normalize_expression_field(actual_meaning)}",
+            f"자연스러운 번역: {_normalize_expression_field(natural_translation)}",
+            f"사용 상황: {_normalize_expression_field(usage_context)}",
+            f"원문 표현: {_normalize_expression_field(original_expression)}",
+        ]
+    )
+
+
+def _normalize_expression_field(value: str | None) -> str:
+    normalized_value = " ".join(str(value or "").split())
+    return normalized_value or "해당 없음"
 
 
 def _build_fallback_summary(subtitles: list[SubtitleSegment]) -> LearningContent:
@@ -427,10 +508,18 @@ def _build_fallback_expressions(subtitles: list[SubtitleSegment]) -> list[Learni
                     content_type=LearningContentType.EXPRESSION,
                     text_type=SelectedTextType.ORIGINAL,
                     title=text[:80],
-                    content=(
-                        "Useful sentence-level expression for video study. "
-                        "Review the sentence meaning, natural phrasing, and usage context. "
-                        f"Translation: {subtitle.translated_text or 'No translation available'}"
+                    content=_format_expression_content(
+                        literal_meaning="해당 없음",
+                        actual_meaning=(
+                            "영상 문맥에서 통째로 이해하면 좋은 문장 단위 표현입니다."
+                        ),
+                        natural_translation=(
+                            subtitle.translated_text or "No translation available"
+                        ),
+                        usage_context=(
+                            "영상에서 실제로 사용된 문장 흐름과 함께 복습하기 적합합니다."
+                        ),
+                        original_expression=subtitle.text,
                     ),
                     start_time=subtitle.start_time,
                     end_time=subtitle.end_time,
@@ -449,10 +538,16 @@ def _build_fallback_expressions(subtitles: list[SubtitleSegment]) -> list[Learni
                     content_type=LearningContentType.EXPRESSION,
                     text_type=SelectedTextType.TRANSLATION,
                     title=translated_text[:80],
-                    content=(
-                        "Useful translated expression for video study. "
-                        "Review how this translation expresses the meaning in a natural way. "
-                        f"Original: {subtitle.text}"
+                    content=_format_expression_content(
+                        literal_meaning="해당 없음",
+                        actual_meaning=(
+                            "번역문에서 자연스럽게 쓰인 표현으로 원문 의미를 학습할 수 있습니다."
+                        ),
+                        natural_translation=translated_text,
+                        usage_context=(
+                            "번역문을 선택했을 때 원문 표현과 연결해 설명하기 위한 학습 항목입니다."
+                        ),
+                        original_expression=subtitle.text,
                     ),
                     start_time=subtitle.start_time,
                     end_time=subtitle.end_time,
