@@ -30,6 +30,9 @@ DUPLICATE_NORMALIZED_TEXT_THRESHOLD = 0.95
 TRACK_TEXT_STABILITY_THRESHOLD = 0.82
 TRACK_CENTER_DISTANCE_RATIO = 2.5
 TRACK_CENTER_DISTANCE_MIN = 0.08
+TRACK_STABLE_CENTER_DISTANCE_RATIO = 1.15
+TRACK_STABLE_CENTER_DISTANCE_MIN = 0.045
+TRACK_STABLE_SIZE_CHANGE_RATIO = 0.65
 TRACK_RELATED_TEXT_THRESHOLD = 0.55
 TRACK_TOKEN_OVERLAP_THRESHOLD = 0.5
 TEXT_VOTE_SIMILARITY_THRESHOLD = 0.88
@@ -1621,6 +1624,12 @@ def _find_best_matching_active_track(
             track["boundingBox"],
             raw_item["boundingBox"],
         )
+        if not is_stable_scaling and not _is_stable_bbox_track_match(
+            track["boundingBox"],
+            raw_item["boundingBox"],
+        ):
+            continue
+
         if bbox_overlap <= 0 and not _is_similar_bbox(
             track["boundingBox"],
             raw_item["boundingBox"],
@@ -1681,6 +1690,52 @@ def _meaningful_text_tokens(text: str) -> set[str]:
         for token in text.replace("\n", " ").split()
         if len(_normalize_token(token)) >= 2
     }
+
+
+def _is_stable_bbox_track_match(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> bool:
+    return (
+        _is_stable_bbox_center_match(left, right)
+        and _is_stable_bbox_size_match(left, right)
+    )
+
+
+def _is_stable_bbox_center_match(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> bool:
+    center_x_distance = abs(_bbox_center_x(left) - _bbox_center_x(right))
+    center_y_distance = abs(_bbox_center_y(left) - _bbox_center_y(right))
+    max_width = max(left.w, right.w)
+    max_height = max(left.h, right.h)
+    return (
+        center_x_distance
+        <= max(TRACK_STABLE_CENTER_DISTANCE_MIN, max_width * TRACK_STABLE_CENTER_DISTANCE_RATIO)
+        and center_y_distance
+        <= max(TRACK_STABLE_CENTER_DISTANCE_MIN, max_height * TRACK_STABLE_CENTER_DISTANCE_RATIO)
+    )
+
+
+def _is_stable_bbox_size_match(
+    left: BoundingBox,
+    right: BoundingBox,
+) -> bool:
+    width_ratio = _bbox_size_ratio(left.w, right.w)
+    height_ratio = _bbox_size_ratio(left.h, right.h)
+    return (
+        width_ratio >= TRACK_STABLE_SIZE_CHANGE_RATIO
+        and height_ratio >= TRACK_STABLE_SIZE_CHANGE_RATIO
+    )
+
+
+def _bbox_size_ratio(left_size: float, right_size: float) -> float:
+    larger_size = max(left_size, right_size)
+    if larger_size <= 0:
+        return 0.0
+
+    return min(left_size, right_size) / larger_size
 
 
 def _is_stable_scaling_match(
