@@ -624,6 +624,164 @@ def _track_missing_tolerance_seconds(frame_interval_seconds: float) -> float:
     )
 
 
+def _track_start_delay_seconds() -> float:
+    return _float_env("AI_OCR_TRACK_START_DELAY_SECONDS", TRACK_START_DELAY_SECONDS)
+
+
+def _track_end_trim_seconds() -> float:
+    return _float_env("AI_OCR_TRACK_END_TRIM_SECONDS", TRACK_END_TRIM_SECONDS)
+
+
+def _track_coverage_padding_ratio() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_COVERAGE_PADDING_RATIO",
+        TRACK_COVERAGE_PADDING_RATIO,
+    )
+
+
+def _track_multiline_coverage_padding_ratio() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_MULTILINE_COVERAGE_PADDING_RATIO",
+        TRACK_MULTILINE_COVERAGE_PADDING_RATIO,
+    )
+
+
+def _duplicate_text_similarity_threshold() -> float:
+    return _float_env(
+        "AI_OCR_DUPLICATE_TEXT_SIMILARITY_THRESHOLD",
+        DUPLICATE_TEXT_SIMILARITY_THRESHOLD,
+    )
+
+
+def _duplicate_bbox_iou_threshold() -> float:
+    return _float_env("AI_OCR_DUPLICATE_BBOX_IOU_THRESHOLD", DUPLICATE_BBOX_IOU_THRESHOLD)
+
+
+def _duplicate_center_distance_ratio() -> float:
+    return _float_env(
+        "AI_OCR_DUPLICATE_CENTER_DISTANCE_RATIO",
+        DUPLICATE_CENTER_DISTANCE_RATIO,
+    )
+
+
+def _duplicate_containment_ratio() -> float:
+    return _float_env(
+        "AI_OCR_DUPLICATE_CONTAINMENT_RATIO",
+        DUPLICATE_CONTAINMENT_RATIO,
+    )
+
+
+def _duplicate_coverage_ratio() -> float:
+    return _float_env("AI_OCR_DUPLICATE_COVERAGE_RATIO", DUPLICATE_COVERAGE_RATIO)
+
+
+def _duplicate_normalized_text_threshold() -> float:
+    return _float_env(
+        "AI_OCR_DUPLICATE_NORMALIZED_TEXT_THRESHOLD",
+        DUPLICATE_NORMALIZED_TEXT_THRESHOLD,
+    )
+
+
+def _track_text_stability_threshold() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_TEXT_STABILITY_THRESHOLD",
+        TRACK_TEXT_STABILITY_THRESHOLD,
+    )
+
+
+def _track_center_distance_ratio() -> float:
+    return _float_env("AI_OCR_TRACK_CENTER_DISTANCE_RATIO", TRACK_CENTER_DISTANCE_RATIO)
+
+
+def _track_center_distance_min() -> float:
+    return _float_env("AI_OCR_TRACK_CENTER_DISTANCE_MIN", TRACK_CENTER_DISTANCE_MIN)
+
+
+def _track_stable_center_distance_ratio() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_STABLE_CENTER_DISTANCE_RATIO",
+        TRACK_STABLE_CENTER_DISTANCE_RATIO,
+    )
+
+
+def _track_stable_center_distance_min() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_STABLE_CENTER_DISTANCE_MIN",
+        TRACK_STABLE_CENTER_DISTANCE_MIN,
+    )
+
+
+def _track_stable_size_change_ratio() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_STABLE_SIZE_CHANGE_RATIO",
+        TRACK_STABLE_SIZE_CHANGE_RATIO,
+    )
+
+
+def _track_related_text_threshold() -> float:
+    return _float_env("AI_OCR_TRACK_RELATED_TEXT_THRESHOLD", TRACK_RELATED_TEXT_THRESHOLD)
+
+
+def _track_token_overlap_threshold() -> float:
+    return _float_env("AI_OCR_TRACK_TOKEN_OVERLAP_THRESHOLD", TRACK_TOKEN_OVERLAP_THRESHOLD)
+
+
+def _progressive_text_min_length() -> int:
+    return _int_env("AI_OCR_PROGRESSIVE_TEXT_MIN_LENGTH", PROGRESSIVE_TEXT_MIN_LENGTH)
+
+
+def _progressive_text_min_length_ratio() -> float:
+    return _float_env(
+        "AI_OCR_PROGRESSIVE_TEXT_MIN_LENGTH_RATIO",
+        PROGRESSIVE_TEXT_MIN_LENGTH_RATIO,
+    )
+
+
+def _progressive_text_max_length_ratio() -> float:
+    return _float_env(
+        "AI_OCR_PROGRESSIVE_TEXT_MAX_LENGTH_RATIO",
+        PROGRESSIVE_TEXT_MAX_LENGTH_RATIO,
+    )
+
+
+def _progressive_text_score() -> float:
+    return _float_env("AI_OCR_PROGRESSIVE_TEXT_SCORE", PROGRESSIVE_TEXT_SCORE)
+
+
+def _line_vertical_overlap_threshold() -> float:
+    return _float_env(
+        "AI_OCR_LINE_VERTICAL_OVERLAP_THRESHOLD",
+        LINE_VERTICAL_OVERLAP_THRESHOLD,
+    )
+
+
+def _line_center_distance_ratio() -> float:
+    return _float_env("AI_OCR_LINE_CENTER_DISTANCE_RATIO", LINE_CENTER_DISTANCE_RATIO)
+
+
+def _line_horizontal_gap_ratio() -> float:
+    return _float_env("AI_OCR_LINE_HORIZONTAL_GAP_RATIO", LINE_HORIZONTAL_GAP_RATIO)
+
+
+def _line_horizontal_gap_min() -> float:
+    return _float_env("AI_OCR_LINE_HORIZONTAL_GAP_MIN", LINE_HORIZONTAL_GAP_MIN)
+
+
+def _block_horizontal_overlap_threshold() -> float:
+    return _float_env(
+        "AI_OCR_BLOCK_HORIZONTAL_OVERLAP_THRESHOLD",
+        BLOCK_HORIZONTAL_OVERLAP_THRESHOLD,
+    )
+
+
+def _block_vertical_gap_ratio() -> float:
+    return _float_env("AI_OCR_BLOCK_VERTICAL_GAP_RATIO", BLOCK_VERTICAL_GAP_RATIO)
+
+
+def _block_vertical_gap_min() -> float:
+    return _float_env("AI_OCR_BLOCK_VERTICAL_GAP_MIN", BLOCK_VERTICAL_GAP_MIN)
+
+
 def _is_edge_noise(
     bounding_box: BoundingBox,
     edge_margin: float,
@@ -856,7 +1014,7 @@ def _resolve_track_start_time(track: dict[str, Any]) -> float:
             return round(start_time, 3)
 
     duration = max(0.0, end_time - start_time)
-    start_delay = min(TRACK_START_DELAY_SECONDS, duration * 0.25)
+    start_delay = min(_track_start_delay_seconds(), duration * 0.25)
     delayed_start_time = start_time + start_delay
     if delayed_start_time >= end_time:
         return round(start_time, 3)
@@ -868,7 +1026,7 @@ def _resolve_track_end_time(track: dict[str, Any]) -> float:
     start_time = _resolve_track_start_time(track)
     end_time = float(track["endTime"])
     frame_interval_seconds = float(track.get("frameIntervalSeconds") or 0.0)
-    end_trim_seconds = min(TRACK_END_TRIM_SECONDS, frame_interval_seconds * 0.25)
+    end_trim_seconds = min(_track_end_trim_seconds(), frame_interval_seconds * 0.25)
     trimmed_end_time = end_time - end_trim_seconds
     if trimmed_end_time <= start_time:
         return round(end_time, 3)
@@ -911,9 +1069,9 @@ def _resolve_progressive_text_timing(track: dict[str, Any]) -> tuple[float, floa
 def _track_coverage_bbox(track: dict[str, Any]) -> BoundingBox:
     merged_item_count = max(track.get("mergedItemCountValues", [1]), default=1)
     resolved_text = _resolve_track_text(track)
-    padding_ratio = TRACK_COVERAGE_PADDING_RATIO
+    padding_ratio = _track_coverage_padding_ratio()
     if "\n" in resolved_text or merged_item_count > 1:
-        padding_ratio = TRACK_MULTILINE_COVERAGE_PADDING_RATIO
+        padding_ratio = _track_multiline_coverage_padding_ratio()
 
     return _coverage_bbox(track["boundingBoxValues"], padding_ratio=padding_ratio)
 
@@ -975,20 +1133,20 @@ def _is_duplicate_frame_item(
         right_item["originText"],
     )
     if (
-        text_similarity < DUPLICATE_TEXT_SIMILARITY_THRESHOLD
+        text_similarity < _duplicate_text_similarity_threshold()
         and not is_progressive_text
     ):
         return False
 
     left_box = left_item["boundingBox"]
     right_box = right_item["boundingBox"]
-    if _bbox_iou(left_box, right_box) >= DUPLICATE_BBOX_IOU_THRESHOLD:
+    if _bbox_iou(left_box, right_box) >= _duplicate_bbox_iou_threshold():
         return True
 
-    if _bbox_containment_ratio(left_box, right_box) >= DUPLICATE_CONTAINMENT_RATIO:
+    if _bbox_containment_ratio(left_box, right_box) >= _duplicate_containment_ratio():
         return True
 
-    if _bbox_coverage_ratio(left_box, right_box) >= DUPLICATE_COVERAGE_RATIO:
+    if _bbox_coverage_ratio(left_box, right_box) >= _duplicate_coverage_ratio():
         return True
 
     return _is_near_bbox_center(left_box, right_box)
@@ -1204,13 +1362,13 @@ def _is_progressive_text_pair(left: str, right: str) -> bool:
 
     shorter_length = min(len(left_compact), len(right_compact))
     longer_length = max(len(left_compact), len(right_compact))
-    if shorter_length < PROGRESSIVE_TEXT_MIN_LENGTH:
+    if shorter_length < _progressive_text_min_length():
         return False
 
-    if shorter_length / longer_length < PROGRESSIVE_TEXT_MIN_LENGTH_RATIO:
+    if shorter_length / longer_length < _progressive_text_min_length_ratio():
         return False
 
-    if shorter_length / longer_length >= PROGRESSIVE_TEXT_MAX_LENGTH_RATIO:
+    if shorter_length / longer_length >= _progressive_text_max_length_ratio():
         return False
 
     return left_compact in right_compact or right_compact in left_compact
@@ -1283,8 +1441,8 @@ def _is_same_text_line(
     center_distance = abs(_bbox_center_y(left) - _bbox_center_y(right))
     max_height = max(left.h, right.h)
     return (
-        overlap >= LINE_VERTICAL_OVERLAP_THRESHOLD
-        or center_distance <= max_height * LINE_CENTER_DISTANCE_RATIO
+        overlap >= _line_vertical_overlap_threshold()
+        or center_distance <= max_height * _line_center_distance_ratio()
     )
 
 
@@ -1297,8 +1455,8 @@ def _is_horizontally_adjacent(
         max(left.x, right.x) - min(left.x + left.w, right.x + right.w),
     )
     max_gap = max(
-        LINE_HORIZONTAL_GAP_MIN,
-        max(left.h, right.h) * LINE_HORIZONTAL_GAP_RATIO,
+        _line_horizontal_gap_min(),
+        max(left.h, right.h) * _line_horizontal_gap_ratio(),
     )
     return gap <= max_gap
 
@@ -1347,13 +1505,13 @@ def _find_matching_block(
     candidates = []
     for block in blocks:
         block_box = _union_bbox([item["boundingBox"] for item in block])
-        if _horizontal_overlap_ratio(block_box, line_box) < BLOCK_HORIZONTAL_OVERLAP_THRESHOLD:
+        if _horizontal_overlap_ratio(block_box, line_box) < _block_horizontal_overlap_threshold():
             continue
 
         gap = max(0.0, line_box.y - (block_box.y + block_box.h))
         max_gap = max(
-            BLOCK_VERTICAL_GAP_MIN,
-            max(block_box.h / max(len(block), 1), line_box.h) * BLOCK_VERTICAL_GAP_RATIO,
+            _block_vertical_gap_min(),
+            max(block_box.h / max(len(block), 1), line_box.h) * _block_vertical_gap_ratio(),
         )
         if gap > max_gap:
             continue
@@ -1423,15 +1581,15 @@ def _is_duplicate_merge_item(
 
     text_similarity = 1.0 if left_text == right_text else _similarity(left_text, right_text)
     is_progressive_text = _is_progressive_text_pair(left_text, right_text)
-    if text_similarity < DUPLICATE_NORMALIZED_TEXT_THRESHOLD and not is_progressive_text:
+    if text_similarity < _duplicate_normalized_text_threshold() and not is_progressive_text:
         return False
 
     left_box = left_item["boundingBox"]
     right_box = right_item["boundingBox"]
     return (
-        _bbox_iou(left_box, right_box) >= DUPLICATE_BBOX_IOU_THRESHOLD
-        or _bbox_containment_ratio(left_box, right_box) >= DUPLICATE_CONTAINMENT_RATIO
-        or _bbox_coverage_ratio(left_box, right_box) >= DUPLICATE_COVERAGE_RATIO
+        _bbox_iou(left_box, right_box) >= _duplicate_bbox_iou_threshold()
+        or _bbox_containment_ratio(left_box, right_box) >= _duplicate_containment_ratio()
+        or _bbox_coverage_ratio(left_box, right_box) >= _duplicate_coverage_ratio()
         or _is_near_bbox_center(left_box, right_box)
     )
 
@@ -1475,7 +1633,7 @@ def _is_duplicate_ocr_item(
         left_item.origin_text,
         right_item.origin_text,
     )
-    if text_similarity < 0.9 and not is_progressive_text:
+    if text_similarity < _duplicate_normalized_text_threshold() and not is_progressive_text:
         return False
 
     if _time_overlap_ratio(left_item, right_item) < 0.5:
@@ -1484,9 +1642,9 @@ def _is_duplicate_ocr_item(
     left_box = left_item.bounding_box
     right_box = right_item.bounding_box
     return (
-        _bbox_iou(left_box, right_box) >= DUPLICATE_BBOX_IOU_THRESHOLD
-        or _bbox_containment_ratio(left_box, right_box) >= DUPLICATE_CONTAINMENT_RATIO
-        or _bbox_coverage_ratio(left_box, right_box) >= DUPLICATE_COVERAGE_RATIO
+        _bbox_iou(left_box, right_box) >= _duplicate_bbox_iou_threshold()
+        or _bbox_containment_ratio(left_box, right_box) >= _duplicate_containment_ratio()
+        or _bbox_coverage_ratio(left_box, right_box) >= _duplicate_coverage_ratio()
         or _is_near_bbox_center(left_box, right_box)
     )
 
@@ -1613,7 +1771,7 @@ def _find_best_matching_active_track(
         is_progressive_text = _is_progressive_track_match(track, raw_text)
         is_related_text = _is_related_ocr_text_pair(track_text, raw_text)
         if (
-            text_similarity < min(text_similarity_threshold, TRACK_TEXT_STABILITY_THRESHOLD)
+            text_similarity < min(text_similarity_threshold, _track_text_stability_threshold())
             and not is_progressive_text
             and not is_related_text
         ):
@@ -1639,8 +1797,8 @@ def _find_best_matching_active_track(
 
         text_score = max(
             text_similarity,
-            PROGRESSIVE_TEXT_SCORE if is_progressive_text else 0.0,
-            TRACK_RELATED_TEXT_THRESHOLD if is_related_text else 0.0,
+            _progressive_text_score() if is_progressive_text else 0.0,
+            _track_related_text_threshold() if is_related_text else 0.0,
         )
         scaling_score = 0.1 if is_stable_scaling else 0.0
         candidates.append((text_score + bbox_overlap + scaling_score, track))
@@ -1671,7 +1829,7 @@ def _is_related_ocr_text_pair(left: str, right: str) -> bool:
     if _is_progressive_text_pair(left_normalized, right_normalized):
         return True
 
-    if _similarity(left_normalized, right_normalized) >= TRACK_RELATED_TEXT_THRESHOLD:
+    if _similarity(left_normalized, right_normalized) >= _track_related_text_threshold():
         return True
 
     left_tokens = _meaningful_text_tokens(left_normalized)
@@ -1681,7 +1839,7 @@ def _is_related_ocr_text_pair(left: str, right: str) -> bool:
 
     overlap_count = len(left_tokens & right_tokens)
     shorter_token_count = min(len(left_tokens), len(right_tokens))
-    return overlap_count / shorter_token_count >= TRACK_TOKEN_OVERLAP_THRESHOLD
+    return overlap_count / shorter_token_count >= _track_token_overlap_threshold()
 
 
 def _meaningful_text_tokens(text: str) -> set[str]:
@@ -1712,9 +1870,9 @@ def _is_stable_bbox_center_match(
     max_height = max(left.h, right.h)
     return (
         center_x_distance
-        <= max(TRACK_STABLE_CENTER_DISTANCE_MIN, max_width * TRACK_STABLE_CENTER_DISTANCE_RATIO)
+        <= max(_track_stable_center_distance_min(), max_width * _track_stable_center_distance_ratio())
         and center_y_distance
-        <= max(TRACK_STABLE_CENTER_DISTANCE_MIN, max_height * TRACK_STABLE_CENTER_DISTANCE_RATIO)
+        <= max(_track_stable_center_distance_min(), max_height * _track_stable_center_distance_ratio())
     )
 
 
@@ -1725,8 +1883,8 @@ def _is_stable_bbox_size_match(
     width_ratio = _bbox_size_ratio(left.w, right.w)
     height_ratio = _bbox_size_ratio(left.h, right.h)
     return (
-        width_ratio >= TRACK_STABLE_SIZE_CHANGE_RATIO
-        and height_ratio >= TRACK_STABLE_SIZE_CHANGE_RATIO
+        width_ratio >= _track_stable_size_change_ratio()
+        and height_ratio >= _track_stable_size_change_ratio()
     )
 
 
@@ -1747,12 +1905,12 @@ def _is_stable_scaling_match(
     max_height = max(left.h, right.h)
     max_width = max(left.w, right.w)
     max_center_x_distance = max(
-        TRACK_CENTER_DISTANCE_MIN,
-        max_width * TRACK_CENTER_DISTANCE_RATIO,
+        _track_center_distance_min(),
+        max_width * _track_center_distance_ratio(),
     )
     max_center_y_distance = max(
-        TRACK_CENTER_DISTANCE_MIN,
-        max_height * TRACK_CENTER_DISTANCE_RATIO,
+        _track_center_distance_min(),
+        max_height * _track_center_distance_ratio(),
     )
     if (
         center_x_distance > max_center_x_distance
@@ -1917,8 +2075,8 @@ def _is_near_bbox_center(
     max_width = max(left.w, right.w)
     max_height = max(left.h, right.h)
     return (
-        center_x_distance <= max_width * DUPLICATE_CENTER_DISTANCE_RATIO
-        and center_y_distance <= max_height * DUPLICATE_CENTER_DISTANCE_RATIO
+        center_x_distance <= max_width * _duplicate_center_distance_ratio()
+        and center_y_distance <= max_height * _duplicate_center_distance_ratio()
     )
 
 
