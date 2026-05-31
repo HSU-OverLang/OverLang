@@ -6,6 +6,7 @@ import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.learning.entity.LearningContent;
 import com.overlang.domain.learning.entity.LearningContentType;
 import com.overlang.domain.learning.repository.LearningContentRepository;
+import com.overlang.global.exception.job.JobNotFoundException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -55,7 +56,7 @@ public class LearningContentService {
 
   private void validateJobOwner(Long jobId, Long memberId) {
     if (!jobRepository.existsByIdAndProjectMemberId(jobId, memberId)) {
-      throw new IllegalArgumentException("작업을 찾을 수 없습니다.");
+      throw new JobNotFoundException();
     }
   }
 }

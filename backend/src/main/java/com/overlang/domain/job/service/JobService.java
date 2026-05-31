@@ -13,6 +13,8 @@ import com.overlang.domain.job.repository.JobRepository;
 import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.entity.ProjectStatus;
 import com.overlang.domain.project.repository.ProjectRepository;
+import com.overlang.global.exception.job.JobNotFoundException;
+import com.overlang.global.exception.project.ProjectNotFoundException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -173,13 +175,13 @@ public class JobService {
   private Project findProjectByIdAndMemberId(Long projectId, Long memberId) {
     return projectRepository
         .findByIdAndMemberId(projectId, memberId)
-        .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다."));
+        .orElseThrow(ProjectNotFoundException::new);
   }
 
   private Job findJobByIdAndMemberId(Long jobId, Long memberId) {
     return jobRepository
         .findByIdAndProjectMemberId(jobId, memberId)
-        .orElseThrow(() -> new IllegalArgumentException("작업을 찾을 수 없습니다."));
+        .orElseThrow(JobNotFoundException::new);
   }
 
   private Job findLatestJobByProjectId(Long projectId) {

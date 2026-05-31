@@ -10,6 +10,10 @@ import com.overlang.domain.savedword.repository.SavedWordRepository;
 import com.overlang.domain.segment.entity.SegmentWord;
 import com.overlang.domain.segment.repository.SegmentWordRepository;
 import com.overlang.domain.word.service.WordsExplainService;
+import com.overlang.global.exception.member.MemberNotFoundException;
+import com.overlang.global.exception.savedword.DuplicateSavedWordException;
+import com.overlang.global.exception.savedword.SavedWordNotFoundException;
+import com.overlang.global.exception.segment.SegmentWordNotFoundException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,7 +61,7 @@ public class SavedWordService {
 
   private void validateDuplicateSavedWord(Long memberId, Long segmentWordId) {
     if (savedWordRepository.existsByMemberIdAndSegmentWordId(memberId, segmentWordId)) {
-      throw new IllegalArgumentException("이미 저장한 단어입니다.");
+      throw new DuplicateSavedWordException();
     }
   }
 
@@ -82,20 +86,18 @@ public class SavedWordService {
   }
 
   private Member findMemberById(Long memberId) {
-    return memberRepository
-        .findById(memberId)
-        .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
+    return memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
   }
 
   private SegmentWord findSegmentWordById(Long segmentWordId) {
     return segmentWordRepository
         .findById(segmentWordId)
-        .orElseThrow(() -> new IllegalArgumentException("세그먼트 단어를 찾을 수 없습니다."));
+        .orElseThrow(SegmentWordNotFoundException::new);
   }
 
   private SavedWord findSavedWordByIdAndMemberId(Long savedWordId, Long memberId) {
     return savedWordRepository
         .findByIdAndMemberId(savedWordId, memberId)
-        .orElseThrow(() -> new IllegalArgumentException("저장 단어를 찾을 수 없습니다."));
+        .orElseThrow(SavedWordNotFoundException::new);
   }
 }
