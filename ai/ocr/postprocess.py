@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import statistics
 from typing import Any
 
@@ -47,6 +48,8 @@ MAX_CONSECUTIVE_DUPLICATE_TOKENS = 0
 SINGLE_LETTER_TOKEN_RATIO_THRESHOLD = 0.8
 MIN_BBOX_WIDTH = 0.025
 MIN_BBOX_HEIGHT = 0.015
+GIBBERISH_ALPHA_MIN_LENGTH = 4
+GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD = 0.15
 DEFAULT_ALLOWED_SHORT_TEXTS = {
     "am",
     "bye",
@@ -327,6 +330,12 @@ def _is_low_value_text(text: str, confidence: Any | None) -> bool:
     if _is_single_letter_alphabet_noise(cleaned_text):
         return True
 
+    if _is_short_mixed_noise(cleaned_text):
+        return True
+
+    if _is_gibberish_alpha_text(cleaned_text):
+        return True
+
     if _repeated_char_ratio(compact_text) >= _max_repeated_char_ratio():
         return True
 
@@ -377,6 +386,44 @@ def _is_single_letter_alphabet_noise(text: str) -> bool:
         return False
 
     return len(alphabet_tokens) / len(tokens) >= _single_letter_token_ratio_threshold()
+
+
+def _is_short_mixed_noise(text: str) -> bool:
+    compact_text = _compact_text(text)
+    if len(compact_text) > 6:
+        return False
+
+    has_alpha = any(char.isalpha() for char in compact_text)
+    has_digit = any(char.isdigit() for char in compact_text)
+    has_special = any(not char.isalnum() for char in compact_text)
+    if has_alpha and has_digit:
+        return True
+
+    return has_alpha and has_special
+
+
+def _is_gibberish_alpha_text(text: str) -> bool:
+    tokens = [
+        _normalize_token(token)
+        for token in re.split(r"\s+", text)
+        if _normalize_token(token)
+    ]
+    if not tokens:
+        return True
+
+    alphabet_tokens = [token for token in tokens if token.isascii() and token.isalpha()]
+    if not alphabet_tokens or len(alphabet_tokens) != len(tokens):
+        return False
+
+    return all(_is_gibberish_alpha_token(token) for token in alphabet_tokens)
+
+
+def _is_gibberish_alpha_token(token: str) -> bool:
+    if len(token) < _gibberish_alpha_min_length():
+        return False
+
+    vowel_count = sum(1 for char in token.lower() if char in "aeiou")
+    return vowel_count / len(token) < _gibberish_alpha_vowel_ratio_threshold()
 
 
 def _is_low_importance_single_word(text: str, confidence: Any | None) -> bool:
@@ -459,6 +506,17 @@ def _single_letter_token_ratio_threshold() -> float:
     return _float_env(
         "AI_OCR_SINGLE_LETTER_TOKEN_RATIO_THRESHOLD",
         SINGLE_LETTER_TOKEN_RATIO_THRESHOLD,
+    )
+
+
+def _gibberish_alpha_min_length() -> int:
+    return _int_env("AI_OCR_GIBBERISH_ALPHA_MIN_LENGTH", GIBBERISH_ALPHA_MIN_LENGTH)
+
+
+def _gibberish_alpha_vowel_ratio_threshold() -> float:
+    return _float_env(
+        "AI_OCR_GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD",
+        GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD,
     )
 
 
