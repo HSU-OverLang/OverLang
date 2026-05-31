@@ -50,6 +50,7 @@ MIN_BBOX_WIDTH = 0.025
 MIN_BBOX_HEIGHT = 0.015
 GIBBERISH_ALPHA_MIN_LENGTH = 4
 GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD = 0.15
+TRANSLATION_MIN_CONFIDENCE = 0.6
 DEFAULT_ALLOWED_SHORT_TEXTS = {
     "am",
     "bye",
@@ -253,6 +254,9 @@ def _is_valid_raw_item(
 
 
 def should_keep_ocr_text_for_translation(text: str, confidence: Any | None) -> bool:
+    if _is_below_translation_confidence(confidence):
+        return False
+
     return not _is_low_value_text(text, confidence)
 
 
@@ -518,6 +522,20 @@ def _gibberish_alpha_vowel_ratio_threshold() -> float:
         "AI_OCR_GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD",
         GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD,
     )
+
+
+def _translation_min_confidence() -> float:
+    return _float_env(
+        "AI_OCR_TRANSLATION_MIN_CONFIDENCE",
+        TRANSLATION_MIN_CONFIDENCE,
+    )
+
+
+def _is_below_translation_confidence(confidence: Any | None) -> bool:
+    if confidence is None:
+        return False
+
+    return float(confidence) < _translation_min_confidence()
 
 
 def _min_bbox_width() -> float:
