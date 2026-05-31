@@ -561,8 +561,10 @@ def _run_ocr_stage(
     raw_items = []
     latest_detected_items: list[dict[str, Any]] = []
     previous_ocr_frame_path: Path | None = None
+    last_global_scan_timestamp: float | None = None
     consecutive_skipped_frames = 0
     for frame in frames:
+        frame_timestamp = float(frame["timestamp"])
         bbox_change_score = _calculate_latest_ocr_bbox_change_score(
             previous_ocr_frame_path,
             Path(str(frame["path"])),
@@ -589,13 +591,38 @@ def _run_ocr_stage(
             consecutive_skipped_frames += 1
             continue
 
+        should_run_global_scan = _should_run_global_ocr_scan(
+            latest_detected_items,
+            frame_timestamp,
+            last_global_scan_timestamp,
+            tracking_enabled=bool(runtime_options["ocr_tracking_enabled"]),
+            global_scan_interval_seconds=float(
+                runtime_options["ocr_global_scan_interval_seconds"]
+            ),
+        )
+        tracking_regions = None
+        preprocess_variants = None
+        if not should_run_global_scan:
+            tracking_regions = _build_ocr_tracking_regions(
+                latest_detected_items,
+                padding_ratio=float(runtime_options["ocr_tracking_padding"]),
+            )
+            preprocess_variants = _split_csv_option(
+                runtime_options["ocr_tracking_preprocess_variants"]
+            )
+
         detected_items = ocr_service.extract_frame_text(
             frame_path=str(frame["path"]),
             frame_index=int(frame["frameIndex"]),
-            timestamp=float(frame["timestamp"]),
+            timestamp=frame_timestamp,
+            regions=tracking_regions,
+            preprocess_variants=preprocess_variants,
         )
         raw_items.extend(detected_items)
-        latest_detected_items = detected_items
+        if detected_items or should_run_global_scan:
+            latest_detected_items = detected_items
+        if should_run_global_scan:
+            last_global_scan_timestamp = frame_timestamp
         previous_ocr_frame_path = Path(str(frame["path"]))
         consecutive_skipped_frames = 0
 
@@ -624,6 +651,114 @@ def _carry_forward_ocr_items(
         carried_items.append(carried_item)
 
     return carried_items
+
+
+def _should_run_global_ocr_scan(
+    latest_items: list[dict[str, Any]],
+    frame_timestamp: float,
+    last_global_scan_timestamp: float | None,
+    *,
+    tracking_enabled: bool,
+    global_scan_interval_seconds: float,
+) -> bool:
+    if not tracking_enabled:
+        return True
+
+    if not latest_items or last_global_scan_timestamp is None:
+        return True
+
+    return (
+        frame_timestamp - last_global_scan_timestamp
+    ) >= global_scan_interval_seconds
+
+
+def _build_ocr_tracking_regions(
+    latest_items: list[dict[str, Any]],
+    padding_ratio: float,
+) -> list[tuple[str, tuple[float, float, float, float]]]:
+    regions = []
+    for index, item in enumerate(latest_items):
+        bounding_box = _raw_item_bounding_box(item)
+        if bounding_box is None:
+            continue
+
+        regions.append(
+            (
+                f"tracking:{index}",
+                _bounding_box_to_region(bounding_box, padding_ratio),
+            )
+        )
+
+    return _deduplicate_ocr_tracking_regions(regions)
+
+
+def _raw_item_bounding_box(item: dict[str, Any]) -> BoundingBox | None:
+    bounding_box = item.get("boundingBox")
+    if isinstance(bounding_box, BoundingBox):
+        return bounding_box
+
+    if isinstance(bounding_box, dict):
+        return BoundingBox(
+            x=float(bounding_box["x"]),
+            y=float(bounding_box["y"]),
+            w=float(bounding_box["w"]),
+            h=float(bounding_box["h"]),
+        )
+
+    return None
+
+
+def _bounding_box_to_region(
+    bounding_box: BoundingBox,
+    padding_ratio: float,
+) -> tuple[float, float, float, float]:
+    left = max(0.0, bounding_box.x - padding_ratio)
+    top = max(0.0, bounding_box.y - padding_ratio)
+    right = min(1.0, bounding_box.x + bounding_box.w + padding_ratio)
+    bottom = min(1.0, bounding_box.y + bounding_box.h + padding_ratio)
+    return (
+        round(left, 6),
+        round(top, 6),
+        round(max(left, right), 6),
+        round(max(top, bottom), 6),
+    )
+
+
+def _deduplicate_ocr_tracking_regions(
+    regions: list[tuple[str, tuple[float, float, float, float]]],
+) -> list[tuple[str, tuple[float, float, float, float]]]:
+    deduplicated_regions: list[tuple[str, tuple[float, float, float, float]]] = []
+    for region in regions:
+        if any(
+            _tracking_region_iou(region[1], kept_region[1]) >= 0.85
+            for kept_region in deduplicated_regions
+        ):
+            continue
+
+        deduplicated_regions.append(region)
+
+    return deduplicated_regions
+
+
+def _tracking_region_iou(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> float:
+    left_x1, left_y1, left_x2, left_y2 = left
+    right_x1, right_y1, right_x2, right_y2 = right
+    intersection_w = max(0.0, min(left_x2, right_x2) - max(left_x1, right_x1))
+    intersection_h = max(0.0, min(left_y2, right_y2) - max(left_y1, right_y1))
+    intersection_area = intersection_w * intersection_h
+    if intersection_area <= 0:
+        return 0.0
+
+    left_area = max(0.0, left_x2 - left_x1) * max(0.0, left_y2 - left_y1)
+    right_area = max(0.0, right_x2 - right_x1) * max(0.0, right_y2 - right_y1)
+    union_area = left_area + right_area - intersection_area
+    if union_area <= 0:
+        return 0.0
+
+    return intersection_area / union_area
 
 
 def _calculate_latest_ocr_bbox_change_score(
@@ -2028,6 +2163,28 @@ def _extract_runtime_options(
                 os.getenv("AI_OCR_BBOX_CHANGE_PADDING", "0.02"),
             )
         ),
+        "ocr_tracking_enabled": _to_bool(
+            options.get(
+                "ocr_tracking_enabled",
+                os.getenv("AI_OCR_TRACKING_ENABLED", "false"),
+            )
+        ),
+        "ocr_global_scan_interval_seconds": float(
+            options.get(
+                "ocr_global_scan_interval_seconds",
+                os.getenv("AI_OCR_GLOBAL_SCAN_INTERVAL_SECONDS", "2.0"),
+            )
+        ),
+        "ocr_tracking_padding": float(
+            options.get(
+                "ocr_tracking_padding",
+                os.getenv("AI_OCR_TRACKING_PADDING", "0.025"),
+            )
+        ),
+        "ocr_tracking_preprocess_variants": options.get(
+            "ocr_tracking_preprocess_variants",
+            os.getenv("AI_OCR_TRACKING_PREPROCESS_VARIANTS", "original,contrast"),
+        ),
     }
 
 
@@ -2051,6 +2208,17 @@ def _to_bool(value: Any) -> bool:
         return value
 
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _split_csv_option(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+
+    return [
+        item.strip().lower()
+        for item in str(value or "").split(",")
+        if item.strip()
+    ]
 
 
 def _report_progress(
