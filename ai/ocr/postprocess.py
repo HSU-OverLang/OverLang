@@ -32,12 +32,14 @@ TRACK_CENTER_DISTANCE_RATIO = 2.5
 TRACK_CENTER_DISTANCE_MIN = 0.08
 TRACK_RELATED_TEXT_THRESHOLD = 0.55
 TRACK_TOKEN_OVERLAP_THRESHOLD = 0.5
+TEXT_VOTE_SIMILARITY_THRESHOLD = 0.88
 STABLE_MIN_DETECTIONS = 3
 STABLE_MIN_AVG_CONFIDENCE = 0.6
 STABLE_HIGH_CONFIDENCE_MIN_DETECTIONS = 2
 STABLE_HIGH_CONFIDENCE = 0.75
 PROGRESSIVE_TEXT_MIN_LENGTH = 2
 PROGRESSIVE_TEXT_MIN_LENGTH_RATIO = 0.35
+PROGRESSIVE_TEXT_MAX_LENGTH_RATIO = 0.85
 PROGRESSIVE_TEXT_SCORE = 0.88
 SHORT_TEXT_CONFIDENCE_THRESHOLD = 0.45
 SHORT_TEXT_MAX_LENGTH = 3
@@ -945,7 +947,7 @@ def _resolve_track_text_group(track: dict[str, Any]) -> dict[str, Any]:
             "lastTimestamp": float(track.get("startTime", 0.0)),
         }
 
-    grouped_candidates: dict[str, dict[str, Any]] = {}
+    grouped_candidates: list[dict[str, Any]] = []
     for candidate in candidates:
         text = str(candidate["text"]).strip()
         normalized_text = _normalize_text(text)
@@ -953,22 +955,20 @@ def _resolve_track_text_group(track: dict[str, Any]) -> dict[str, Any]:
             continue
 
         timestamp = float(candidate.get("timestamp") or 0.0)
-        group = grouped_candidates.setdefault(
-            normalized_text,
-            {
+        group = _find_matching_text_vote_group(grouped_candidates, text)
+        if group is None:
+            group = {
                 "text": text,
+                "normalizedText": normalized_text,
                 "count": 0,
                 "confidence": 0.0,
                 "firstTimestamp": timestamp,
                 "lastTimestamp": timestamp,
-            },
-        )
-        group["count"] += 1
-        group["confidence"] += float(candidate.get("confidence") or 0.0)
-        group["firstTimestamp"] = min(float(group["firstTimestamp"]), timestamp)
-        group["lastTimestamp"] = max(float(group["lastTimestamp"]), timestamp)
-        if len(text) > len(str(group["text"])):
-            group["text"] = text
+                "variants": {},
+            }
+            grouped_candidates.append(group)
+
+        _add_text_candidate_to_vote_group(group, text, candidate, timestamp)
 
     if not grouped_candidates:
         return {
@@ -979,7 +979,7 @@ def _resolve_track_text_group(track: dict[str, Any]) -> dict[str, Any]:
             "lastTimestamp": float(track.get("startTime", 0.0)),
         }
 
-    groups = list(grouped_candidates.values())
+    groups = [_finalize_text_vote_group(group) for group in grouped_candidates]
     if _has_progressive_text_candidates(track):
         return max(
             groups,
@@ -994,11 +994,117 @@ def _resolve_track_text_group(track: dict[str, Any]) -> dict[str, Any]:
     return max(
         groups,
         key=lambda group: (
+            int(group.get("selectedVariantCount") or group["count"]),
             int(group["count"]),
+            float(group.get("selectedVariantConfidence") or 0.0),
             float(group["confidence"]),
             float(group["lastTimestamp"]),
             len(str(group["text"])),
         ),
+        )
+
+
+def _find_matching_text_vote_group(
+    groups: list[dict[str, Any]],
+    text: str,
+) -> dict[str, Any] | None:
+    text_vote_key = _text_vote_key(text)
+    normalized_text = _normalize_text(text)
+    if not text_vote_key and not normalized_text:
+        return None
+
+    candidates = []
+    for group in groups:
+        group_vote_key = str(group.get("voteKey", ""))
+        group_text = str(group.get("normalizedText", ""))
+        if text_vote_key and text_vote_key == group_vote_key:
+            return group
+
+        similarity = _similarity(normalized_text, group_text)
+        if similarity >= _text_vote_similarity_threshold():
+            candidates.append((similarity, group))
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda candidate: candidate[0])[1]
+
+
+def _add_text_candidate_to_vote_group(
+    group: dict[str, Any],
+    text: str,
+    candidate: dict[str, Any],
+    timestamp: float,
+) -> None:
+    confidence = float(candidate.get("confidence") or 0.0)
+    group["count"] += 1
+    group["confidence"] += confidence
+    group["firstTimestamp"] = min(float(group["firstTimestamp"]), timestamp)
+    group["lastTimestamp"] = max(float(group["lastTimestamp"]), timestamp)
+    group["voteKey"] = group.get("voteKey") or _text_vote_key(text)
+
+    variant_key = _text_vote_key(text) or _normalize_text(text)
+    variants = group.setdefault("variants", {})
+    variant = variants.setdefault(
+        variant_key,
+        {
+            "text": text,
+            "count": 0,
+            "confidence": 0.0,
+            "maxConfidence": 0.0,
+            "firstTimestamp": timestamp,
+            "lastTimestamp": timestamp,
+        },
+    )
+    variant["count"] += 1
+    variant["confidence"] += confidence
+    previous_max_confidence = float(variant.get("maxConfidence") or 0.0)
+    variant["maxConfidence"] = max(previous_max_confidence, confidence)
+    variant["firstTimestamp"] = min(float(variant["firstTimestamp"]), timestamp)
+    variant["lastTimestamp"] = max(float(variant["lastTimestamp"]), timestamp)
+    if confidence >= previous_max_confidence:
+        variant["text"] = text
+
+
+def _finalize_text_vote_group(group: dict[str, Any]) -> dict[str, Any]:
+    variants = list(group.get("variants", {}).values())
+    if not variants:
+        return group
+
+    selected_variant = max(
+        variants,
+        key=lambda variant: (
+            int(variant["count"]),
+            _safe_average_confidence(variant),
+            float(variant["lastTimestamp"]),
+            len(_compact_text(str(variant["text"]))),
+        ),
+    )
+    finalized_group = dict(group)
+    finalized_group["text"] = str(selected_variant["text"])
+    finalized_group["selectedVariantCount"] = int(selected_variant["count"])
+    finalized_group["selectedVariantConfidence"] = _safe_average_confidence(
+        selected_variant,
+    )
+    return finalized_group
+
+
+def _safe_average_confidence(group: dict[str, Any]) -> float:
+    count = int(group.get("count") or 0)
+    if count <= 0:
+        return 0.0
+
+    return float(group.get("confidence") or 0.0) / count
+
+
+def _text_vote_key(text: str) -> str:
+    return "".join(_normalize_token(token) for token in _normalize_text(text).split())
+
+
+def _text_vote_similarity_threshold() -> float:
+    return _float_env(
+        "AI_OCR_TEXT_VOTE_SIMILARITY_THRESHOLD",
+        TEXT_VOTE_SIMILARITY_THRESHOLD,
     )
 
 
@@ -1028,6 +1134,9 @@ def _is_progressive_text_pair(left: str, right: str) -> bool:
         return False
 
     if shorter_length / longer_length < PROGRESSIVE_TEXT_MIN_LENGTH_RATIO:
+        return False
+
+    if shorter_length / longer_length >= PROGRESSIVE_TEXT_MAX_LENGTH_RATIO:
         return False
 
     return left_compact in right_compact or right_compact in left_compact
