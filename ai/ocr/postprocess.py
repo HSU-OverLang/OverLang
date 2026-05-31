@@ -72,6 +72,20 @@ DEFAULT_BLOCKED_OCR_TEXTS = {
     "w",
     "wowl",
 }
+DEFAULT_EXCLUDED_TEXT_PATTERNS = {
+    "abonnez-vous",
+    "please subscribe",
+    "subscribe",
+    "subscribed",
+    "suscribete",
+    "suscríbete",
+    "チャンネル登録",
+    "구독",
+    "구독하기",
+    "알림 설정",
+    "좋아요와 구독",
+    "订阅",
+}
 DEFAULT_PRESERVE_TRANSLATION_TEXTS = {
     "finding nemo",
     "frozen",
@@ -325,6 +339,9 @@ def _is_low_value_text(text: str, confidence: Any | None) -> bool:
     if normalized_text in _blocked_ocr_texts():
         return True
 
+    if _matches_excluded_text_pattern(cleaned_text):
+        return True
+
     if not any(char.isalnum() for char in compact_text):
         return True
 
@@ -361,6 +378,12 @@ def _blocked_ocr_texts() -> set[str]:
     return DEFAULT_BLOCKED_OCR_TEXTS | _env_text_set("AI_OCR_BLOCKED_TEXTS")
 
 
+def _excluded_text_patterns() -> set[str]:
+    return DEFAULT_EXCLUDED_TEXT_PATTERNS | _env_text_set(
+        "AI_OCR_EXCLUDED_TEXT_PATTERNS",
+    )
+
+
 def _preserve_translation_texts() -> set[str]:
     return DEFAULT_PRESERVE_TRANSLATION_TEXTS | _env_text_set(
         "AI_OCR_PRESERVE_TRANSLATION_TEXTS",
@@ -374,6 +397,17 @@ def _env_text_set(env_name: str) -> set[str]:
         for value in raw_value.split(",")
         if _normalize_text(value)
     }
+
+
+def _matches_excluded_text_pattern(text: str) -> bool:
+    normalized_text = _normalize_text(text)
+    if not normalized_text:
+        return False
+
+    return any(
+        pattern in normalized_text
+        for pattern in _excluded_text_patterns()
+    )
 
 
 def _is_single_letter_alphabet_noise(text: str) -> bool:
