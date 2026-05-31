@@ -847,11 +847,10 @@ def _resolve_track_start_time(track: dict[str, Any]) -> float:
     start_time = float(track["startTime"])
     end_time = float(track["endTime"])
     if _has_progressive_text_candidates(track):
-        representative_timestamp = _resolve_track_text_group(track).get(
-            "firstTimestamp",
-        )
-        if representative_timestamp is not None:
-            start_time = max(start_time, float(representative_timestamp))
+        progressive_timing = _resolve_progressive_text_timing(track)
+        if progressive_timing is not None:
+            start_time = max(start_time, progressive_timing[0])
+            return round(start_time, 3)
 
     duration = max(0.0, end_time - start_time)
     start_delay = min(TRACK_START_DELAY_SECONDS, duration * 0.25)
@@ -875,23 +874,35 @@ def _resolve_track_end_time(track: dict[str, Any]) -> float:
 
 
 def _build_track_animation(track: dict[str, Any]) -> OcrAnimation | None:
-    if not _has_progressive_text_candidates(track):
-        return None
-
-    text_group = _resolve_track_text_group(track)
-    start_time = text_group.get("firstTimestamp")
-    end_time = text_group.get("lastTimestamp")
-    if start_time is None or end_time is None:
-        return None
-
-    if float(end_time) <= float(start_time):
+    progressive_timing = _resolve_progressive_text_timing(track)
+    if progressive_timing is None:
         return None
 
     return OcrAnimation(
         type="TYPEWRITER",
-        start_time=round(float(start_time), 3),
-        end_time=round(float(end_time), 3),
+        start_time=round(progressive_timing[0], 3),
+        end_time=round(progressive_timing[1], 3),
     )
+
+
+def _resolve_progressive_text_timing(track: dict[str, Any]) -> tuple[float, float] | None:
+    if not _has_progressive_text_candidates(track):
+        return None
+
+    timestamps = [
+        float(candidate.get("timestamp") or 0.0)
+        for candidate in track.get("textCandidates", [])
+        if str(candidate.get("text", "")).strip()
+    ]
+    if len(timestamps) < 2:
+        return None
+
+    start_time = min(timestamps)
+    end_time = max(timestamps)
+    if end_time <= start_time:
+        return None
+
+    return start_time, end_time
 
 
 def _track_coverage_bbox(track: dict[str, Any]) -> BoundingBox:
