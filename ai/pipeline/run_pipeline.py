@@ -186,6 +186,7 @@ SOFT_SPLIT_WORDS = {
 
 COMPACT_TEXT_LANGUAGES = {"ja", "ja-jp", "zh", "zh-cn", "zh-tw", "zh-hans", "zh-hant"}
 SENTENCE_BOUNDARY_SUFFIXES = (".", "?", "!", "。", "？", "！")
+NORMALIZED_SENTENCE_BOUNDARY_SUFFIXES = (".", "?", "!", "。", "？", "！", "…")
 RENDER_MAX_SUBTITLE_LINES = 2
 RENDER_MIN_SUBTITLE_CHARS = 12
 RENDER_TARGET_SECONDS_PER_SUBTITLE = 6.0
@@ -202,6 +203,169 @@ RENDER_MAX_LINE_LENGTHS = {
     "ja-jp": 22,
     "es": 42,
     "fr": 42,
+}
+LANGUAGE_SPLIT_BEFORE_WORDS = {
+    "en": {
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "it",
+        "this",
+        "that",
+        "but",
+        "and",
+        "so",
+        "because",
+        "when",
+        "while",
+        "if",
+        "though",
+        "although",
+        "who",
+        "which",
+        "where",
+        "what",
+        "how",
+        "why",
+    },
+    "es": {
+        "yo",
+        "tu",
+        "tú",
+        "usted",
+        "él",
+        "ella",
+        "nosotros",
+        "nosotras",
+        "ellos",
+        "ellas",
+        "pero",
+        "y",
+        "entonces",
+        "porque",
+        "cuando",
+        "si",
+        "sí",
+        "aunque",
+        "que",
+    },
+    "fr": {
+        "je",
+        "j",
+        "tu",
+        "vous",
+        "il",
+        "elle",
+        "nous",
+        "ils",
+        "elles",
+        "mais",
+        "et",
+        "donc",
+        "parce",
+        "quand",
+        "si",
+        "lorsque",
+        "que",
+    },
+    "ko": {
+        "그리고",
+        "하지만",
+        "그래서",
+        "그러니까",
+        "그러면",
+        "그런데",
+        "만약",
+        "왜냐하면",
+        "때문에",
+    },
+    "ja": {
+        "そして",
+        "でも",
+        "しかし",
+        "だから",
+        "それで",
+        "それに",
+        "もし",
+        "また",
+    },
+    "zh": {
+        "但是",
+        "然后",
+        "因为",
+        "所以",
+        "如果",
+        "而且",
+        "还有",
+        "不过",
+        "或者",
+    },
+}
+LANGUAGE_SPLIT_AFTER_SUFFIXES = {
+    "ko": (
+        "은",
+        "는",
+        "이",
+        "가",
+        "을",
+        "를",
+        "에",
+        "에서",
+        "으로",
+        "로",
+        "와",
+        "과",
+        "도",
+        "만",
+        "까지",
+        "부터",
+        "에게",
+        "한테",
+        "처럼",
+    ),
+    "ja": (
+        "は",
+        "が",
+        "を",
+        "に",
+        "で",
+        "と",
+        "も",
+        "へ",
+        "から",
+        "まで",
+        "より",
+        "ので",
+        "けど",
+        "けれど",
+        "なら",
+        "たら",
+        "たり",
+    ),
+}
+UNSAFE_COMPACT_SPLIT_PREFIXES = {
+    "ー",
+    "ゃ",
+    "ゅ",
+    "ょ",
+    "ぁ",
+    "ぃ",
+    "ぅ",
+    "ぇ",
+    "ぉ",
+    "っ",
+    "ャ",
+    "ュ",
+    "ョ",
+    "ァ",
+    "ィ",
+    "ゥ",
+    "ェ",
+    "ォ",
+    "ッ",
 }
 
 
@@ -1106,7 +1270,7 @@ def _split_text_for_rendering(
 ) -> list[str]:
     tokens = text.split()
     if _is_compact_language(language_code):
-        tokens = _split_compact_text(text)
+        tokens = _split_compact_text(text, language_code)
 
     if not tokens:
         return [text]
@@ -1404,7 +1568,7 @@ def _resolve_source_text_for_render_chunk(
 
     tokens = subtitle.text.split()
     if _is_compact_language(subtitle.language_code):
-        tokens = _split_compact_text(subtitle.text)
+        tokens = _split_compact_text(subtitle.text, subtitle.language_code)
 
     if not tokens or total_chunks <= 1:
         return subtitle.text
@@ -1555,6 +1719,121 @@ def _split_long_subtitle(
     max_text_length: int,
     min_split_duration_seconds: float,
 ) -> list[SubtitleSegment]:
+    sentence_chunks = _split_subtitle_by_sentence_boundaries(
+        subtitle,
+        min_split_duration_seconds=min_split_duration_seconds,
+    )
+    if len(sentence_chunks) > 1:
+        split_chunks: list[SubtitleSegment] = []
+        for sentence_chunk in sentence_chunks:
+            split_chunks.extend(
+                _split_subtitle_by_limits(
+                    sentence_chunk,
+                    max_duration_seconds=max_duration_seconds,
+                    max_text_length=max_text_length,
+                    min_split_duration_seconds=min_split_duration_seconds,
+                )
+            )
+        return split_chunks
+
+    return _split_subtitle_by_limits(
+        subtitle,
+        max_duration_seconds=max_duration_seconds,
+        max_text_length=max_text_length,
+        min_split_duration_seconds=min_split_duration_seconds,
+    )
+
+
+def _split_subtitle_by_sentence_boundaries(
+    subtitle: SubtitleSegment,
+    min_split_duration_seconds: float,
+) -> list[SubtitleSegment]:
+    timed_words = [
+        word
+        for word in subtitle.words
+        if word.start_time is not None and word.end_time is not None
+    ]
+    if subtitle.words and len(timed_words) == len(subtitle.words):
+        return _split_subtitle_sentences_by_words(
+            subtitle,
+            timed_words,
+            min_split_duration_seconds=min_split_duration_seconds,
+        )
+
+    return _split_subtitle_sentences_by_text(
+        subtitle,
+        min_split_duration_seconds=min_split_duration_seconds,
+    )
+
+
+def _split_subtitle_sentences_by_words(
+    subtitle: SubtitleSegment,
+    words: list[WordTiming],
+    min_split_duration_seconds: float,
+) -> list[SubtitleSegment]:
+    chunks: list[list[WordTiming]] = []
+    current_chunk: list[WordTiming] = []
+
+    for word in words:
+        current_chunk.append(word)
+        if not _has_sentence_boundary(word.word):
+            continue
+
+        chunk_start = current_chunk[0].start_time or subtitle.start_time
+        chunk_end = current_chunk[-1].end_time or subtitle.end_time
+        if chunk_end <= chunk_start:
+            continue
+
+        chunks.append(current_chunk)
+        current_chunk = []
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    if len(chunks) <= 1:
+        return [subtitle]
+
+    return _build_subtitle_chunks_from_words(subtitle, chunks)
+
+
+def _split_subtitle_sentences_by_text(
+    subtitle: SubtitleSegment,
+    min_split_duration_seconds: float,
+) -> list[SubtitleSegment]:
+    tokens = subtitle.text.split()
+    if _is_compact_language(subtitle.language_code):
+        tokens = _split_compact_text(subtitle.text, subtitle.language_code)
+
+    if not tokens:
+        return [subtitle]
+
+    chunks: list[list[str]] = []
+    current_chunk: list[str] = []
+    for token in tokens:
+        current_chunk.append(token)
+        if _has_sentence_boundary(token):
+            chunks.append(current_chunk)
+            current_chunk = []
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    if len(chunks) <= 1:
+        return [subtitle]
+
+    return _build_subtitle_chunks_from_text(
+        subtitle,
+        chunks,
+        min_split_duration_seconds=min_split_duration_seconds,
+    )
+
+
+def _split_subtitle_by_limits(
+    subtitle: SubtitleSegment,
+    max_duration_seconds: float,
+    max_text_length: int,
+    min_split_duration_seconds: float,
+) -> list[SubtitleSegment]:
     duration = subtitle.end_time - subtitle.start_time
     if duration <= max_duration_seconds and len(subtitle.text) <= max_text_length:
         return [subtitle]
@@ -1612,6 +1891,7 @@ def _split_subtitle_by_words(
         if reached_limit:
             split_chunk, remaining_chunk = _split_word_chunk_at_best_boundary(
                 current_chunk,
+                language_code=subtitle.language_code,
                 min_split_duration_seconds=min_split_duration_seconds,
             )
             chunks.append(split_chunk)
@@ -1629,10 +1909,12 @@ def _split_subtitle_by_words(
 
 def _split_word_chunk_at_best_boundary(
     chunk: list[WordTiming],
+    language_code: str | None,
     min_split_duration_seconds: float,
 ) -> tuple[list[WordTiming], list[WordTiming]]:
     split_index = _find_best_word_split_index(
         chunk,
+        language_code=language_code,
         min_split_duration_seconds=min_split_duration_seconds,
     )
     if split_index is None:
@@ -1643,6 +1925,7 @@ def _split_word_chunk_at_best_boundary(
 
 def _find_best_word_split_index(
     chunk: list[WordTiming],
+    language_code: str | None,
     min_split_duration_seconds: float,
 ) -> int | None:
     if len(chunk) <= 2:
@@ -1658,14 +1941,16 @@ def _find_best_word_split_index(
         if duration < min_split_duration_seconds:
             continue
 
-        if _has_sentence_boundary(previous.word) or _is_soft_split_word(current.word):
-            candidates.append(index)
+        score = _score_split_boundary(previous.word, current.word, language_code)
+        candidates.append((score, index))
 
     if not candidates:
         return None
 
     target_index = max(1, int(len(chunk) * 0.6))
-    return min(candidates, key=lambda index: abs(index - target_index))
+    best_score = max(score for score, _ in candidates)
+    best_candidates = [index for score, index in candidates if score == best_score]
+    return min(best_candidates, key=lambda index: abs(index - target_index))
 
 
 def _build_subtitle_chunks_from_words(
@@ -1720,6 +2005,52 @@ def _merge_short_word_chunks(
     return merged_chunks
 
 
+def _build_subtitle_chunks_from_text(
+    subtitle: SubtitleSegment,
+    chunks: list[list[str]],
+    min_split_duration_seconds: float,
+) -> list[SubtitleSegment]:
+    text_chunks = [chunk for chunk in chunks if chunk]
+    if not text_chunks:
+        return [subtitle]
+
+    total_duration = subtitle.end_time - subtitle.start_time
+    split_subtitles = []
+    previous_end_time = subtitle.start_time
+    for index, chunk in enumerate(text_chunks):
+        start_time = previous_end_time
+        remaining_chunks = len(text_chunks) - index
+        remaining_duration = subtitle.end_time - start_time
+        chunk_duration = max(
+            min_split_duration_seconds,
+            remaining_duration / remaining_chunks,
+        )
+        end_time = (
+            subtitle.end_time
+            if index == len(text_chunks) - 1
+            else min(subtitle.end_time, start_time + chunk_duration)
+        )
+        start_time = _round_time(start_time)
+        end_time = _round_time(end_time)
+        if end_time <= start_time:
+            continue
+
+        split_subtitles.append(
+            SubtitleSegment(
+                seq=subtitle.seq,
+                start_time=start_time,
+                end_time=end_time,
+                text=_join_text_tokens(chunk, subtitle.language_code),
+                translated_text=subtitle.translated_text,
+                language_code=subtitle.language_code,
+                words=[],
+            )
+        )
+        previous_end_time = end_time
+
+    return split_subtitles or [subtitle]
+
+
 def _split_subtitle_by_text(
     subtitle: SubtitleSegment,
     max_duration_seconds: float,
@@ -1728,7 +2059,7 @@ def _split_subtitle_by_text(
 ) -> list[SubtitleSegment]:
     words = subtitle.text.split()
     if _is_compact_language(subtitle.language_code):
-        words = _split_compact_text(subtitle.text)
+        words = _split_compact_text(subtitle.text, subtitle.language_code)
 
     if not words:
         return [subtitle]
@@ -1827,7 +2158,10 @@ def _ensure_text_chunk_limits(
         if len(chunk) <= 1:
             break
 
-        middle = _find_best_text_split_index(chunk) or max(1, len(chunk) // 2)
+        middle = _find_best_text_split_index(chunk, language_code) or max(
+            1,
+            len(chunk) // 2,
+        )
         limited_chunks[split_index : split_index + 1] = [
             chunk[:middle],
             chunk[middle:],
@@ -1846,7 +2180,10 @@ def _find_longest_text_chunk_index(
     )
 
 
-def _find_best_text_split_index(chunk: list[str]) -> int | None:
+def _find_best_text_split_index(
+    chunk: list[str],
+    language_code: str | None = None,
+) -> int | None:
     if len(chunk) <= 2:
         return None
 
@@ -1854,14 +2191,16 @@ def _find_best_text_split_index(chunk: list[str]) -> int | None:
     for index in range(1, len(chunk)):
         previous = chunk[index - 1]
         current = chunk[index]
-        if _has_sentence_boundary(previous) or _is_soft_split_word(current):
-            candidates.append(index)
+        score = _score_split_boundary(previous, current, language_code)
+        candidates.append((score, index))
 
     if not candidates:
         return None
 
     target_index = max(1, int(len(chunk) * 0.6))
-    return min(candidates, key=lambda index: abs(index - target_index))
+    best_score = max(score for score, _ in candidates)
+    best_candidates = [index for score, index in candidates if score == best_score]
+    return min(best_candidates, key=lambda index: abs(index - target_index))
 
 
 def _merge_text_chunks_for_min_duration(
@@ -1993,7 +2332,71 @@ def _join_text_tokens(tokens: list[str], language_code: str | None = None) -> st
 
 
 def _has_sentence_boundary(text: str) -> bool:
-    return text.rstrip().endswith(SENTENCE_BOUNDARY_SUFFIXES)
+    return text.rstrip().endswith(NORMALIZED_SENTENCE_BOUNDARY_SUFFIXES)
+
+
+def _score_split_boundary(
+    previous_text: str,
+    current_text: str,
+    language_code: str | None,
+) -> int:
+    if _has_sentence_boundary(previous_text):
+        return 100
+
+    language_key = _language_family(language_code)
+    current_normalized = _normalize_split_token(current_text)
+    previous_normalized = _normalize_split_token(previous_text)
+    if _is_language_split_before(current_normalized, language_key):
+        return 80
+
+    if _is_language_split_after(previous_normalized, language_key):
+        return 70
+
+    if _is_soft_split_word(current_text):
+        return 60
+
+    return 10
+
+
+def _language_family(language_code: str | None) -> str | None:
+    if not language_code:
+        return None
+
+    normalized_code = language_code.lower()
+    if normalized_code.startswith("zh"):
+        return "zh"
+    if normalized_code.startswith("ja"):
+        return "ja"
+    if normalized_code.startswith("ko"):
+        return "ko"
+    if normalized_code.startswith("es"):
+        return "es"
+    if normalized_code.startswith("fr"):
+        return "fr"
+    if normalized_code.startswith("en"):
+        return "en"
+
+    return normalized_code
+
+
+def _normalize_split_token(text: str) -> str:
+    return text.strip().strip("\"'“”‘’()[]{}.,!?;:。？！…").lower()
+
+
+def _is_language_split_before(text: str, language_key: str | None) -> bool:
+    if not text or not language_key:
+        return False
+
+    split_words = LANGUAGE_SPLIT_BEFORE_WORDS.get(language_key, set())
+    return any(text == word or text.startswith(word) for word in split_words)
+
+
+def _is_language_split_after(text: str, language_key: str | None) -> bool:
+    if not text or not language_key:
+        return False
+
+    split_suffixes = LANGUAGE_SPLIT_AFTER_SUFFIXES.get(language_key, ())
+    return any(text.endswith(suffix) for suffix in split_suffixes)
 
 
 def _is_soft_split_word(text: str) -> bool:
@@ -2008,35 +2411,106 @@ def _is_compact_language(language_code: str | None) -> bool:
     return language_code.lower() in COMPACT_TEXT_LANGUAGES
 
 
-def _split_compact_text(text: str) -> list[str]:
+def _split_compact_text(
+    text: str,
+    language_code: str | None = None,
+) -> list[str]:
     tokens = []
     current_token = ""
     for character in text:
         if character.isspace():
             if current_token:
-                tokens.extend(_split_long_compact_token(current_token))
+                tokens.extend(
+                    _split_long_compact_token(
+                        current_token,
+                        language_code=language_code,
+                    )
+                )
                 current_token = ""
             continue
 
         current_token += character
-        if character in SENTENCE_BOUNDARY_SUFFIXES:
+        if _has_sentence_boundary(character):
             tokens.append(current_token)
             current_token = ""
 
     if current_token:
-        tokens.extend(_split_long_compact_token(current_token))
+        tokens.extend(
+            _split_long_compact_token(current_token, language_code=language_code)
+        )
 
     return tokens
 
 
-def _split_long_compact_token(token: str, max_token_length: int = 18) -> list[str]:
+def _split_long_compact_token(
+    token: str,
+    max_token_length: int = 18,
+    language_code: str | None = None,
+) -> list[str]:
     if len(token) <= max_token_length:
         return [token]
 
-    return [
-        token[index : index + max_token_length]
-        for index in range(0, len(token), max_token_length)
-    ]
+    chunks = []
+    remaining_text = token
+    while len(remaining_text) > max_token_length:
+        split_index = _find_compact_split_index(
+            remaining_text,
+            max_token_length=max_token_length,
+            language_code=language_code,
+        )
+        chunks.append(remaining_text[:split_index])
+        remaining_text = remaining_text[split_index:]
+
+    if remaining_text:
+        chunks.append(remaining_text)
+
+    return chunks
+
+
+def _find_compact_split_index(
+    text: str,
+    max_token_length: int,
+    language_code: str | None,
+) -> int:
+    language_key = _language_family(language_code)
+    upper_bound = min(max_token_length, len(text) - 1)
+    lower_bound = max(1, int(max_token_length * 0.45))
+    candidates = []
+    for index in range(lower_bound, upper_bound + 1):
+        score = _score_compact_split_boundary(text, index, language_key)
+        distance_penalty = abs(index - max_token_length)
+        candidates.append((score, -distance_penalty, index))
+
+    if not candidates:
+        return min(max_token_length, len(text) - 1)
+
+    _, _, split_index = max(candidates)
+    return split_index
+
+
+def _score_compact_split_boundary(
+    text: str,
+    index: int,
+    language_key: str | None,
+) -> int:
+    previous_text = text[:index]
+    current_text = text[index:]
+    current_character = current_text[:1]
+    if current_character in UNSAFE_COMPACT_SPLIT_PREFIXES:
+        return -100
+
+    if _has_sentence_boundary(previous_text[-1:]):
+        return 100
+
+    current_normalized = _normalize_split_token(current_text)
+    previous_normalized = _normalize_split_token(previous_text)
+    if _is_language_split_before(current_normalized, language_key):
+        return 80
+
+    if _is_language_split_after(previous_normalized, language_key):
+        return 70
+
+    return 10
 
 
 def _resolve_source_language(
