@@ -25,6 +25,7 @@ from ai.ocr.frame_change import (
     annotate_frame_changes,
     calculate_bounding_box_change_score,
 )
+from ai.ocr.llm_refinement import refine_ocr_items_with_llm
 from ai.ocr.ocr_service import EasyOcrService, language_to_easyocr_languages
 from ai.ocr.postprocess import (
     build_ocr_items,
@@ -289,6 +290,28 @@ def run_pipeline(
 
                 _report_progress(progress_callback, CurrentStage.OCR_TEXT_DETECTION, 55.0)
                 ocr_items = _run_ocr_stage(normalized_job, frames)
+                try:
+                    refined_ocr_items = refine_ocr_items_with_llm(
+                        ocr_items,
+                        source_language=normalized_job.source_language,
+                    )
+                    if refined_ocr_items is not ocr_items:
+                        ocr_items = refined_ocr_items
+                        save_intermediate(
+                            resolved_job_id,
+                            "ocr_llm_refinement",
+                            [
+                                ocr_item.model_dump(by_alias=True)
+                                for ocr_item in ocr_items
+                            ],
+                        )
+                except Exception as error:
+                    _append_recoverable_warning(
+                        warnings,
+                        "OCR_REFINEMENT_FAILED",
+                        error,
+                    )
+
                 save_intermediate(
                     resolved_job_id,
                     "ocr_items",
