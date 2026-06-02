@@ -9,6 +9,7 @@ import com.overlang.domain.project.entity.Project;
 import com.overlang.domain.project.repository.ProjectRepository;
 import com.overlang.domain.project.service.ProjectService;
 import com.overlang.domain.savedword.repository.SavedWordRepository;
+import com.overlang.global.exception.member.MemberNotFoundException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -37,9 +38,7 @@ public class MemberWithdrawService {
   }
 
   private Member findMemberById(Long memberId) {
-    return memberRepository
-        .findById(memberId)
-        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+    return memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
   }
 
   private void deleteMemberProjects(Long memberId) {

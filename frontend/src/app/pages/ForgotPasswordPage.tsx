@@ -45,10 +45,10 @@ export function ForgotPasswordPage() {
         </div>
         <div>
           <h2 className="text-4xl font-extrabold leading-tight mb-4">
-            비밀번호를<br />재설정해드릴게요
+            비밀번호를<br />재설정해드릴게요.
           </h2>
           <p className="text-emerald-100 text-lg leading-relaxed">
-            가입한 이메일 주소를 입력하면<br />재설정 링크를 보내드립니다.
+            가입한 이메일 주소를 입력하면 재설정 링크를 보내드립니다.
           </p>
         </div>
         <p className="text-emerald-200 text-sm">© 2026 OverLang. All rights reserved.</p>
@@ -76,12 +76,12 @@ export function ForgotPasswordPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h1 className="text-2xl font-extrabold text-slate-900 mb-2">이메일을 확인해주세요</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 mb-2">이메일을 확인해주세요.</h1>
               <p className="text-slate-500 text-sm leading-relaxed mb-2">
                 <span className="font-semibold text-slate-700">{email}</span>으로<br />
                 비밀번호 재설정 링크를 보내드렸어요.
               </p>
-              <p className="text-xs text-slate-400 mb-8">스팸 폴더도 확인해보세요</p>
+              <p className="text-xs text-slate-400 mb-8">스팸 폴더도 확인해보세요.</p>
               <button
                 onClick={() => navigate('/login')}
                 className="w-full rounded-xl bg-emerald-600 px-4 py-3.5 font-semibold text-white hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-100"
@@ -103,7 +103,7 @@ export function ForgotPasswordPage() {
               </button>
 
               <h1 className="text-3xl font-extrabold text-slate-900 mb-1">비밀번호 찾기</h1>
-              <p className="text-slate-500 mb-8">가입한 이메일로 재설정 링크를 보내드려요</p>
+              <p className="text-slate-500 mb-8">가입한 이메일로 재설정 링크를 보내드려요.</p>
 
               {error && (
                 <div className="mb-5 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
@@ -148,6 +148,9 @@ export function ForgotPasswordPage() {
           )}
         </div>
       </div>
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }

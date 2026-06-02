@@ -188,10 +188,9 @@ export function HomePage() {
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-200 to-transparent pointer-events-none" />
 
             {/* 헤드라인 (타이핑 효과) */}
-            <h1 className="relative z-10 text-5xl md:text-7xl font-black leading-[1.08] text-slate-900 tracking-normal max-w-3xl">
+            <h1 className="relative z-10 text-5xl md:text-7xl font-black leading-[1.2] text-slate-900 tracking-normal max-w-3xl">
               <span className="block">
                 {typedLine1}
-                {!line2Done && <span className="inline-block w-0.5 h-[0.9em] bg-slate-900 align-middle ml-1 animate-pulse" />}
               </span>
               <span className="block text-emerald-500 min-h-[1.1em]">
                 {typedLine2}
@@ -269,14 +268,14 @@ export function HomePage() {
                 </span>
               </Anim>
               <Anim from="up" vis={visible.has(2)} delay={120}>
-                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.2] tracking-tight">
                   단어 드래그,<br />
                   <span className="text-violet-600">즉시 의미 확인</span>
                 </h2>
               </Anim>
               <Anim from="up" vis={visible.has(2)} delay={240}>
                 <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                  영상 흐름을 끊지 않고, 자막 속 궁금한 단어를 드래그하면 <span className="whitespace-nowrap">뜻·발음·예문</span>을 즉시 확인하고 학습 노트에 저장할 수 있어요.
+                  영상 흐름을 끊지 않고, 자막 속 궁금한 단어를 드래그하면 <br/> <span className="whitespace-nowrap">뜻·발음·예문</span>을 즉시 확인하고 학습 노트에 저장할 수 있어요.
                 </p>
               </Anim>
               <Anim from="up" vis={visible.has(2)} delay={360}>
@@ -322,7 +321,7 @@ export function HomePage() {
                     <p className="text-xs font-bold text-amber-600 mb-1">영상에서의 의미</p>
                     <p className="text-xs text-slate-600">전문적인 상황에서 어색하지 않게 들린다는 뜻</p>
                   </div>
-                  <button className="mt-3 w-full rounded-xl bg-violet-600 py-2.5 text-xs font-bold text-white hover:bg-violet-500 transition-colors">
+                  <button className="mt-3 w-full rounded-xl bg-violet-600 py-2.5 text-xs font-bold text-white transition-colors">
                     학습 노트에 저장
                   </button>
                 </div>
@@ -343,14 +342,14 @@ export function HomePage() {
                 </span>
               </Anim>
               <Anim from="up" vis={visible.has(3)} delay={120}>
-                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.2] tracking-tight">
                   영상 하나로<br />
                   <span className="text-amber-500">완성되는 요약</span>
                 </h2>
               </Anim>
               <Anim from="up" vis={visible.has(3)} delay={240}>
                 <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                  AI가 영상 전체 내용을 자동으로 요약하고, 자주 등장한 핵심 단어와 관용 표현까지 한 번에 정리해드려요.
+                  AI가 영상 전체 내용을 자동으로 요약하고, <br/> 자주 등장한 핵심 단어와 관용 표현까지 한 번에 정리해드려요.
                 </p>
               </Anim>
               <Anim from="up" vis={visible.has(3)} delay={360}>
@@ -428,14 +427,14 @@ export function HomePage() {
                 </span>
               </Anim>
               <Anim from="up" vis={visible.has(4)} delay={120}>
-                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.05] tracking-tight">
+                <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.2] tracking-tight">
                   저장하고<br />
                   <span className="text-pink-500">언제든 복습</span>
                 </h2>
               </Anim>
               <Anim from="up" vis={visible.has(4)} delay={240}>
                 <p className="mt-5 text-slate-500 leading-relaxed text-base">
-                  영상에서 배운 단어와 표현을 학습 노트에 저장하세요. 나만의 단어장으로 언제 어디서든 꺼내볼 수 있어요.
+                  영상에서 배운 단어와 표현을 학습 노트에 저장하세요. <br/> 나만의 단어장으로 언제 어디서든 꺼내볼 수 있어요.
                 </p>
               </Anim>
               <Anim from="up" vis={visible.has(4)} delay={360}>
@@ -479,7 +478,7 @@ export function HomePage() {
                     { word: 'leverage', meaning: '활용하다, 지렛대 효과', source: '고독한 미식가', time: '어제' },
                     { word: 'resilient', meaning: '회복력 있는, 탄력적인', source: 'BBC 뉴스', time: '2일 전' },
                   ].map(item => (
-                    <div key={item.word} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-pink-200 hover:bg-pink-50/30 transition-colors">
+                    <div key={item.word} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="text-sm font-bold text-slate-800">{item.word}</span>
@@ -518,42 +517,42 @@ export function HomePage() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
                   {
-                    icon: '🎙',
+                    svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />,
                     color: 'text-emerald-600',
                     bg: 'bg-white border-emerald-100 hover:border-emerald-200',
                     title: 'AI 음성 자막',
-                    desc: 'STT로 영상 음성을 자동 인식해 정확한 자막과 번역을 생성합니다',
+                    desc: 'STT로 영상 음성을 자동 인식해 정확한 자막과 번역을 생성',
                   },
                   {
-                    icon: '🔍',
+                    svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z" />,
                     color: 'text-teal-600',
                     bg: 'bg-white border-teal-100 hover:border-teal-200',
                     title: '화면 텍스트 번역',
-                    desc: '간판·PPT·손글씨 등 화면 속 모든 텍스트를 OCR로 인식·번역',
+                    desc: '간판·손글씨 등 화면 속 모든 텍스트를 OCR로 인식·번역',
                   },
                   {
-                    icon: '📌',
+                    svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />,
                     color: 'text-violet-600',
                     bg: 'bg-white border-violet-100 hover:border-violet-200',
                     title: '위치 기반 오버레이',
                     desc: '번역 텍스트를 원문 위치 그대로 화면에 오버레이로 표시',
                   },
                   {
-                    icon: '⚡',
+                    svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />,
                     color: 'text-orange-600',
                     bg: 'bg-white border-orange-100 hover:border-orange-200',
                     title: '즉시 단어 검색',
                     desc: '자막 드래그로 뜻·발음·예문을 영상 흐름 끊김 없이 확인',
                   },
                   {
-                    icon: '📖',
+                    svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />,
                     color: 'text-pink-600',
                     bg: 'bg-white border-pink-100 hover:border-pink-200',
                     title: '학습 노트',
                     desc: '단어·표현을 저장하고 나만의 학습 노트로 언제든 복습',
                   },
                   {
-                    icon: '🧠',
+                    svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />,
                     color: 'text-cyan-600',
                     bg: 'bg-white border-cyan-100 hover:border-cyan-200',
                     title: 'AI 영상 요약',
@@ -567,7 +566,7 @@ export function HomePage() {
                       ${visible.has(5) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                     style={{ transitionDelay: visible.has(5) ? `${100 + idx * 80}ms` : '0ms' }}
                   >
-                    <span className={`text-xl block mb-3 ${feat.color}`}>{feat.icon}</span>
+                    <svg className={`h-6 w-6 mb-3 ${feat.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">{feat.svg}</svg>
                     <h3 className="font-bold text-slate-900 text-sm mb-1">{feat.title}</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">{feat.desc}</p>
                   </div>
@@ -584,8 +583,8 @@ export function HomePage() {
 
             <div className="relative max-w-xl">
 
-              <h2 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-tight mb-6 whitespace-nowrap">
-                지금 바로 <span className="text-emerald-500">시작하세요</span>
+              <h2 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-normal mb-6 whitespace-nowrap">
+                지금 바로 <span className="text-emerald-500">시작하세요.</span>
               </h2>
               <p className="text-lg text-slate-500 font-normal mb-10 leading-relaxed whitespace-nowrap">
                 무료로 시작하고, 영상 시청과 동시에 자연스럽게 언어를 학습하세요.

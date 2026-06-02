@@ -54,10 +54,10 @@ export function LoginPage() {
 
         <div>
           <h2 className="text-4xl font-extrabold leading-tight mb-4">
-            영상 속 모든 언어를<br />이해하고 학습하세요
+            영상 속 모든 언어를<br />이해하고 학습하세요.
           </h2>
           <p className="text-emerald-100 text-lg leading-relaxed">
-            AI가 음성과 화면 텍스트를 통합 번역하여<br />완벽한 영상 학습 경험을 제공합니다.
+            AI가 음성과 화면 텍스트를 통합 번역하여 완벽한 영상 학습 경험을 제공합니다.
           </p>
           <div className="mt-10 space-y-4">
             {[
@@ -91,7 +91,7 @@ export function LoginPage() {
           </div>
 
           <h1 className="text-3xl font-extrabold text-slate-900 mb-1">다시 만나요!</h1>
-          <p className="text-slate-500 mb-8">계정에 로그인하여 학습을 계속하세요</p>
+          <p className="text-slate-500 mb-8">계정에 로그인하여 학습을 계속하세요.</p>
 
           {/* 에러 */}
           {error && (
@@ -151,7 +151,7 @@ export function LoginPage() {
               </div>
               <input
                 type="password"
-                placeholder="비밀번호를 입력하세요"
+                placeholder="비밀번호를 입력하세요."
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -187,6 +187,7 @@ export function LoginPage() {
               무료 회원가입
             </button>
           </p>
+          <p className="text-[11px] text-slate-300 text-center mt-8">© 2026 OverLang. All rights reserved.</p>
         </div>
       </div>
     </div>

@@ -6,16 +6,16 @@ import { Header } from '@/components/layout/Header';
 
 // ── 단계 정의 ─────────────────────────────────────────────
 const STAGES = [
-  { key: 'QUEUED',               label: '대기열 진입',      desc: '분석 순서를 기다리고 있어요' },
-  { key: 'AUDIO_EXTRACTION',     label: '오디오 추출',      desc: '영상에서 음성 트랙을 분리해요' },
-  { key: 'STT_TRANSCRIPTION',    label: '음성 인식',        desc: 'WhisperX가 말소리를 텍스트로 변환해요' },
-  { key: 'WHISPER_ALIGNMENT',    label: '타임스탬프 정렬',  desc: '각 단어의 정확한 시간 위치를 맞춰요' },
-  { key: 'OCR_FRAME_EXTRACTION', label: '프레임 샘플링',    desc: '자막이 포함된 장면을 골라내요' },
-  { key: 'OCR_TEXT_DETECTION',   label: '화면 텍스트 추출', desc: 'OCR 엔진으로 화면 글자를 읽어요' },
-  { key: 'TRANSLATION',          label: '번역',             desc: '인식된 텍스트를 목표 언어로 번역해요' },
-  { key: 'LLM_ANALYSIS',         label: 'AI 문장 분석',     desc: '문장 구조와 의미를 심층 분석해요' },
-  { key: 'MERGING_RESULTS',      label: '결과 병합',        desc: '음성·화면 데이터를 하나로 합쳐요' },
-  { key: 'FINALIZING',           label: '최종 저장',        desc: '분석 결과를 저장하고 마무리해요' },
+  { key: 'QUEUED',               label: '대기열 진입',      desc: '분석 순서를 기다리고 있어요.' },
+  { key: 'AUDIO_EXTRACTION',     label: '오디오 추출',      desc: '영상에서 음성 트랙을 분리해요.' },
+  { key: 'STT_TRANSCRIPTION',    label: '음성 인식',        desc: 'WhisperX가 말소리를 텍스트로 변환해요.' },
+  { key: 'WHISPER_ALIGNMENT',    label: '타임스탬프 정렬',  desc: '각 단어의 정확한 시간 위치를 맞춰요.' },
+  { key: 'OCR_FRAME_EXTRACTION', label: '프레임 샘플링',    desc: '자막이 포함된 장면을 골라내요.' },
+  { key: 'OCR_TEXT_DETECTION',   label: '화면 텍스트 추출', desc: 'OCR 엔진으로 화면 글자를 읽어요.' },
+  { key: 'TRANSLATION',          label: '번역',             desc: '인식된 텍스트를 목표 언어로 번역해요.' },
+  { key: 'LLM_ANALYSIS',         label: 'AI 문장 분석',     desc: '문장 구조와 의미를 심층 분석해요.' },
+  { key: 'MERGING_RESULTS',      label: '결과 병합',        desc: '음성·화면 데이터를 하나로 합쳐요.' },
+  { key: 'FINALIZING',           label: '최종 저장',        desc: '분석 결과를 저장하고 마무리해요.' },
 ];
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -147,20 +147,6 @@ export function ProcessingPage() {
       <div className="flex items-center justify-center p-6 pt-8">
       <div className="w-full max-w-md">
 
-        {/* 로고 - 클릭 시 대시보드 이동 */}
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="flex items-center justify-center gap-2 mb-8 mx-auto hover:opacity-80 transition-opacity"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-            </svg>
-          </div>
-          <span className="text-lg font-bold text-slate-800">OverLang</span>
-        </button>
-
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
 
           {/* ── 실패 상태 ── */}
@@ -173,7 +159,7 @@ export function ProcessingPage() {
                   </svg>
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">분석 실패</h2>
-                <p className="text-gray-500 mt-1 text-sm">AI 분석 중 오류가 발생했습니다</p>
+                <p className="text-gray-500 mt-1 text-sm">AI 분석 중 오류가 발생했습니다.</p>
               </div>
 
               <div className="rounded-xl bg-red-50 border border-red-200 px-5 py-4 mb-6">
@@ -242,8 +228,8 @@ export function ProcessingPage() {
                         </svg>
                       </div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900">AI가 분석 중입니다</h2>
-                    <p className="text-gray-400 mt-1 text-sm">음성 인식과 화면 텍스트를 처리하고 있어요</p>
+                    <h2 className="text-xl font-bold text-gray-900">AI가 분석 중입니다.</h2>
+                    <p className="text-gray-400 mt-1 text-sm">음성 인식과 화면 텍스트를 처리하고 있어요.</p>
                   </>
                 )}
               </div>
@@ -322,6 +308,9 @@ export function ProcessingPage() {
         </div>
       </div>
       </div>
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }

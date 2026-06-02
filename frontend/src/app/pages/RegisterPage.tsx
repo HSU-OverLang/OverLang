@@ -243,6 +243,7 @@ export function RegisterPage() {
               로그인
             </button>
           </p>
+          <p className="text-[11px] text-slate-300 text-center mt-8">© 2026 OverLang. All rights reserved.</p>
         </div>
       </div>
     </div>
