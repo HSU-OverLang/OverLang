@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getProjects, getVideoPresignedUrl, updateProjectTitle, deleteProject, retryJob } from '@/api/video';
+import { getProjects, getVideoPresignedUrl, updateProjectTitle, deleteProject, retryJob, getProjectJobs } from '@/api/video';
 import { getMySavedWords, deleteSavedWord } from '@/api/words';
 import type { ProjectResult } from '@/api/video';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -380,16 +380,26 @@ export function DashboardPage() {
               const videoSrc = isYoutube ? (project.sourceUrl ?? '') : (project.fileUrl ?? '');
               const cardColor = CARD_COLORS[idx % CARD_COLORS.length];
               const isSelected = pid ? selectedIds.has(pid) : false;
-              const isClickable = project.status === 'COMPLETED';
+              const isClickable = project.status === 'COMPLETED' || project.status === 'PROCESSING';
 
               return (
                 <div
                   key={pid ?? idx}
-                  onClick={() => {
+                  onClick={async () => {
                     if (!pid) return;
                     if (selectMode) { toggleSelect(pid); return; }
                     if (menuOpenId !== null) return;
                     if (!isClickable) return;
+                    if (project.status === 'PROCESSING') {
+                      try {
+                        const jobs = await getProjectJobs(pid);
+                        const job = jobs[0];
+                        if (job) {
+                          navigate('/processing', { state: { jobId: job.jobId, projectId: pid, videoSrc } });
+                        }
+                      } catch { /* ignore */ }
+                      return;
+                    }
                     saveRecentProject(project);
                     if (isYoutube) {
                       navigate(`/translate/${pid}`, { state: { videoSrc } });
@@ -397,16 +407,21 @@ export function DashboardPage() {
                       navigate(`/translate/${pid}`);
                     }
                   }}
-                  className={`group bg-white rounded-2xl border transition-all duration-200 ${menuOpenId === pid ? 'relative z-10' : ''} ${
+                  className={`group relative bg-white rounded-2xl border transition-all duration-200 ${menuOpenId === pid ? 'z-10' : ''} ${
                     selectMode
                       ? isSelected
                         ? 'border-emerald-400 ring-2 ring-emerald-100 cursor-pointer shadow-sm'
                         : 'border-slate-200 cursor-pointer hover:border-emerald-200'
                       : isClickable
                         ? 'border-slate-200 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-100 cursor-pointer hover:-translate-y-0.5'
-                        : 'border-slate-200 cursor-default opacity-60'
+                        : 'border-slate-200 cursor-default'
                   }`}
+
                 >
+                  {/* FAILED 카드 반투명 오버레이 (메뉴 버튼은 제외) */}
+                  {!isClickable && (
+                    <div className="absolute inset-0 bg-white/50 rounded-2xl pointer-events-none z-[1]" />
+                  )}
                   {/* 썸네일 */}
                   <div className="aspect-video relative overflow-hidden rounded-t-2xl bg-slate-100">
                     {youtubeId ? (
@@ -655,6 +670,9 @@ export function DashboardPage() {
           AI가 영상을 분석하는 중이에요. 완료 후 다시 시도해주세요.
         </div>
       )}
+      <footer className="mt-auto py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }

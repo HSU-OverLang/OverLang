@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 
-export function Header() {
+export function Header({ fluid = true }: { fluid?: boolean }) {
   const { user, logout, profileImageUrl } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,21 +33,15 @@ export function Header() {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const navLinks = [
-    { label: '기능 소개', href: '#features' },
-    { label: '학습 방법', href: '#how' },
-    { label: '대시보드', to: '/dashboard' },
-  ];
-
   return (
     <header
       className={`sticky top-0 z-50 transition-all duration-300 ${
         isHome && !scrolled
-          ? 'bg-white/80 backdrop-blur-md border-b border-slate-100/50'
-          : 'bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm'
+          ? 'bg-white/80 backdrop-blur-md'
+          : 'bg-white/95 backdrop-blur-md'
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+      <div className={`flex items-center justify-between ${fluid ? 'w-full h-14 px-16' : 'mx-auto h-16 max-w-6xl px-6'}`}>
 
         {/* ── 로고 ── */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0 group">

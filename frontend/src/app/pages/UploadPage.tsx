@@ -183,25 +183,11 @@ export function UploadPage() {
 
       {/* 본문 */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-        {/* 페이지 타이틀 */}
-        <div className="mb-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors mb-4"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            대시보드로 돌아가기
-          </button>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">새 영상 업로드</h1>
-          <p className="text-slate-500 text-sm mt-1">AI가 자동으로 자막과 번역을 생성해드립니다</p>
-        </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
           <div className="mb-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">영상 파일을 업로드하세요</h2>
-            <p className="text-gray-600">AI가 자동으로 자막을 생성해드립니다</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">영상 파일을 업로드하세요.</h2>
+            <p className="text-gray-600">AI가 자동으로 자막을 생성해드립니다.</p>
           </div>
 
           {/* 프로젝트 제목 */}
@@ -213,7 +199,7 @@ export function UploadPage() {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="영상의 제목을 입력하세요"
+              placeholder="영상의 제목을 입력하세요."
               disabled={isDisabled}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
@@ -266,9 +252,9 @@ export function UploadPage() {
                   }`}
                 />
                 <h3 className="text-xl font-medium text-gray-900 mb-2">
-                  파일을 드래그하여 업로드하세요
+                  파일을 드래그하여 업로드하세요.
                 </h3>
-                <p className="text-gray-600 mb-6">또는 클릭하여 파일을 선택하세요</p>
+                <p className="text-gray-600 mb-6">또는 클릭하여 파일을 선택하세요.</p>
                 <label className="inline-block px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer">
                   파일 선택
                   <input
@@ -325,7 +311,7 @@ export function UploadPage() {
                         setUploadStep("");
                       }
                     }}
-                    placeholder="YouTube 링크를 입력하세요 (예: https://youtube.com/watch?v=...)"
+                    placeholder="YouTube 링크를 입력하세요. (예: https://youtube.com/watch?v=...)"
                     disabled={isDisabled}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -442,20 +428,23 @@ export function UploadPage() {
             <ol className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start gap-2">
                 <span className="font-medium text-emerald-600">1.</span>
-                영상 파일이 서버에 업로드됩니다
+                영상 파일이 서버에 업로드됩니다.
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-medium text-emerald-600">2.</span>
-                AI가 음성 인식(STT)과 화면 텍스트(OCR)를 분석합니다
+                AI가 음성 인식(STT)과 화면 텍스트(OCR)를 분석합니다.
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-medium text-emerald-600">3.</span>
-                분석이 완료되면 자막 편집 화면으로 자동 이동합니다
+                분석이 완료되면 자막 편집 화면으로 자동 이동합니다.
               </li>
             </ol>
           </div>
         </div>
       </main>
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }

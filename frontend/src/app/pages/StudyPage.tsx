@@ -91,8 +91,8 @@ function WordNetworkSVG({ word, relatedWords }: {
   const leftWords  = visible.slice(0, leftCount);
   const rightWords = visible.slice(leftCount);
 
-  // 색상 팔레트 (branch + border)
-  const COLORS = ['#10b981', '#06b6d4', '#6366f1', '#f97316', '#ec4899', '#84cc16'];
+  // 모든 노드 단일 에메랄드 색상
+  const COLORS = ['#10b981', '#10b981', '#10b981', '#10b981', '#10b981', '#10b981'];
 
   // 노드 계산 — 바깥 엣지를 SVG 가장자리에 고정
   const buildNodes = (words: string[], side: 'left' | 'right', colorOffset: number) => {
@@ -372,7 +372,7 @@ export function StudyPage() {
           </svg>
           <input
             type="text"
-            placeholder="단어나 의미로 검색..."
+            placeholder="단어나 의미로 검색하세요."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full rounded-xl bg-white border border-slate-200 pl-11 pr-4 py-3 text-sm text-slate-700 placeholder-slate-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100 transition-all shadow-sm"
@@ -461,7 +461,7 @@ export function StudyPage() {
                     {/* 하단 행: 출처 + 날짜 + TTS + 삭제 */}
                     <div className="flex items-center gap-1.5">
                       {word.projectTitle
-                        ? <p className="text-[10px] text-emerald-500 flex-1 truncate">📌 {word.projectTitle}</p>
+                        ? <p className="text-[10px] text-emerald-500 flex-1 truncate"> {word.projectTitle}</p>
                         : <div className="flex-1" />
                       }
                       <span className="text-[10px] text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5 shrink-0">
@@ -645,7 +645,10 @@ export function StudyPage() {
                         <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
                       </svg>
                     </button>
-                    <p className="text-xs text-slate-300 mt-8">탭하여 뜻 확인 →</p>
+                    {word.projectTitle && (
+                      <p className="text-[10px] text-slate-300 mt-6 max-w-[180px] truncate text-center">{word.projectTitle}</p>
+                    )}
+                    <p className="text-xs text-slate-300 mt-1">탭하여 뜻 확인 →</p>
                   </div>
 
                   {/* 뒷면 */}
@@ -655,31 +658,49 @@ export function StudyPage() {
                       WebkitBackfaceVisibility: 'hidden',
                       transform: 'rotateY(180deg)',
                     }}
-                    className="absolute inset-0 flex flex-col justify-center rounded-3xl bg-gradient-to-br from-orange-400 to-amber-400 shadow-xl p-8"
+                    className="absolute inset-0 flex flex-col rounded-3xl bg-gradient-to-br from-orange-400 to-amber-400 shadow-xl p-7"
                   >
-                    {word.meaning && (
-                      <p className="text-lg font-bold text-white text-center leading-snug mb-5">{word.meaning}</p>
-                    )}
-                    {word.originalSentence && (
-                      <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-4 py-3.5">
-                        <p className="text-sm font-medium text-white leading-relaxed">{word.originalSentence}</p>
-                        {word.translatedSentence && (
-                          <p className="text-xs text-orange-100/80 mt-2 leading-relaxed">{word.translatedSentence}</p>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between mt-5">
+                    {/* 단어 */}
+                    <p className="text-lg font-extrabold text-white/90 mb-4 text-center">{word.word}</p>
+
+                    {/* 직역 / 실제 의미 섹션만 표시 */}
+                    <div className="flex flex-col gap-3 flex-1">
+                      {word.meaning && (() => {
+                        const TARGET = ['직역', '실제 의미'];
+                        const hasSections = word.meaning.includes('[직역]') || word.meaning.includes('[실제 의미]');
+                        if (hasSections) {
+                          const sections = word.meaning.split(/(?=\[)/).filter(Boolean);
+                          const filtered = sections
+                            .map(part => { const m = part.match(/^\[(.+?)\]\s*([\s\S]*)/); return m ? { label: m[1], body: m[2].trim() } : null; })
+                            .filter((s): s is { label: string; body: string } => !!s && TARGET.includes(s.label));
+                          if (filtered.length > 0) {
+                            return filtered.map((s, i) => (
+                              <div key={i} className="bg-white/20 rounded-2xl px-4 py-3.5 flex-1">
+                                <p className="text-[10px] font-bold text-orange-100 uppercase tracking-wider mb-1.5">{s.label}</p>
+                                <p className="text-sm font-semibold text-white leading-relaxed">{s.body}</p>
+                              </div>
+                            ));
+                          }
+                        }
+                        // 섹션 없으면 전체 의미 표시
+                        return (
+                          <div className="bg-white/20 rounded-2xl px-4 py-3.5 flex-1 flex items-center justify-center">
+                            <p className="text-base font-bold text-white text-center leading-snug">{word.meaning}</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* 하단 */}
+                    <div className="flex items-center justify-between mt-4">
                       <button
-                        onClick={e => { e.stopPropagation(); handleTTS(word.originalSentence ?? word.word); }}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                        onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/25 hover:bg-white/40 text-white transition-colors shrink-0"
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
                         </svg>
                       </button>
-                      {word.projectTitle && (
-                        <p className="text-xs text-orange-100/70 truncate max-w-[160px]">{word.projectTitle}</p>
-                      )}
                       <p className="text-xs text-orange-100/60 shrink-0">{new Date(word.createdAt).toLocaleDateString('ko-KR')}</p>
                     </div>
                   </div>
@@ -692,6 +713,9 @@ export function StudyPage() {
         })()}
 
       </div>
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }

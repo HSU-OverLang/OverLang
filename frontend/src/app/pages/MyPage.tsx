@@ -79,35 +79,33 @@ export function MyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header />
 
-      {/* ── 프로필 헤더 ── */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-500 px-6 pt-8 pb-20">
-        <div className="mx-auto max-w-5xl flex items-end justify-between">
-          <div className="flex items-center gap-5">
-            <div className="relative">
-              <div className="h-20 w-20 rounded-2xl overflow-hidden ring-4 ring-white/30 shadow-lg bg-white/20">
-                {profileImageUrl ? (
-                  <img src={profileImageUrl} className="h-full w-full object-cover" alt="프로필" />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <svg className="h-10 w-10 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                )}
-              </div>
+      {/* ── 컨텐츠 ── */}
+      <div className="mx-auto w-full max-w-3xl px-6 pt-8 pb-12 space-y-4 flex-1">
+
+        {/* ── 프로필 카드 ── */}
+        <div className="rounded-2xl bg-white p-6 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-2xl overflow-hidden bg-violet-100 shrink-0 shadow-sm">
+              {profileImageUrl ? (
+                <img src={profileImageUrl} className="h-full w-full object-cover" alt="프로필" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-violet-600">
+                  <span className="text-xl font-bold text-white">{displayName[0]?.toUpperCase() || 'U'}</span>
+                </div>
+              )}
             </div>
             <div>
-              <p className="text-2xl font-extrabold text-white">{displayName}</p>
-              <p className="text-emerald-100 text-sm mt-0.5">{user?.email}</p>
-              <p className="text-emerald-200 text-xs mt-1">가입일 {formatDate(user?.metadata.creationTime)}</p>
+              <p className="text-xl font-extrabold text-slate-900 leading-tight">{displayName}</p>
+              <p className="text-slate-400 text-sm mt-0.5">{user?.email}</p>
+              <p className="text-slate-300 text-xs mt-1">가입일 {formatDate(user?.metadata.creationTime)}</p>
             </div>
           </div>
           <button
             onClick={() => setSubPage('settings')}
-            className="flex items-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2.5 text-sm font-medium text-white transition-all"
+            className="flex items-center gap-2 rounded-xl border border-slate-200 hover:bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600 transition-all shrink-0"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -116,35 +114,55 @@ export function MyPage() {
             계정 설정
           </button>
         </div>
-      </div>
-
-      {/* ── 컨텐츠 ── */}
-      <div className="mx-auto max-w-5xl px-6 -mt-10 pb-12 space-y-5">
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-2 gap-4">
           <div
-            className="rounded-2xl bg-white p-5 shadow-sm text-center cursor-pointer hover:bg-emerald-50 transition-colors"
+            className="rounded-2xl bg-white p-5 shadow-sm cursor-pointer hover:shadow-md transition-all group"
             onClick={() => navigate('/dashboard')}
           >
-            <p className="text-2xl mb-1">🎬</p>
-            <p className="text-2xl font-extrabold text-slate-800">{totalProjects}</p>
-            <p className="text-xs text-emerald-500 mt-0.5 font-medium">총 프로젝트 →</p>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors">
+                <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                </svg>
+              </div>
+              <p className="text-3xl font-extrabold text-slate-800">{totalProjects}</p>
+            </div>
+            <p className="text-sm font-semibold text-slate-600">총 프로젝트</p>
+            <p className="text-xs text-emerald-500 mt-0.5 flex items-center gap-0.5">
+              대시보드 바로가기
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </p>
           </div>
           <div
-            className="rounded-2xl bg-white p-5 shadow-sm text-center cursor-pointer hover:bg-emerald-50 transition-colors"
+            className="rounded-2xl bg-white p-5 shadow-sm cursor-pointer hover:shadow-md transition-all group"
             onClick={() => navigate('/study')}
           >
-            <p className="text-2xl mb-1">📖</p>
-            <p className="text-2xl font-extrabold text-slate-800">{savedWordsCount}</p>
-            <p className="text-xs text-emerald-500 mt-0.5 font-medium">저장된 단어 →</p>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 group-hover:bg-violet-100 transition-colors">
+                <svg className="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <p className="text-3xl font-extrabold text-slate-800">{savedWordsCount}</p>
+            </div>
+            <p className="text-sm font-semibold text-slate-600">저장된 단어</p>
+            <p className="text-xs text-violet-500 mt-0.5 flex items-center gap-0.5">
+              학습 노트 바로가기
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </p>
           </div>
         </div>
 
         {/* 최근 프로젝트 */}
         <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-slate-800 text-lg">최근 시청한 프로젝트</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-slate-800">최근 시청한 프로젝트</h2>
             <button
               onClick={() => navigate('/dashboard')}
               className="text-sm font-medium text-emerald-600 hover:text-emerald-500 transition-colors flex items-center gap-1"
@@ -156,17 +174,24 @@ export function MyPage() {
             </button>
           </div>
           {recentProjects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
-              <p className="text-sm text-slate-400">아직 방문한 프로젝트가 없어요</p>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="text-sm font-medium text-emerald-600 hover:text-emerald-500 transition-colors"
-              >
-                프로젝트 목록 보기 →
-              </button>
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+                <svg className="h-7 w-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500">아직 방문한 프로젝트가 없어요</p>
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="text-sm font-medium text-emerald-600 hover:text-emerald-500 transition-colors mt-1"
+                >
+                  프로젝트 목록 보기 →
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {recentProjects.map((proj) => {
                 const pid = proj.id ?? proj.projectId;
                 const isYoutube = proj.sourceType === 'YOUTUBE';
@@ -182,20 +207,20 @@ export function MyPage() {
                         navigate(`/translate/${pid}`);
                       }
                     }}
-                    className="group flex items-center gap-4 rounded-xl hover:bg-slate-50 px-3 py-3.5 transition-colors cursor-pointer"
+                    className="group flex items-center gap-4 rounded-xl hover:bg-slate-50 px-3 py-3 transition-colors cursor-pointer"
                   >
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors shrink-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors shrink-0">
                       <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 truncate">{proj.title}</p>
+                      <p className="font-semibold text-slate-800 truncate text-sm">{proj.title}</p>
                       <p className="text-xs text-slate-400 mt-0.5">
                         {formatDate(proj.createdAt)} · {isYoutube ? 'YouTube' : '파일'}
                       </p>
                     </div>
-                    <svg className="h-4 w-4 text-slate-300 group-hover:text-slate-400 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-4 w-4 text-slate-300 group-hover:text-emerald-400 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -210,16 +235,24 @@ export function MyPage() {
           onClick={() => navigate('/upload')}
           className="relative rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 p-6 cursor-pointer hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg shadow-emerald-100 overflow-hidden"
         >
-          {/* 배경 장식 */}
-          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
-          <div className="absolute -right-2 top-8 h-16 w-16 rounded-full bg-white/10" />
-          <div className="relative">
-            <p className="font-bold text-white text-xl">새 프로젝트 시작하기 →</p>
-            <p className="text-emerald-100 text-sm mt-1.5">영상을 업로드하고 AI 자막 생성을 시작하세요</p>
+          <div className="relative flex items-center justify-between">
+            <div>
+              <p className="font-bold text-white text-lg">새 프로젝트 시작하기</p>
+              <p className="text-emerald-100 text-sm mt-1">영상을 업로드하고 AI 자막 생성을 시작하세요.</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
           </div>
         </div>
 
       </div>
+
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }
@@ -500,6 +533,9 @@ function SettingsPage({
         </div>
 
       </div>
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
     </div>
   );
 }
