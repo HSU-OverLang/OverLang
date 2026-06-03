@@ -829,12 +829,14 @@ export function TranslatePage() {
           <div
             ref={videoContainerRef}
             className={`bg-black w-full${isFullscreen ? ' flex items-center justify-center' : ''}`}
+            style={isFullscreen ? undefined : { height: 'calc((100vh - 53px) * 2 / 3)' }}
           >
             {/* 내부 래퍼: 비디오와 OCR이 항상 같은 크기를 공유 */}
             {/* fullscreen 시 aspect-ratio + max 제약으로 contain 동작 */}
             <div
               ref={videoWrapperRef}
-              className={`relative w-full overflow-hidden${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ' aspect-video md:aspect-auto'}`}
+              className={`relative w-full h-full overflow-hidden${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ''}`}
+              style={isFullscreen ? { height: undefined } : undefined}
             >
             {videoLoading ? (
               <div className="w-full h-full flex items-center justify-center">
