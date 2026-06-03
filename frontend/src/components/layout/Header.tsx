@@ -41,7 +41,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
           : 'bg-white/95 backdrop-blur-md'
       }`}
     >
-      <div className={`flex items-center justify-between ${fluid ? 'w-full h-14 px-4 md:px-16' : 'mx-auto h-16 max-w-6xl px-4 md:px-6'}`}>
+      <div className={`flex items-center justify-between ${fluid ? 'w-full h-14 px-16' : 'mx-auto h-16 max-w-6xl px-6'}`}>
 
         {/* ── 로고 ── */}
         <Link to="/" className="flex items-center shrink-0">
@@ -60,7 +60,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
                 <button
                   key={item.to}
                   onClick={() => navigate(item.to)}
-                  className={`relative px-2.5 md:px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`relative px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive(item.to)
                       ? 'text-emerald-700 bg-emerald-50'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
@@ -94,7 +94,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
                       </div>
                     )}
                   </div>
-                  <span className="text-xs md:text-sm font-medium text-slate-700 hidden sm:block max-w-[60px] md:max-w-[100px] truncate">
+                  <span className="text-sm font-medium text-slate-700 hidden sm:block max-w-[100px] truncate">
                     {displayName}
                   </span>
                   <svg
