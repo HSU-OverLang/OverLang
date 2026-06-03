@@ -635,7 +635,7 @@ export function StudyPage() {
                     )}
                     <p className="text-4xl font-extrabold text-slate-800 tracking-tight mb-4">{word.word}</p>
                     {word.contextMeaning && (
-                      <p className="text-sm text-slate-400 italic mb-4 max-w-xs leading-relaxed">"{word.contextMeaning}"</p>
+                      <p className="text-sm text-slate-400 italic mb-4 max-w-xs leading-relaxed line-clamp-2">"{word.contextMeaning.length > 60 ? word.contextMeaning.slice(0, 60) + '...' : word.contextMeaning}"</p>
                     )}
                     <button
                       onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}

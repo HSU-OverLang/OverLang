@@ -60,7 +60,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
                 <button
                   key={item.to}
                   onClick={() => navigate(item.to)}
-                  className={`relative px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`relative px-2.5 md:px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${
                     isActive(item.to)
                       ? 'text-emerald-700 bg-emerald-50'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
@@ -94,7 +94,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
                       </div>
                     )}
                   </div>
-                  <span className="text-sm font-medium text-slate-700 hidden sm:block max-w-[100px] truncate">
+                  <span className="text-xs md:text-sm font-medium text-slate-700 hidden sm:block max-w-[60px] md:max-w-[100px] truncate">
                     {displayName}
                   </span>
                   <svg

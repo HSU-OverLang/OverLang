@@ -219,7 +219,7 @@ export function DashboardPage() {
   const processingCount = projects.filter(p => p.status === 'PROCESSING' || p.status === 'CREATED').length;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden">
       <Header />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
