@@ -360,7 +360,7 @@ export function TranslatePage() {
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [subtitlePosition, setSubtitlePosition] = useState<'overlay' | 'bottom'>('overlay');
   const [subtitleFontSize, setSubtitleFontSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [ocrFontSize, setOcrFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [ocrFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('자막');
   const [expandedKeyword, setExpandedKeyword] = useState<number | null>(null);
