@@ -10,6 +10,7 @@ from typing import Any
 import redis
 from dotenv import load_dotenv
 
+from ai.pipeline.callback_client import is_backend_job_valid
 from ai.worker.celery_app import celery_app
 
 load_dotenv()
@@ -111,10 +112,18 @@ def _dispatch_payload(raw_payload: str) -> None:
     if payload is None:
         return
 
+    job_id = payload.get("jobId") or payload.get("job_id")
+    if job_id is not None and not is_backend_job_valid(job_id):
+        logger.info(
+            "Backend job payload skipped because job is no longer valid: jobId=%s",
+            job_id,
+        )
+        return
+
     task = celery_app.send_task(PROCESS_JOB_TASK_NAME, args=[payload])
     logger.info(
         "Backend job payload dispatched: jobId=%s celeryTaskId=%s",
-        payload.get("jobId"),
+        job_id,
         task.id,
     )
 
