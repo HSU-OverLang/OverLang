@@ -505,18 +505,13 @@ def run_pipeline(
                         subtitles,
                         ocr_items,
                         resolved_source_language,
+                        translation_block_max_seconds=float(
+                            runtime_options["translation_block_max_seconds"]
+                        ),
+                        translation_block_max_chars=int(
+                            runtime_options["translation_block_max_chars"]
+                        ),
                     )
-                )
-                subtitles = _split_translated_subtitles_for_rendering(
-                    subtitles,
-                    target_language=normalized_job.target_language,
-                    max_duration_seconds=float(
-                        runtime_options["translated_subtitle_max_seconds"]
-                    ),
-                    max_text_length=int(runtime_options["translated_subtitle_max_chars"]),
-                    min_split_duration_seconds=float(
-                        runtime_options["translated_subtitle_min_split_seconds"]
-                    ),
                 )
                 save_intermediate(
                     resolved_job_id,
@@ -1020,17 +1015,176 @@ def _should_run_learning_analysis(
     return bool(subtitles)
 
 
+def _merge_subtitles_for_translation_blocks(
+    subtitles: list[SubtitleSegment],
+    max_duration_seconds: float,
+    max_text_length: int,
+) -> list[SubtitleSegment]:
+    merged_blocks: list[SubtitleSegment] = []
+    current_block: list[SubtitleSegment] = []
+
+    def flush_current_block() -> None:
+        if not current_block:
+            return
+
+        merged_blocks.append(_build_translation_block(current_block))
+        current_block.clear()
+
+    for subtitle in subtitles:
+        if not subtitle.text.strip():
+            continue
+
+        if current_block and subtitle.language_code != current_block[-1].language_code:
+            flush_current_block()
+
+        if current_block and _would_exceed_translation_block_limit(
+            current_block,
+            subtitle,
+            max_duration_seconds=max_duration_seconds,
+            max_text_length=max_text_length,
+        ):
+            flush_current_block()
+
+        current_block.append(subtitle)
+        if _should_close_translation_block(
+            current_block,
+            max_duration_seconds=max_duration_seconds,
+            max_text_length=max_text_length,
+        ):
+            flush_current_block()
+
+    flush_current_block()
+
+    for index, subtitle in enumerate(merged_blocks, start=1):
+        subtitle.seq = index
+
+    return merged_blocks
+
+
+def _would_exceed_translation_block_limit(
+    current_block: list[SubtitleSegment],
+    next_subtitle: SubtitleSegment,
+    max_duration_seconds: float,
+    max_text_length: int,
+) -> bool:
+    candidate_block = [*current_block, next_subtitle]
+    candidate_duration = candidate_block[-1].end_time - candidate_block[0].start_time
+    if candidate_duration > max_duration_seconds and _has_soft_block_boundary(
+        current_block
+    ):
+        return True
+
+    candidate_text = _build_translation_block_text(candidate_block)
+    return len(candidate_text) > max_text_length and _has_soft_block_boundary(
+        current_block
+    )
+
+
+def _should_close_translation_block(
+    current_block: list[SubtitleSegment],
+    max_duration_seconds: float,
+    max_text_length: int,
+) -> bool:
+    if not current_block:
+        return False
+
+    if _has_sentence_boundary(current_block[-1].text):
+        return True
+
+    duration = current_block[-1].end_time - current_block[0].start_time
+    if duration >= max_duration_seconds:
+        return True
+
+    return len(_build_translation_block_text(current_block)) >= max_text_length
+
+
+def _has_soft_block_boundary(subtitles: list[SubtitleSegment]) -> bool:
+    if not subtitles:
+        return False
+
+    last_subtitle = subtitles[-1]
+    if _has_sentence_boundary(last_subtitle.text):
+        return True
+
+    if not last_subtitle.words:
+        return True
+
+    last_word = last_subtitle.words[-1].word
+    return _score_split_boundary(
+        last_word,
+        "",
+        last_subtitle.language_code,
+    ) >= 60
+
+
+def _build_translation_block(subtitles: list[SubtitleSegment]) -> SubtitleSegment:
+    words = [
+        word
+        for subtitle in subtitles
+        for word in subtitle.words
+    ]
+    start_time = _resolve_translation_block_start_time(subtitles, words)
+    end_time = _resolve_translation_block_end_time(subtitles, words)
+    return SubtitleSegment(
+        seq=subtitles[0].seq,
+        start_time=start_time,
+        end_time=_round_time(max(end_time, start_time + 0.001)),
+        text=_build_translation_block_text(subtitles),
+        translated_text=None,
+        language_code=subtitles[0].language_code,
+        words=words,
+    )
+
+
+def _resolve_translation_block_start_time(
+    subtitles: list[SubtitleSegment],
+    words: list[WordTiming],
+) -> float:
+    for word in words:
+        if word.start_time is not None:
+            return _round_time(word.start_time)
+
+    return _round_time(subtitles[0].start_time)
+
+
+def _resolve_translation_block_end_time(
+    subtitles: list[SubtitleSegment],
+    words: list[WordTiming],
+) -> float:
+    for word in reversed(words):
+        if word.end_time is not None:
+            return _round_time(word.end_time)
+
+    return _round_time(subtitles[-1].end_time)
+
+
+def _build_translation_block_text(subtitles: list[SubtitleSegment]) -> str:
+    language_code = subtitles[0].language_code if subtitles else None
+    texts = [subtitle.text.strip() for subtitle in subtitles if subtitle.text.strip()]
+    if _is_compact_language(language_code):
+        return "\n".join(texts)
+
+    return " ".join(texts)
+
+
 def _run_translation_stage(
     job: AnalysisRequest | WorkerJobPayload,
     subtitles: list[SubtitleSegment],
     ocr_items: list[OcrItem],
     source_language: str | None,
+    translation_block_max_seconds: float,
+    translation_block_max_chars: int,
 ) -> list[str]:
     target_language = job.target_language
     if target_language is None:
         return []
 
     translation_service = create_translation_service(job.translation_provider)
+    subtitles[:] = _merge_subtitles_for_translation_blocks(
+        subtitles,
+        max_duration_seconds=translation_block_max_seconds,
+        max_text_length=translation_block_max_chars,
+    )
     subtitle_texts = [subtitle.text for subtitle in subtitles]
     translatable_ocr_items = [
         ocr_item
@@ -1270,7 +1424,11 @@ def _split_text_for_rendering(
 ) -> list[str]:
     tokens = text.split()
     if _is_compact_language(language_code):
-        tokens = _split_compact_text(text, language_code)
+        tokens = _split_compact_text(
+            text,
+            language_code,
+            max_token_length=_compact_split_token_length(language_code),
+        )
 
     if not tokens:
         return [text]
@@ -1568,7 +1726,11 @@ def _resolve_source_text_for_render_chunk(
 
     tokens = subtitle.text.split()
     if _is_compact_language(subtitle.language_code):
-        tokens = _split_compact_text(subtitle.text, subtitle.language_code)
+        tokens = _split_compact_text(
+            subtitle.text,
+            subtitle.language_code,
+            max_token_length=_compact_split_token_length(subtitle.language_code),
+        )
 
     if not tokens or total_chunks <= 1:
         return subtitle.text
@@ -1802,7 +1964,11 @@ def _split_subtitle_sentences_by_text(
 ) -> list[SubtitleSegment]:
     tokens = subtitle.text.split()
     if _is_compact_language(subtitle.language_code):
-        tokens = _split_compact_text(subtitle.text, subtitle.language_code)
+        tokens = _split_compact_text(
+            subtitle.text,
+            subtitle.language_code,
+            max_token_length=_compact_split_token_length(subtitle.language_code),
+        )
 
     if not tokens:
         return [subtitle]
@@ -2059,7 +2225,11 @@ def _split_subtitle_by_text(
 ) -> list[SubtitleSegment]:
     words = subtitle.text.split()
     if _is_compact_language(subtitle.language_code):
-        words = _split_compact_text(subtitle.text, subtitle.language_code)
+        words = _split_compact_text(
+            subtitle.text,
+            subtitle.language_code,
+            max_token_length=_compact_split_token_length(subtitle.language_code),
+        )
 
     if not words:
         return [subtitle]
@@ -2088,6 +2258,11 @@ def _split_subtitle_by_text(
         chunks,
         total_duration=total_duration,
         min_split_duration_seconds=min_split_duration_seconds,
+    )
+    chunks = _rebalance_short_text_chunks(
+        chunks,
+        language_code=subtitle.language_code,
+        max_text_length=max_text_length,
     )
     if len(chunks) <= 1:
         return [subtitle]
@@ -2414,7 +2589,11 @@ def _is_compact_language(language_code: str | None) -> bool:
 def _split_compact_text(
     text: str,
     language_code: str | None = None,
+    max_token_length: int | None = None,
 ) -> list[str]:
+    resolved_max_token_length = max_token_length or _compact_split_token_length(
+        language_code
+    )
     tokens = []
     current_token = ""
     for character in text:
@@ -2423,6 +2602,7 @@ def _split_compact_text(
                 tokens.extend(
                     _split_long_compact_token(
                         current_token,
+                        max_token_length=resolved_max_token_length,
                         language_code=language_code,
                     )
                 )
@@ -2436,10 +2616,19 @@ def _split_compact_text(
 
     if current_token:
         tokens.extend(
-            _split_long_compact_token(current_token, language_code=language_code)
+            _split_long_compact_token(
+                current_token,
+                max_token_length=resolved_max_token_length,
+                language_code=language_code,
+            )
         )
 
     return tokens
+
+
+def _compact_split_token_length(language_code: str | None) -> int:
+    normalized_language = (language_code or "").lower()
+    return max(12, RENDER_MAX_LINE_LENGTHS.get(normalized_language, 22))
 
 
 def _split_long_compact_token(
@@ -2601,6 +2790,18 @@ def _extract_runtime_options(
             options.get(
                 "translated_subtitle_min_split_seconds",
                 os.getenv("AI_TRANSLATED_SUBTITLE_MIN_SPLIT_SECONDS", "1.5"),
+            )
+        ),
+        "translation_block_max_seconds": float(
+            options.get(
+                "translation_block_max_seconds",
+                os.getenv("AI_TRANSLATION_BLOCK_MAX_SECONDS", "12.0"),
+            )
+        ),
+        "translation_block_max_chars": int(
+            options.get(
+                "translation_block_max_chars",
+                os.getenv("AI_TRANSLATION_BLOCK_MAX_CHARS", "180"),
             )
         ),
         "frame_interval": float(
