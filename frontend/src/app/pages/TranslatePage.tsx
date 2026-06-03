@@ -814,16 +814,16 @@ export function TranslatePage() {
   };
 
   return (
-    <div className="h-screen bg-white flex flex-col overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-white flex flex-col md:overflow-hidden">
 
       {/* ── 상단 헤더 ── */}
       <Header fluid />
 
-      {/* ── 본문 (3단 레이아웃) ── */}
-      <div className="flex flex-1 overflow-hidden px-16 pt-3">
+      {/* ── 본문 (데스크탑: 3단 / 모바일: 세로 스택) ── */}
+      <div className="flex flex-col md:flex-row md:flex-1 md:overflow-hidden md:px-16 md:pt-3">
 
         {/* ── 왼쪽: 영상 영역 ── */}
-        <div className="flex flex-col w-[55%] border-r border-slate-200 overflow-hidden shrink-0">
+        <div className="flex flex-col md:w-[55%] md:border-r border-slate-200 md:overflow-hidden md:shrink-0">
           {/* 영상 플레이어 */}
           {/* 외부 컨테이너: fullscreen 시 화면 전체 + 중앙 정렬 */}
           <div
@@ -1106,7 +1106,7 @@ export function TranslatePage() {
         </div>
 
         {/* ── 오른쪽: 탭 패널 ── */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-1 md:overflow-hidden min-h-[60vh] md:min-h-0">
 
           {/* 탭 헤더 */}
           <div className="flex items-center border-b border-slate-200 shrink-0 px-2 bg-white">

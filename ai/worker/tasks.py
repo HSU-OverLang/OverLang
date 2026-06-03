@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
+class DeletedBackendJobSkipped(Exception):
+    """Backend에서 삭제된 Job을 감지했을 때 Celery 작업을 정상 skip하기 위한 예외입니다."""
+
+
 def _build_task_meta(
     progress: float,
     current_stage: CurrentStage,
@@ -83,6 +87,11 @@ def _execute_job_task(self, job_payload: dict):
             progress: float,
             extra: dict | None = None,
         ) -> None:
+            if not is_backend_job_valid(callback_job_id):
+                raise DeletedBackendJobSkipped(
+                    f"Backend job is no longer valid: {callback_job_id}"
+                )
+
             task_progress["progress"] = float(progress)
             task_progress["current_stage"] = current_stage
             self.update_state(
@@ -113,6 +122,21 @@ def _execute_job_task(self, job_payload: dict):
             result.warnings
         )
 
+        if not is_backend_job_valid(callback_job_id):
+            logger.info(
+                "Completed result skipped because backend job is no longer valid: jobId=%s",
+                callback_job_id,
+            )
+            self.update_state(
+                state=JobStatus.COMPLETED.value,
+                meta=_build_task_meta(100.0, CurrentStage.FINALIZING),
+            )
+            return {
+                "jobId": callback_job_id,
+                "skipped": True,
+                "reason": "BACKEND_JOB_NOT_VALID_AFTER_PROCESSING",
+            }
+
         send_callback(
             CallbackPayload(
                 job_id=callback_job_id,
@@ -127,6 +151,23 @@ def _execute_job_task(self, job_payload: dict):
             )
         )
         return result.model_dump(by_alias=True)
+    except DeletedBackendJobSkipped:
+        logger.info(
+            "Task skipped because backend job was deleted while running: jobId=%s",
+            callback_job_id,
+        )
+        self.update_state(
+            state=JobStatus.COMPLETED.value,
+            meta=_build_task_meta(
+                float(task_progress["progress"]),
+                task_progress["current_stage"],
+            ),
+        )
+        return {
+            "jobId": callback_job_id,
+            "skipped": True,
+            "reason": "BACKEND_JOB_NOT_VALID_DURING_PROCESSING",
+        }
     except Exception as error:
         error_code = ErrorCode.UNKNOWN_ERROR
         error_message = str(error)
