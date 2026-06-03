@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
   Upload,
-  Video,
   FileVideo,
   CheckCircle,
   Link as LinkIcon,
@@ -114,7 +113,7 @@ export function UploadPage() {
         let job;
         try {
           setUploadStep("AI 분석 작업을 등록하는 중... (3/3)");
-          job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+          job = await createJob(project.projectId!, sourceLanguage, targetLanguage);
         } catch (err) {
           console.error("[OverLang] AI Job 생성 실패:", err);
           throw new Error("AI 분석 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
@@ -140,7 +139,7 @@ export function UploadPage() {
         let job;
         try {
           setUploadStep("AI 분석 작업을 등록하는 중... (2/2)");
-          job = await createJob(project.projectId, sourceLanguage, targetLanguage);
+          job = await createJob(project.projectId!, sourceLanguage, targetLanguage);
         } catch (err) {
           console.error("[OverLang] AI Job 생성 실패:", err);
           throw new Error("AI 분석 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");

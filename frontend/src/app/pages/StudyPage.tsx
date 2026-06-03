@@ -206,7 +206,6 @@ function WordNetworkSVG({ word, relatedWords }: {
 // ── 메인 컴포넌트 ─────────────────────────────────────
 
 export function StudyPage() {
-  const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [words, setWords] = useState<SavedWord[]>([]);
   const [wordsLoading, setWordsLoading] = useState(true);
@@ -455,7 +454,9 @@ export function StudyPage() {
 
                     {/* 뜻 */}
                     {word.meaning && (
-                      <p className="text-xs text-slate-500 leading-relaxed mb-1.5">{word.meaning}</p>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-1.5 whitespace-pre-line">
+                        {word.meaning.replace(/(?<!\n)\[/g, '\n[').trimStart()}
+                      </p>
                     )}
 
                     {/* 하단 행: 출처 + 날짜 + TTS + 삭제 */}
@@ -470,7 +471,7 @@ export function StudyPage() {
                       {/* TTS */}
                       <button
                         onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
-                        className="flex h-7 w-7 items-center justify-center rounded-xl bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-all shrink-0"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 hover:bg-[emerald-100] text-[#0aa633] transition-colors shrink-0"
                       >
                         <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
@@ -592,7 +593,7 @@ export function StudyPage() {
                   <p className="text-xs font-semibold text-slate-500 mb-1.5">{safeIndex + 1} / {filtered.length}</p>
                   <div className="w-full bg-slate-100 rounded-full h-1">
                     <div
-                      className="bg-orange-400 h-1 rounded-full transition-all duration-300"
+                      className="bg-[#0aa633] h-1 rounded-full transition-all duration-300"
                       style={{ width: `${((safeIndex + 1) / filtered.length) * 100}%` }}
                     />
                   </div>
@@ -639,14 +640,13 @@ export function StudyPage() {
                     )}
                     <button
                       onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-50 hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors mt-1"
-                    >
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 hover:bg-[emerald-100] text-[#0aa633] transition-colors shrink-0"                    >
                       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
                       </svg>
                     </button>
                     {word.projectTitle && (
-                      <p className="text-[10px] text-slate-300 mt-6 max-w-[180px] truncate text-center">{word.projectTitle}</p>
+                      <p className="text-[10px] text-slate-300 mt-6 text-center leading-relaxed px-4">{word.projectTitle}</p>
                     )}
                     <p className="text-xs text-slate-300 mt-1">탭하여 뜻 확인 →</p>
                   </div>
@@ -658,10 +658,20 @@ export function StudyPage() {
                       WebkitBackfaceVisibility: 'hidden',
                       transform: 'rotateY(180deg)',
                     }}
-                    className="absolute inset-0 flex flex-col rounded-3xl bg-gradient-to-br from-orange-400 to-amber-400 shadow-xl p-7"
+                    className="absolute inset-0 flex flex-col rounded-3xl bg-white border-3 border-[#dedede] shadow-xl p-7"
                   >
-                    {/* 단어 */}
-                    <p className="text-lg font-extrabold text-white/90 mb-4 text-center">{word.word}</p>
+                    {/* 단어 + TTS (우측 상단) */}
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xl font-extrabold text-slate-800">{word.word}</p>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 hover:bg-[emerald-100] text-[#0aa633] transition-colors shrink-0"
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                        </svg>
+                      </button>
+                    </div>
 
                     {/* 직역 / 실제 의미 섹션만 표시 */}
                     <div className="flex flex-col gap-3 flex-1">
@@ -675,34 +685,24 @@ export function StudyPage() {
                             .filter((s): s is { label: string; body: string } => !!s && TARGET.includes(s.label));
                           if (filtered.length > 0) {
                             return filtered.map((s, i) => (
-                              <div key={i} className="bg-white/20 rounded-2xl px-4 py-3.5 flex-1">
-                                <p className="text-[10px] font-bold text-orange-100 uppercase tracking-wider mb-1.5">{s.label}</p>
-                                <p className="text-sm font-semibold text-white leading-relaxed">{s.body}</p>
+                              <div key={i} className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3.5 flex-1">
+                                <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider mb-1.5">{s.label}</p>
+                                <p className="text-sm font-semibold text-slate-700 leading-relaxed">{s.body}</p>
                               </div>
                             ));
                           }
                         }
                         // 섹션 없으면 전체 의미 표시
                         return (
-                          <div className="bg-white/20 rounded-2xl px-4 py-3.5 flex-1 flex items-center justify-center">
-                            <p className="text-base font-bold text-white text-center leading-snug">{word.meaning}</p>
+                          <div className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3.5 flex-1 flex items-center justify-center">
+                            <p className="text-base font-bold text-slate-700 text-center leading-snug">{word.meaning}</p>
                           </div>
                         );
                       })()}
                     </div>
 
-                    {/* 하단 */}
-                    <div className="flex items-center justify-between mt-4">
-                      <button
-                        onClick={e => { e.stopPropagation(); handleTTS(word.word, word.lang); }}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/25 hover:bg-white/40 text-white transition-colors shrink-0"
-                      >
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                        </svg>
-                      </button>
-                      <p className="text-xs text-orange-100/60 shrink-0">{new Date(word.createdAt).toLocaleDateString('ko-KR')}</p>
-                    </div>
+
+                    {/* (하단 버튼 제거 - TTS 단어 옆으로 이동) */}
                   </div>
                 </div>
               </div>

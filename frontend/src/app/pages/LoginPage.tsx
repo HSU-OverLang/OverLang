@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { cn } from '@/utils/cn';
 
 export function LoginPage() {
   const navigate = useNavigate();

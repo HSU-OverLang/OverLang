@@ -47,7 +47,7 @@ export function ProcessingPage() {
   const [status, setStatus] = useState<'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'>('PENDING');
   const [currentStage, setCurrentStage] = useState('QUEUED');
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [_errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

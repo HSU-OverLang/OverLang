@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { Header } from '@/components/layout/Header';
 
-const SECTIONS = ['hero', 'demo', 'words', 'summary', 'studynote', 'grid', 'start'];
 
 // 타이핑 애니메이션 훅
 function useTypingEffect(text: string, speed = 60, startDelay = 400) {
@@ -148,7 +147,7 @@ export function HomePage() {
   const [visible, setVisible] = useState<Set<number>>(new Set([0]));
 
   const { displayed: typedLine1, done: line1Done } = useTypingEffect('영상 속 언어를', 70, 300);
-  const { displayed: typedLine2, done: line2Done } = useTypingEffect('완전히 이해하세요.', 70, line1Done ? 100 : 99999);
+  const { displayed: typedLine2 } = useTypingEffect('완전히 이해하세요.', 70, line1Done ? 100 : 99999);
 
   useEffect(() => {
     const el = containerRef.current;
