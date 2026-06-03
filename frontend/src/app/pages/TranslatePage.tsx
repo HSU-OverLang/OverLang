@@ -1072,23 +1072,6 @@ export function TranslatePage() {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-slate-200 mx-0.5" />
-
-            {/* OCR 폰트 크기 */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-medium mr-0.5 bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">OCR</span>
-              {(['small', 'medium', 'large'] as const).map(size => (
-                <button
-                  key={size}
-                  onClick={() => setOcrFontSize(size)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                    ocrFontSize === size ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {size === 'small' ? '작게' : size === 'medium' ? '중간' : '크게'}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* 자막 전체 스크롤 리스트 */}
