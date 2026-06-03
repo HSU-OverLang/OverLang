@@ -4,8 +4,10 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
-// firebase 인증 사용을 위한 서버 초기화 설정
 @Slf4j
 @Configuration
 public class FirebaseConfig {
@@ -21,33 +22,38 @@ public class FirebaseConfig {
   @Value("${firebase.service-account-path:}")
   private String keyPath;
 
+  @Value("${firebase.service-account-json:}")
+  private String serviceAccountJson;
+
   @PostConstruct
   public void init() {
-    if (keyPath == null || keyPath.isBlank()) {
-      log.warn("Firebase disabled: FIREBASE_SERVICE_ACCOUNT_PATH is empty");
-      return;
-    }
-
     if (!FirebaseApp.getApps().isEmpty()) {
       log.info("Firebase already initialized");
       return;
     }
 
-    try (InputStream in = getServiceAccountStream(keyPath)) {
-
+    try (InputStream in = getServiceAccountStream()) {
       FirebaseOptions options =
           FirebaseOptions.builder().setCredentials(GoogleCredentials.fromStream(in)).build();
 
       FirebaseApp.initializeApp(options);
-      log.info("Firebase Admin initialized successfully (path: {})", keyPath);
+      log.info("Firebase Admin initialized successfully");
 
     } catch (Exception e) {
       log.error("Firebase initialization failed", e);
     }
   }
 
-  private InputStream getServiceAccountStream(String path) throws Exception {
-    String trimmed = (path == null) ? "" : path.trim();
+  private InputStream getServiceAccountStream() throws Exception {
+    if (serviceAccountJson != null && !serviceAccountJson.isBlank()) {
+      return new ByteArrayInputStream(serviceAccountJson.getBytes(StandardCharsets.UTF_8));
+    }
+
+    String trimmed = (keyPath == null) ? "" : keyPath.trim();
+
+    if (trimmed.isBlank()) {
+      throw new IllegalStateException("Firebase service account is not configured");
+    }
 
     if (trimmed.startsWith("classpath:")) {
       String cp = trimmed.substring("classpath:".length());
