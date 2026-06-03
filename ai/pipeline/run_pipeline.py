@@ -511,6 +511,15 @@ def run_pipeline(
                         translation_block_max_chars=int(
                             runtime_options["translation_block_max_chars"]
                         ),
+                        translated_subtitle_max_seconds=float(
+                            runtime_options["translated_subtitle_max_seconds"]
+                        ),
+                        translated_subtitle_max_chars=int(
+                            runtime_options["translated_subtitle_max_chars"]
+                        ),
+                        translated_subtitle_min_split_seconds=float(
+                            runtime_options["translated_subtitle_min_split_seconds"]
+                        ),
                     )
                 )
                 save_intermediate(
@@ -1174,6 +1183,9 @@ def _run_translation_stage(
     source_language: str | None,
     translation_block_max_seconds: float,
     translation_block_max_chars: int,
+    translated_subtitle_max_seconds: float,
+    translated_subtitle_max_chars: int,
+    translated_subtitle_min_split_seconds: float,
 ) -> list[str]:
     target_language = job.target_language
     if target_language is None:
@@ -1223,6 +1235,14 @@ def _run_translation_stage(
 
     for subtitle, translated_text in zip(subtitles, subtitle_translations):
         subtitle.translated_text = translated_text
+
+    subtitles[:] = _split_translated_subtitles_for_rendering(
+        subtitles,
+        target_language=target_language,
+        max_duration_seconds=translated_subtitle_max_seconds,
+        max_text_length=translated_subtitle_max_chars,
+        min_split_duration_seconds=translated_subtitle_min_split_seconds,
+    )
 
     for ocr_item in preserved_ocr_items:
         ocr_item.translated_text = ocr_item.origin_text
@@ -1350,6 +1370,9 @@ def _split_translated_subtitles_for_rendering(
         max_text_length,
     )
     split_subtitles: list[SubtitleSegment] = []
+    has_explicit_translation_lines = any(
+        "\n" in (subtitle.translated_text or "") for subtitle in subtitles
+    )
     for subtitle in subtitles:
         split_subtitles.extend(
             _split_translated_subtitle_for_rendering(
@@ -1360,6 +1383,11 @@ def _split_translated_subtitles_for_rendering(
                 min_split_duration_seconds=min_split_duration_seconds,
             )
         )
+
+    if has_explicit_translation_lines:
+        for index, subtitle in enumerate(split_subtitles, start=1):
+            subtitle.seq = index
+        return split_subtitles
 
     split_subtitles = _merge_short_translated_subtitles(
         split_subtitles,
@@ -1422,6 +1450,22 @@ def _split_text_for_rendering(
     max_text_length: int,
     min_split_duration_seconds: float,
 ) -> list[str]:
+    explicit_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(explicit_lines) > 1:
+        chunks: list[str] = []
+        for line in explicit_lines:
+            chunks.extend(
+                _split_text_for_rendering(
+                    line,
+                    language_code=language_code,
+                    total_duration=total_duration / len(explicit_lines),
+                    max_duration_seconds=max_duration_seconds,
+                    max_text_length=max_text_length,
+                    min_split_duration_seconds=min_split_duration_seconds,
+                )
+            )
+        return chunks
+
     tokens = text.split()
     if _is_compact_language(language_code):
         tokens = _split_compact_text(
@@ -1764,7 +1808,10 @@ def _build_subtitles(
                 seq=index,
                 start_time=_round_time(segment["startTime"]),
                 end_time=_round_time(segment["endTime"]),
-                text=str(segment["text"]).strip(),
+                text=_normalize_subtitle_text(
+                    str(segment["text"]).strip(),
+                    segment.get("languageCode") or source_language,
+                ),
                 translated_text=None,
                 language_code=segment.get("languageCode") or source_language,
                 words=_build_word_timings(segment.get("words", [])),
@@ -1816,7 +1863,11 @@ def _postprocess_subtitles(
         ):
             previous = merged_subtitles[-1]
             previous.end_time = _round_time(max(previous.end_time, subtitle.end_time))
-            previous.text = f"{previous.text} {subtitle.text}".strip()
+            previous.text = _merge_source_texts(
+                previous.text,
+                subtitle.text,
+                subtitle.language_code,
+            )
             previous.words.extend(subtitle.words)
             continue
 
@@ -1839,6 +1890,49 @@ def _postprocess_subtitles(
         subtitle.seq = index
 
     return split_subtitles
+
+
+def _normalize_subtitle_text(text: str, language_code: str | None) -> str:
+    normalized_text = " ".join(str(text).split())
+    if not _is_compact_language(language_code):
+        return normalized_text
+
+    return _normalize_compact_source_text(normalized_text, language_code)
+
+
+def _merge_source_texts(
+    first: str | None,
+    second: str | None,
+    language_code: str | None,
+) -> str:
+    texts = [text.strip() for text in (first, second) if text and text.strip()]
+    if not texts:
+        return ""
+
+    if _is_compact_language(language_code):
+        return _normalize_compact_source_text("".join(texts), language_code)
+
+    return " ".join(texts)
+
+
+def _normalize_compact_source_text(text: str, language_code: str | None) -> str:
+    compact_text = "".join(str(text).split())
+    if _language_family(language_code) == "ja":
+        compact_text = _normalize_japanese_source_text(compact_text)
+
+    return compact_text
+
+
+def _normalize_japanese_source_text(text: str) -> str:
+    replacements = {
+        "色取り取り": "色とりどり",
+        "色取取り": "色とりどり",
+    }
+    normalized_text = text
+    for source, target in replacements.items():
+        normalized_text = normalized_text.replace(source, target)
+
+    return normalized_text
 
 
 def _apply_subtitle_time_offset(
