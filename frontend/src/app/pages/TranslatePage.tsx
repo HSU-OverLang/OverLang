@@ -824,16 +824,16 @@ export function TranslatePage() {
   };
 
   return (
-    <div className="h-screen bg-white flex flex-col overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-white flex flex-col md:overflow-hidden">
 
       {/* ── 상단 헤더 ── */}
       <Header fluid />
 
-      {/* ── 본문 (3단 레이아웃) ── */}
-      <div className="flex flex-1 overflow-hidden px-16 pt-3">
+      {/* ── 본문 (데스크탑: 3단 / 모바일: 세로 스택) ── */}
+      <div className="flex flex-col md:flex-row md:flex-1 md:overflow-hidden md:px-16 md:pt-3">
 
         {/* ── 왼쪽: 영상 영역 ── */}
-        <div className="flex flex-col w-[55%] border-r border-slate-200 overflow-hidden shrink-0">
+        <div className="flex flex-col md:w-[55%] md:border-r border-slate-200 md:overflow-hidden md:shrink-0">
           {/* 영상 플레이어 */}
           {/* 외부 컨테이너: fullscreen 시 화면 전체 + 중앙 정렬 */}
           <div
@@ -844,8 +844,7 @@ export function TranslatePage() {
             {/* fullscreen 시 aspect-ratio + max 제약으로 contain 동작 */}
             <div
               ref={videoWrapperRef}
-              className={`relative w-full overflow-hidden${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ''}`}
-              style={isFullscreen ? undefined : { height: 'calc((100vh - 53px) * 2 / 3)' }}
+              className={`relative w-full overflow-hidden${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ' aspect-video md:aspect-auto'}`}
             >
             {videoLoading ? (
               <div className="w-full h-full flex items-center justify-center">
@@ -1115,7 +1114,7 @@ export function TranslatePage() {
         </div>
 
         {/* ── 오른쪽: 탭 패널 ── */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-1 md:overflow-hidden min-h-[60vh] md:min-h-0">
 
           {/* 탭 헤더 */}
           <div className="flex items-center border-b border-slate-200 shrink-0 px-2 bg-white">
@@ -1243,7 +1242,7 @@ export function TranslatePage() {
 
               {/* 자막 목록 */}
               <div className={`flex flex-col ${rightPanel ? 'w-1/2 border-r border-slate-200' : 'w-full'} overflow-hidden`}>
-                <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0 h-[41px]">
                   <p className="text-xs font-bold text-slate-600">
                     {dataLoading ? '불러오는 중...' : `${subtitles.length}개의 자막`}
                   </p>
@@ -1408,8 +1407,8 @@ export function TranslatePage() {
 
               {/* 단어 해설 / 문장 분석 패널 (분할 뷰) */}
               {rightPanel && (
-                <div className="w-1/2 flex flex-col overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
+                <div className="w-1/2 flex flex-col overflow-hidden border-l border-slate-200">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0 h-[41px]">
                     <p className="text-xs font-bold text-slate-600">
                       {rightPanel === 'word' ? '단어 해설' : '문장 분석'}
                     </p>

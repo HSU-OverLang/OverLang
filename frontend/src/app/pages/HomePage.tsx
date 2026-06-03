@@ -187,7 +187,7 @@ export function HomePage() {
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-200 to-transparent pointer-events-none" />
 
             {/* 헤드라인 (타이핑 효과) */}
-            <h1 className="relative z-10 text-5xl md:text-7xl font-black leading-[1.2] text-slate-900 tracking-normal max-w-3xl">
+            <h1 className="relative z-10 text-4xl sm:text-5xl md:text-7xl font-black leading-[1.2] text-slate-900 tracking-normal max-w-3xl">
               <span className="block">
                 {typedLine1}
               </span>
@@ -196,7 +196,7 @@ export function HomePage() {
               </span>
             </h1>
 
-            <p className="relative z-10 mt-6 text-lg text-slate-500 leading-relaxed font-normal whitespace-nowrap">
+            <p className="relative z-10 mt-6 text-base sm:text-lg text-slate-500 leading-relaxed font-normal px-2">
               음성 자막부터 화면 텍스트까지, AI가 영상 속 모든 언어를 통합 번역합니다.
             </p>
 
@@ -298,7 +298,7 @@ export function HomePage() {
               </Anim>
             </div>
 
-            <Anim from="left" vis={visible.has(2)} delay={200} className="relative w-full md:w-1/2 max-w-sm">
+            <Anim from="left" vis={visible.has(2)} delay={200} className="hidden md:block relative w-full md:w-1/2 max-w-sm">
               <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xl shadow-slate-100">
                 <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 mb-4">
                   <p className="text-xs text-slate-400 mb-3">자막 텍스트</p>
@@ -373,7 +373,7 @@ export function HomePage() {
             </div>
 
             {/* 데모 카드 */}
-            <Anim from="right" vis={visible.has(3)} delay={200} className="relative w-full md:w-1/2 max-w-sm">
+            <Anim from="right" vis={visible.has(3)} delay={200} className="hidden md:block relative w-full md:w-1/2 max-w-sm">
               <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xl shadow-slate-100">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
@@ -458,7 +458,7 @@ export function HomePage() {
             </div>
 
             {/* 데모 카드 */}
-            <Anim from="left" vis={visible.has(4)} delay={200} className="relative w-full md:w-1/2 max-w-sm">
+            <Anim from="left" vis={visible.has(4)} delay={200} className="hidden md:block relative w-full md:w-1/2 max-w-sm">
               <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xl shadow-slate-100">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -582,10 +582,10 @@ export function HomePage() {
 
             <div className="relative max-w-xl">
 
-              <h2 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-normal mb-6 whitespace-nowrap">
+              <h2 className="text-4xl sm:text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-normal mb-6">
                 지금 바로 <span className="text-emerald-500">시작하세요.</span>
               </h2>
-              <p className="text-lg text-slate-500 font-normal mb-10 leading-relaxed whitespace-nowrap">
+              <p className="text-base sm:text-lg text-slate-500 font-normal mb-10 leading-relaxed">
                 무료로 시작하고, 영상 시청과 동시에 자연스럽게 언어를 학습하세요.
               </p>
               <button
