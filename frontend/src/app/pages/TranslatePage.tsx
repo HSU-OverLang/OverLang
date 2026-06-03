@@ -179,18 +179,6 @@ interface OcrOverlay {
 // ── 목 데이터 ──────────────────────────────────────────
 const DEMO_VIDEO = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
-const MOCK_SUBTITLES: SubtitleItem[] = [
-  { id: 1, start: '00:00:00', end: '00:00:03', startSec: 0,  endSec: 3,  original: 'Hello, everyone! Welcome to our English learning session.', translation: '안녕하세요, 여러분! 영어 학습 세션에 오신 것을 환영합니다.', words: [] },
-  { id: 2, start: '00:00:03', end: '00:00:07', startSec: 3,  endSec: 7,  original: "Today, we're going to dive into some essential business idioms.", translation: '오늘은 필수적인 비즈니스 관용구들을 본격적으로 배워보겠습니다.', words: [] },
-  { id: 3, start: '00:00:07', end: '00:00:12', startSec: 7,  endSec: 12, original: 'These phrases will help you sound more natural in professional settings.', translation: '이 표현들은 전문적인 환경에서 더 자연스럽게 들리는 데 도움이 될 것입니다.', words: [] },
-  { id: 4, start: '00:00:12', end: '00:00:16', startSec: 12, endSec: 16, original: 'Remember, practice makes perfect!', translation: '기억하세요, 연습이 완벽함을 만듭니다!', words: [] },
-  { id: 5, start: '00:00:16', end: '00:00:20', startSec: 16, endSec: 20, original: "Let's get the ball rolling with our first idiom.", translation: '첫 번째 관용구로 시작해 봅시다.', words: [] },
-];
-
-const MOCK_OCR: OcrOverlay[] = [
-  { id: 1, original: 'Business Idioms', translation: '비즈니스 관용구', x: 15, y: 18, w: 20, h: 5, startSec: 0, endSec: 999 },
-  { id: 2, original: 'Chapter 1',       translation: '챕터 1',           x: 15, y: 30, w: 12, h: 5, startSec: 0, endSec: 999 },
-];
 
 type RightPanel = 'word' | 'sentence' | null;
 type ActiveTab = '요약' | '자막' | '관용표현';
