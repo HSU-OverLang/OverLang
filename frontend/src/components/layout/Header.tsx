@@ -44,14 +44,8 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
       <div className={`flex items-center justify-between ${fluid ? 'w-full h-14 px-16' : 'mx-auto h-16 max-w-6xl px-6'}`}>
 
         {/* ── 로고 ── */}
-        <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 shadow-sm group-hover:bg-emerald-500 transition-colors">
-            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-            </svg>
-          </div>
-          <span className="text-[15px] font-bold text-slate-900 tracking-tight">OverLang</span>
+        <Link to="/" className="flex items-center shrink-0">
+          <img src="/Logo.png" alt="OverLang" className="h-20 w-auto" />
         </Link>
 
         {/* ── 로그인 상태별 우측 영역 ── */}
