@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +12,8 @@ BLUR_PADDING_RATIO = 0.01
 BACKGROUND_SAMPLE_PADDING_RATIO = 0.015
 BOLD_STROKE_CONTRAST_THRESHOLD = 55
 BOLD_DARK_PIXEL_RATIO_THRESHOLD = 0.18
+DEFAULT_FONT_SCALE = 0.66
+DEFAULT_FONT_RATIO_MAX = 0.045
 
 
 def build_ocr_style(
@@ -41,9 +44,9 @@ def build_ocr_style(
     if pixels.size == 0:
         return None
 
-    background_color = _mean_color(pixels)
     dominant_background_color = _dominant_color(pixels)
-    text_color = _readable_text_color(background_color)
+    background_color = _mean_color(pixels)
+    text_color = _estimate_text_color(pixels, dominant_background_color)
 
     return OcrStyle(
         background_color=background_color,
@@ -118,13 +121,76 @@ def _readable_text_color(background_color: str) -> str:
     return "#000000" if luminance >= 160 else "#FFFFFF"
 
 
+def _estimate_text_color(pixels: np.ndarray, background_color: str) -> str:
+    background_rgb = _hex_to_rgb(background_color)
+    flattened_pixels = pixels.reshape(-1, 3).astype(float)
+    distances = np.linalg.norm(flattened_pixels - background_rgb, axis=1)
+    if distances.size == 0:
+        return _readable_text_color(background_color)
+
+    threshold = max(45.0, float(np.percentile(distances, 82)))
+    foreground_pixels = flattened_pixels[distances >= threshold]
+    if len(foreground_pixels) < 8:
+        return _readable_text_color(background_color)
+
+    background_luminance = _luminance(background_rgb)
+    foreground_luminance = np.apply_along_axis(_luminance, 1, foreground_pixels)
+    if background_luminance < 128:
+        preferred_pixels = foreground_pixels[
+            foreground_luminance >= background_luminance + 35
+        ]
+    else:
+        preferred_pixels = foreground_pixels[
+            foreground_luminance <= background_luminance - 35
+        ]
+
+    if len(preferred_pixels) >= 8:
+        foreground_pixels = preferred_pixels
+
+    return _dominant_color(foreground_pixels.astype(np.uint8))
+
+
+def _hex_to_rgb(color: str) -> np.ndarray:
+    try:
+        return np.array(
+            [
+                int(color[1:3], 16),
+                int(color[3:5], 16),
+                int(color[5:7], 16),
+            ],
+            dtype=float,
+        )
+    except (TypeError, ValueError):
+        return np.array([0, 0, 0], dtype=float)
+
+
+def _luminance(rgb: np.ndarray) -> float:
+    return float((0.299 * rgb[0]) + (0.587 * rgb[1]) + (0.114 * rgb[2]))
+
+
 def _estimate_font_size_ratio(
     bounding_box: BoundingBox,
     line_count: int,
 ) -> float:
     safe_line_count = max(1, line_count)
     line_height_ratio = bounding_box.h / safe_line_count
-    return round(max(0.0, line_height_ratio * 0.82), 6)
+    font_size_ratio = line_height_ratio * _font_scale()
+    return round(max(0.0, min(font_size_ratio, _font_ratio_max())), 6)
+
+
+def _font_scale() -> float:
+    return _float_env("AI_OCR_FONT_SCALE", DEFAULT_FONT_SCALE)
+
+
+def _font_ratio_max() -> float:
+    return _float_env("AI_OCR_FONT_RATIO_MAX", DEFAULT_FONT_RATIO_MAX)
+
+
+def _float_env(env_name: str, default_value: float) -> float:
+    try:
+        return float(os.getenv(env_name, default_value))
+    except (TypeError, ValueError):
+        return default_value
 
 
 def _estimate_font_weight(pixels: np.ndarray) -> str:
