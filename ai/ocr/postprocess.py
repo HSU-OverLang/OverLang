@@ -15,11 +15,15 @@ LINE_HORIZONTAL_GAP_MIN = 0.035
 BLOCK_HORIZONTAL_OVERLAP_THRESHOLD = 0.55
 BLOCK_VERTICAL_GAP_RATIO = 1.1
 BLOCK_VERTICAL_GAP_MIN = 0.025
+BLOCK_X_ALIGNMENT_TOLERANCE = 0.075
+BLOCK_WIDTH_RATIO_THRESHOLD = 0.55
+BLOCK_MAX_LINE_COUNT = 3
 TRACK_COVERAGE_PADDING_RATIO = 0.012
 TRACK_MULTILINE_COVERAGE_PADDING_RATIO = 0.018
 TRACK_START_DELAY_SECONDS = 0.15
 TRACK_END_TRIM_SECONDS = 0.05
 TRACK_MISSING_TOLERANCE_SECONDS = 0.8
+TRACK_MAX_MISSING_EXTENSION_SECONDS = 0.45
 MIN_OCR_ITEM_DURATION_SECONDS = 0.25
 DUPLICATE_TEXT_SIMILARITY_THRESHOLD = 0.85
 DUPLICATE_BBOX_IOU_THRESHOLD = 0.45
@@ -33,8 +37,10 @@ TRACK_CENTER_DISTANCE_MIN = 0.08
 TRACK_STABLE_CENTER_DISTANCE_RATIO = 1.15
 TRACK_STABLE_CENTER_DISTANCE_MIN = 0.045
 TRACK_STABLE_SIZE_CHANGE_RATIO = 0.65
-TRACK_RELATED_TEXT_THRESHOLD = 0.55
-TRACK_TOKEN_OVERLAP_THRESHOLD = 0.5
+TRACK_STRONG_BBOX_IOU_THRESHOLD = 0.62
+TRACK_STRONG_BBOX_CONTAINMENT_THRESHOLD = 0.72
+TRACK_RELATED_TEXT_THRESHOLD = 0.72
+TRACK_TOKEN_OVERLAP_THRESHOLD = 0.7
 TEXT_VOTE_SIMILARITY_THRESHOLD = 0.88
 STABLE_MIN_DETECTIONS = 3
 STABLE_MIN_AVG_CONFIDENCE = 0.6
@@ -44,6 +50,7 @@ PROGRESSIVE_TEXT_MIN_LENGTH = 2
 PROGRESSIVE_TEXT_MIN_LENGTH_RATIO = 0.35
 PROGRESSIVE_TEXT_MAX_LENGTH_RATIO = 0.85
 PROGRESSIVE_TEXT_SCORE = 0.88
+TYPEWRITER_ANIMATION_ENABLED = False
 SHORT_TEXT_CONFIDENCE_THRESHOLD = 0.45
 SHORT_TEXT_MAX_LENGTH = 3
 LOW_IMPORTANCE_TEXT_CONFIDENCE_THRESHOLD = 0.0
@@ -53,10 +60,14 @@ MAX_CONSECUTIVE_DUPLICATE_TOKENS = 0
 SINGLE_LETTER_TOKEN_RATIO_THRESHOLD = 0.8
 MIN_BBOX_WIDTH = 0.025
 MIN_BBOX_HEIGHT = 0.015
+MAX_BBOX_WIDTH = 0.82
+MAX_BBOX_HEIGHT = 0.55
+MAX_BBOX_AREA = 0.32
 GIBBERISH_ALPHA_MIN_LENGTH = 4
 GIBBERISH_ALPHA_VOWEL_RATIO_THRESHOLD = 0.15
 TRANSLATION_MIN_CONFIDENCE = 0.6
 LOW_PRIORITY_VARIANT_MIN_CONFIDENCE = 0.7
+MAX_TEXT_GROWTH_RATIO = 1.65
 DEFAULT_LOW_PRIORITY_OCR_VARIANTS = {
     "invert_threshold",
     "threshold",
@@ -276,6 +287,9 @@ def _is_valid_raw_item(
     if _is_too_small_bbox(raw_item["boundingBox"]):
         return False
 
+    if _is_too_large_bbox(raw_item["boundingBox"]):
+        return False
+
     raw_item["originText"] = text
     return True
 
@@ -308,11 +322,25 @@ def _clean_ocr_text(text: str) -> str:
     if not text.strip():
         return ""
 
-    lines = [
-        _collapse_consecutive_duplicate_tokens(" ".join(line.strip().split()))
-        for line in text.strip().splitlines()
-        if line.strip()
-    ]
+    lines = []
+    previous_normalized_line = ""
+    for raw_line in text.strip().splitlines():
+        line = " ".join(raw_line.strip().split())
+        if not line:
+            continue
+
+        line = _collapse_repeated_text_pattern(
+            _collapse_consecutive_duplicate_phrases(
+                _collapse_consecutive_duplicate_tokens(line)
+            )
+        )
+        normalized_line = _normalize_text(line)
+        if normalized_line and normalized_line == previous_normalized_line:
+            continue
+
+        lines.append(line)
+        previous_normalized_line = normalized_line
+
     return "\n".join(line for line in lines if line).strip()
 
 
@@ -337,6 +365,70 @@ def _collapse_consecutive_duplicate_tokens(text: str) -> str:
         previous_normalized_token = normalized_token
 
     return " ".join(collapsed_tokens)
+
+
+def _collapse_consecutive_duplicate_phrases(text: str) -> str:
+    tokens = text.split()
+    if len(tokens) < 4:
+        return text
+
+    normalized_tokens = [_normalize_token(token) for token in tokens]
+    max_phrase_length = min(4, len(tokens) // 2)
+    phrase_length = max_phrase_length
+    while phrase_length >= 2:
+        collapsed_tokens: list[str] = []
+        index = 0
+        while index < len(tokens):
+            current_phrase = normalized_tokens[index : index + phrase_length]
+            next_phrase = normalized_tokens[
+                index + phrase_length : index + phrase_length * 2
+            ]
+            if (
+                len(current_phrase) == phrase_length
+                and current_phrase == next_phrase
+                and any(current_phrase)
+            ):
+                collapsed_tokens.extend(tokens[index : index + phrase_length])
+                index += phrase_length * 2
+                while (
+                    normalized_tokens[index : index + phrase_length]
+                    == current_phrase
+                ):
+                    index += phrase_length
+                continue
+
+            collapsed_tokens.append(tokens[index])
+            index += 1
+
+        if len(collapsed_tokens) < len(tokens):
+            tokens = collapsed_tokens
+            normalized_tokens = [_normalize_token(token) for token in tokens]
+
+        phrase_length -= 1
+
+    return " ".join(tokens)
+
+
+def _collapse_repeated_text_pattern(text: str) -> str:
+    compact_text = _compact_text(text)
+    if len(compact_text) < 8 or len(compact_text) % 2 != 0:
+        return text
+
+    half_index = len(compact_text) // 2
+    first_half = compact_text[:half_index]
+    second_half = compact_text[half_index:]
+    if first_half and first_half == second_half:
+        return text[: max(1, len(text) // 2)].strip()
+
+    tokens = text.split()
+    if len(tokens) >= 4 and len(tokens) % 2 == 0:
+        middle = len(tokens) // 2
+        first_tokens = [_normalize_token(token) for token in tokens[:middle]]
+        second_tokens = [_normalize_token(token) for token in tokens[middle:]]
+        if first_tokens == second_tokens:
+            return " ".join(tokens[:middle])
+
+    return text
 
 
 def _is_low_value_text(text: str, confidence: Any | None) -> bool:
@@ -593,6 +685,22 @@ def _min_bbox_height() -> float:
     return _float_env("AI_OCR_MIN_BBOX_HEIGHT", MIN_BBOX_HEIGHT)
 
 
+def _max_bbox_width() -> float:
+    return _float_env("AI_OCR_MAX_BBOX_WIDTH", MAX_BBOX_WIDTH)
+
+
+def _max_bbox_height() -> float:
+    return _float_env("AI_OCR_MAX_BBOX_HEIGHT", MAX_BBOX_HEIGHT)
+
+
+def _max_bbox_area() -> float:
+    return _float_env("AI_OCR_MAX_BBOX_AREA", MAX_BBOX_AREA)
+
+
+def _max_text_growth_ratio() -> float:
+    return _float_env("AI_OCR_MAX_TEXT_GROWTH_RATIO", MAX_TEXT_GROWTH_RATIO)
+
+
 def _max_consecutive_duplicate_tokens() -> int:
     return _int_env(
         "AI_OCR_MAX_CONSECUTIVE_DUPLICATE_TOKENS",
@@ -612,6 +720,14 @@ def _int_env(env_name: str, default_value: int) -> int:
         return int(os.getenv(env_name, str(default_value)))
     except ValueError:
         return default_value
+
+
+def _bool_env(env_name: str, default_value: bool) -> bool:
+    raw_value = os.getenv(env_name)
+    if raw_value is None:
+        return default_value
+
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _track_missing_tolerance_seconds(frame_interval_seconds: float) -> float:
@@ -718,6 +834,20 @@ def _track_stable_size_change_ratio() -> float:
     )
 
 
+def _track_strong_bbox_iou_threshold() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_STRONG_BBOX_IOU_THRESHOLD",
+        TRACK_STRONG_BBOX_IOU_THRESHOLD,
+    )
+
+
+def _track_strong_bbox_containment_threshold() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_STRONG_BBOX_CONTAINMENT_THRESHOLD",
+        TRACK_STRONG_BBOX_CONTAINMENT_THRESHOLD,
+    )
+
+
 def _track_related_text_threshold() -> float:
     return _float_env("AI_OCR_TRACK_RELATED_TEXT_THRESHOLD", TRACK_RELATED_TEXT_THRESHOLD)
 
@@ -746,6 +876,13 @@ def _progressive_text_max_length_ratio() -> float:
 
 def _progressive_text_score() -> float:
     return _float_env("AI_OCR_PROGRESSIVE_TEXT_SCORE", PROGRESSIVE_TEXT_SCORE)
+
+
+def _typewriter_animation_enabled() -> bool:
+    return _bool_env(
+        "AI_OCR_TYPEWRITER_ANIMATION_ENABLED",
+        TYPEWRITER_ANIMATION_ENABLED,
+    )
 
 
 def _line_vertical_overlap_threshold() -> float:
@@ -782,6 +919,31 @@ def _block_vertical_gap_min() -> float:
     return _float_env("AI_OCR_BLOCK_VERTICAL_GAP_MIN", BLOCK_VERTICAL_GAP_MIN)
 
 
+def _block_x_alignment_tolerance() -> float:
+    return _float_env(
+        "AI_OCR_BLOCK_X_ALIGNMENT_TOLERANCE",
+        BLOCK_X_ALIGNMENT_TOLERANCE,
+    )
+
+
+def _block_width_ratio_threshold() -> float:
+    return _float_env(
+        "AI_OCR_BLOCK_WIDTH_RATIO_THRESHOLD",
+        BLOCK_WIDTH_RATIO_THRESHOLD,
+    )
+
+
+def _block_max_line_count() -> int:
+    return _int_env("AI_OCR_BLOCK_MAX_LINE_COUNT", BLOCK_MAX_LINE_COUNT)
+
+
+def _track_max_missing_extension_seconds() -> float:
+    return _float_env(
+        "AI_OCR_TRACK_MAX_MISSING_EXTENSION_SECONDS",
+        TRACK_MAX_MISSING_EXTENSION_SECONDS,
+    )
+
+
 def _is_edge_noise(
     bounding_box: BoundingBox,
     edge_margin: float,
@@ -804,6 +966,14 @@ def _is_too_small_bbox(bounding_box: BoundingBox) -> bool:
     return (
         bounding_box.w < _min_bbox_width()
         or bounding_box.h < _min_bbox_height()
+    )
+
+
+def _is_too_large_bbox(bounding_box: BoundingBox) -> bool:
+    return (
+        bounding_box.w > _max_bbox_width()
+        or bounding_box.h > _max_bbox_height()
+        or bounding_box.w * bounding_box.h > _max_bbox_area()
     )
 
 
@@ -929,6 +1099,12 @@ def _should_keep_track(track: dict[str, Any]) -> bool:
     if _is_low_value_text(resolved_text, max_confidence):
         return False
 
+    if _is_too_large_bbox(_track_coverage_bbox(track)):
+        return False
+
+    if _is_text_accumulation_track(track):
+        return False
+
     if real_detection_count <= 0:
         return False
 
@@ -942,6 +1118,32 @@ def _should_keep_track(track: dict[str, Any]) -> bool:
         avg_confidence,
         max_confidence,
     )
+
+
+def _is_text_accumulation_track(track: dict[str, Any]) -> bool:
+    candidates = [
+        str(candidate.get("text", "")).strip()
+        for candidate in track.get("textCandidates", [])
+        if str(candidate.get("text", "")).strip()
+    ]
+    compact_lengths = [
+        len(_compact_text(candidate))
+        for candidate in candidates
+        if _compact_text(candidate)
+    ]
+    if len(compact_lengths) < 4:
+        return False
+
+    median_length = statistics.median(compact_lengths)
+    resolved_length = len(_compact_text(_resolve_track_text(track)))
+    if median_length <= 0 or resolved_length <= median_length * _max_text_growth_ratio():
+        return False
+
+    distinct_vote_keys = {
+        _text_vote_key(candidate) or _normalize_text(candidate)
+        for candidate in candidates
+    }
+    return len(distinct_vote_keys) >= 3
 
 
 def _track_real_detection_count(track: dict[str, Any]) -> int:
@@ -1026,6 +1228,16 @@ def _resolve_track_end_time(track: dict[str, Any]) -> float:
     start_time = _resolve_track_start_time(track)
     end_time = float(track["endTime"])
     frame_interval_seconds = float(track.get("frameIntervalSeconds") or 0.0)
+    if int(track.get("missingFrameCount", 0)) > 0:
+        max_missing_extension = min(
+            _track_max_missing_extension_seconds(),
+            max(frame_interval_seconds, 0.0),
+        )
+        end_time = min(
+            end_time,
+            float(track.get("lastTimestamp", end_time)) + max_missing_extension,
+        )
+
     end_trim_seconds = min(_track_end_trim_seconds(), frame_interval_seconds * 0.25)
     trimmed_end_time = end_time - end_trim_seconds
     if trimmed_end_time <= start_time:
@@ -1035,6 +1247,9 @@ def _resolve_track_end_time(track: dict[str, Any]) -> float:
 
 
 def _build_track_animation(track: dict[str, Any]) -> OcrAnimation | None:
+    if not _typewriter_animation_enabled():
+        return None
+
     progressive_timing = _resolve_progressive_text_timing(track)
     if progressive_timing is None:
         return None
@@ -1216,10 +1431,12 @@ def _resolve_track_text_group(track: dict[str, Any]) -> dict[str, Any]:
         return max(
             groups,
             key=lambda group: (
-                len(_compact_text(str(group["text"]))),
+                int(group.get("selectedVariantCount") or group["count"]),
                 int(group["count"]),
+                float(group.get("selectedVariantConfidence") or 0.0),
                 float(group["confidence"]),
                 float(group["lastTimestamp"]),
+                len(_compact_text(str(group["text"]))),
             ),
         )
 
@@ -1308,8 +1525,11 @@ def _finalize_text_vote_group(group: dict[str, Any]) -> dict[str, Any]:
         key=lambda variant: (
             int(variant["count"]),
             _safe_average_confidence(variant),
+            _script_quality_score(str(variant["text"])),
+            -_duplicate_text_penalty(str(variant["text"])),
+            -_accumulated_text_penalty(str(variant["text"]), variants),
             float(variant["lastTimestamp"]),
-            len(_compact_text(str(variant["text"]))),
+            -len(_compact_text(str(variant["text"]))),
         ),
     )
     finalized_group = dict(group)
@@ -1327,6 +1547,61 @@ def _safe_average_confidence(group: dict[str, Any]) -> float:
         return 0.0
 
     return float(group.get("confidence") or 0.0) / count
+
+
+def _duplicate_text_penalty(text: str) -> int:
+    cleaned_text = _clean_ocr_text(text)
+    compact_cleaned_text = _compact_text(cleaned_text)
+    compact_text = _compact_text(text)
+    return max(0, len(compact_text) - len(compact_cleaned_text))
+
+
+def _accumulated_text_penalty(
+    text: str,
+    variants: list[dict[str, Any]],
+) -> int:
+    compact_text = _compact_text(text)
+    if not compact_text:
+        return 0
+
+    shorter_variant_lengths = [
+        len(_compact_text(str(variant.get("text", ""))))
+        for variant in variants
+        if 0 < len(_compact_text(str(variant.get("text", "")))) < len(compact_text)
+        and compact_text.startswith(_compact_text(str(variant.get("text", ""))))
+    ]
+    if not shorter_variant_lengths:
+        return 0
+
+    longest_stable_prefix = max(shorter_variant_lengths)
+    return max(0, len(compact_text) - longest_stable_prefix)
+
+
+def _script_quality_score(text: str) -> int:
+    compact_text = _compact_text(text)
+    if not compact_text:
+        return 0
+
+    cjk_count = sum(1 for char in compact_text if _is_cjk_text_char(char))
+    latin_count = sum(1 for char in compact_text if char.isascii() and char.isalpha())
+    if cjk_count and latin_count:
+        return cjk_count - (latin_count * 2)
+
+    if cjk_count:
+        return cjk_count
+
+    if _is_gibberish_alpha_text(text):
+        return -len(compact_text)
+
+    return 0
+
+
+def _is_cjk_text_char(char: str) -> bool:
+    return (
+        "\u3040" <= char <= "\u30ff"
+        or "\u3400" <= char <= "\u9fff"
+        or "\uf900" <= char <= "\ufaff"
+    )
 
 
 def _text_vote_key(text: str) -> str:
@@ -1371,7 +1646,9 @@ def _is_progressive_text_pair(left: str, right: str) -> bool:
     if shorter_length / longer_length >= _progressive_text_max_length_ratio():
         return False
 
-    return left_compact in right_compact or right_compact in left_compact
+    longer_text = left_compact if len(left_compact) >= len(right_compact) else right_compact
+    shorter_text = right_compact if longer_text == left_compact else left_compact
+    return longer_text.startswith(shorter_text)
 
 
 def _compact_text(text: str) -> str:
@@ -1423,6 +1700,9 @@ def _find_matching_line(
             continue
 
         if not _is_horizontally_adjacent(line_box, item_box):
+            continue
+
+        if _is_too_large_bbox(_union_bbox([line_box, item_box])):
             continue
 
         candidates.append((abs(_bbox_center_y(line_box) - _bbox_center_y(item_box)), line))
@@ -1504,8 +1784,14 @@ def _find_matching_block(
     line_box = line_item["boundingBox"]
     candidates = []
     for block in blocks:
+        if len(block) >= _block_max_line_count():
+            continue
+
         block_box = _union_bbox([item["boundingBox"] for item in block])
         if _horizontal_overlap_ratio(block_box, line_box) < _block_horizontal_overlap_threshold():
+            continue
+
+        if not _is_aligned_text_block(block_box, line_box):
             continue
 
         gap = max(0.0, line_box.y - (block_box.y + block_box.h))
@@ -1516,12 +1802,27 @@ def _find_matching_block(
         if gap > max_gap:
             continue
 
+        if _is_too_large_bbox(_union_bbox([block_box, line_box])):
+            continue
+
         candidates.append((gap, block))
 
     if not candidates:
         return None
 
     return min(candidates, key=lambda candidate: candidate[0])[1]
+
+
+def _is_aligned_text_block(
+    block_box: BoundingBox,
+    line_box: BoundingBox,
+) -> bool:
+    x_distance = abs(block_box.x - line_box.x)
+    width_ratio = _bbox_size_ratio(block_box.w, line_box.w)
+    return (
+        x_distance <= _block_x_alignment_tolerance()
+        and width_ratio >= _block_width_ratio_threshold()
+    )
 
 
 def _merge_raw_items(
@@ -1770,18 +2071,38 @@ def _find_best_matching_active_track(
         )
         is_progressive_text = _is_progressive_track_match(track, raw_text)
         is_related_text = _is_related_ocr_text_pair(track_text, raw_text)
-        if (
-            text_similarity < min(text_similarity_threshold, _track_text_stability_threshold())
-            and not is_progressive_text
-            and not is_related_text
+        if _is_accumulative_track_text_change(
+            track_text,
+            raw_text,
+            is_progressive_text=is_progressive_text,
         ):
             continue
 
         bbox_overlap = _bbox_iou(track["boundingBox"], raw_item["boundingBox"])
+        bbox_containment = _bbox_containment_ratio(
+            track["boundingBox"],
+            raw_item["boundingBox"],
+        )
+        is_strong_bbox_match = _is_strong_bbox_track_match(
+            bbox_overlap,
+            bbox_containment,
+        )
+        if (
+            text_similarity < min(text_similarity_threshold, _track_text_stability_threshold())
+            and not is_progressive_text
+            and not is_related_text
+            and not is_strong_bbox_match
+        ):
+            continue
+
         is_stable_scaling = _is_stable_scaling_match(
             track["boundingBox"],
             raw_item["boundingBox"],
         )
+        if is_related_text and not is_progressive_text:
+            if bbox_overlap < 0.25 and bbox_containment < 0.55:
+                continue
+
         if not is_stable_scaling and not _is_stable_bbox_track_match(
             track["boundingBox"],
             raw_item["boundingBox"],
@@ -1799,6 +2120,7 @@ def _find_best_matching_active_track(
             text_similarity,
             _progressive_text_score() if is_progressive_text else 0.0,
             _track_related_text_threshold() if is_related_text else 0.0,
+            0.7 if is_strong_bbox_match else 0.0,
         )
         scaling_score = 0.1 if is_stable_scaling else 0.0
         candidates.append((text_score + bbox_overlap + scaling_score, track))
@@ -1817,6 +2139,41 @@ def _is_progressive_track_match(track: dict[str, Any], raw_text: str) -> bool:
     return any(
         _is_progressive_text_pair(str(candidate.get("text", "")), raw_text)
         for candidate in track.get("textCandidates", [])
+    )
+
+
+def _is_accumulative_track_text_change(
+    track_text: str,
+    raw_text: str,
+    *,
+    is_progressive_text: bool,
+) -> bool:
+    if is_progressive_text:
+        return False
+
+    track_compact = _compact_text(track_text)
+    raw_compact = _compact_text(raw_text)
+    if not track_compact or not raw_compact:
+        return False
+
+    shorter_length = min(len(track_compact), len(raw_compact))
+    longer_length = max(len(track_compact), len(raw_compact))
+    if shorter_length < 8:
+        return False
+
+    if longer_length <= shorter_length * _max_text_growth_ratio():
+        return False
+
+    return _text_similarity(track_text, raw_text) < _track_text_stability_threshold()
+
+
+def _is_strong_bbox_track_match(
+    bbox_overlap: float,
+    bbox_containment: float,
+) -> bool:
+    return (
+        bbox_overlap >= _track_strong_bbox_iou_threshold()
+        or bbox_containment >= _track_strong_bbox_containment_threshold()
     )
 
 

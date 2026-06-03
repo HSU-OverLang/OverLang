@@ -4,11 +4,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _resolve_redis_url() -> str:
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        return redis_url
+
+    redis_host = os.getenv("REDIS_HOST", "localhost")
+    redis_port = os.getenv("REDIS_PORT", "6379")
+    return f"redis://{redis_host}:{redis_port}/0"
+
+
 # Redis Config
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = os.getenv("REDIS_PORT", "6379")
-BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
-BACKEND_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+BROKER_URL = _resolve_redis_url()
+BACKEND_URL = BROKER_URL
 
 celery_app = Celery(
     "ai_worker",

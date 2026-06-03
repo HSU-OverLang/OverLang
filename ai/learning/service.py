@@ -106,6 +106,30 @@ EXPRESSION_CONTENT_LABELS = (
     "사용 상황",
     "원문 표현",
 )
+EXPRESSION_CONTENT_LABEL_ALIASES = {
+    "literal": "직역",
+    "literal meaning": "직역",
+    "direct translation": "직역",
+    "직역": "직역",
+    "actual meaning": "실제 의미",
+    "real meaning": "실제 의미",
+    "meaning": "실제 의미",
+    "의미": "실제 의미",
+    "실제 의미": "실제 의미",
+    "natural translation": "자연스러운 번역",
+    "natural meaning": "자연스러운 번역",
+    "translation": "자연스러운 번역",
+    "자연스러운 번역": "자연스러운 번역",
+    "usage": "사용 상황",
+    "usage context": "사용 상황",
+    "context": "사용 상황",
+    "문맥": "사용 상황",
+    "사용 상황": "사용 상황",
+    "source expression": "원문 표현",
+    "original expression": "원문 표현",
+    "original phrase": "원문 표현",
+    "원문 표현": "원문 표현",
+}
 
 
 def generate_learning_data(
@@ -246,9 +270,11 @@ def _build_learning_instructions(
         "Those are generated later by an on-demand word explanation API. "
         "Use SUMMARY for one concise video or section summary and set textType to ORIGINAL. "
         "Use EXPRESSION for idioms, natural phrases, repeated sentence patterns, or expressions that need context. "
-        "For every EXPRESSION content, use this exact newline-separated format with no extra labels: "
-        "'직역: ...\\n실제 의미: ...\\n자연스러운 번역: ...\\n사용 상황: ...\\n원문 표현: ...'. "
-        "If a field is not applicable, write '해당 없음' after the label. "
+        "For every EXPRESSION content, use this exact newline-separated format with Korean bracket labels and no extra labels: "
+        "'[직역] ...\\n[실제 의미] ...\\n[자연스러운 번역] ...\\n[사용 상황] ...\\n[원문 표현] ...'. "
+        "The labels must be written in Korean exactly as [직역], [실제 의미], [자연스러운 번역], [사용 상황], [원문 표현]. "
+        "Do not use English labels such as [literal meaning], [actual meaning], [usage], or colon labels. "
+        "If a field is not applicable, write '해당 없음' after the Korean bracket label. "
         "Create ORIGINAL EXPRESSION items from the source text. "
         "When translatedText is present, you must create at least two EXPRESSION items with textType TRANSLATION using translated phrases from translatedText as title. "
         "TRANSLATION items are required so learners can select translated sentence words and still receive expression guidance. "
@@ -343,15 +369,30 @@ def _parse_labeled_expression_content(content: str) -> dict[str, str]:
     values: dict[str, str] = {}
     for raw_line in content.splitlines():
         line = raw_line.strip()
-        if not line or ":" not in line:
+        if not line:
             continue
 
-        label, value = line.split(":", 1)
-        normalized_label = label.strip()
-        if normalized_label in EXPRESSION_CONTENT_LABELS:
-            values[normalized_label] = value.strip()
+        bracket_match = re.match(r"^\[(?P<label>[^\]]+)\]\s*(?P<value>.*)$", line)
+        if bracket_match:
+            normalized_label = bracket_match.group("label").strip()
+            value = bracket_match.group("value").strip()
+        elif ":" in line:
+            label, value = line.split(":", 1)
+            normalized_label = label.strip()
+            value = value.strip()
+        else:
+            continue
+
+        korean_label = _normalize_expression_label(normalized_label)
+        if korean_label in EXPRESSION_CONTENT_LABELS:
+            values[korean_label] = value
 
     return values
+
+
+def _normalize_expression_label(label: str) -> str:
+    normalized_label = " ".join(label.strip().lower().split())
+    return EXPRESSION_CONTENT_LABEL_ALIASES.get(normalized_label, label.strip())
 
 
 def _format_expression_content(
@@ -363,11 +404,11 @@ def _format_expression_content(
 ) -> str:
     return "\n".join(
         [
-            f"직역: {_normalize_expression_field(literal_meaning)}",
-            f"실제 의미: {_normalize_expression_field(actual_meaning)}",
-            f"자연스러운 번역: {_normalize_expression_field(natural_translation)}",
-            f"사용 상황: {_normalize_expression_field(usage_context)}",
-            f"원문 표현: {_normalize_expression_field(original_expression)}",
+            f"[직역] {_normalize_expression_field(literal_meaning)}",
+            f"[실제 의미] {_normalize_expression_field(actual_meaning)}",
+            f"[자연스러운 번역] {_normalize_expression_field(natural_translation)}",
+            f"[사용 상황] {_normalize_expression_field(usage_context)}",
+            f"[원문 표현] {_normalize_expression_field(original_expression)}",
         ]
     )
 

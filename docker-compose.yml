@@ -35,8 +35,6 @@ services:
       - PYTHONPATH=/app
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
     deploy:
       resources:
         reservations:
@@ -62,8 +60,6 @@ services:
       - PYTHONPATH=/app
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
     deploy:
       resources:
         reservations:
@@ -88,8 +84,6 @@ services:
       - ./ai/.env
     environment:
       - PYTHONPATH=/app
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
     depends_on:
       - redis
       - ai-worker
