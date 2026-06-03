@@ -136,11 +136,6 @@ function cleanTranslation(translated: string | null, original: string): string {
   return cleaned;
 }
 
-function timecodeToSec(tc: string): number {
-  const parts = tc.split(':').map(Number);
-  return (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
-}
-
 // ── 타입 ───────────────────────────────────────────────
 interface SubtitleItem {
   id: number;
@@ -374,7 +369,7 @@ export function TranslatePage() {
   const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
   const [wordLoading, setWordLoading] = useState(false);
   const [wordError, setWordError] = useState<string | null>(null);
-  const [savedWordsCount, setSavedWordsCount] = useState<number>(0);
+  const [_savedWordsCount, setSavedWordsCount] = useState<number>(0);
   // 저장 중복 방지용: 저장된 단어 ID 셋
   const savedWordSetRef = useRef<Set<string>>(new Set());
   // 레이스 컨디션 방지: 가장 최신 요청 ID만 결과를 반영
@@ -393,7 +388,7 @@ export function TranslatePage() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [sourceLang, setSourceLang] = useState<string>('en-US');
   const [targetLang, setTargetLang] = useState<string>('ko-KR');
-  const [currentJobId, setCurrentJobId] = useState<number | null>(null);
+  const [_currentJobId, setCurrentJobId] = useState<number | null>(null);
   const [learningContents, setLearningContents] = useState<LearningContentsResult | null>(null);
 
   // 실제 자막/OCR 데이터 로드
@@ -592,7 +587,7 @@ export function TranslatePage() {
   };
 
   // 저장 핸들러
-  const handleRetry = async () => {
+  const _handleRetry = async () => {
     if (!projectId || retrying) return;
     if (!window.confirm('영상을 다시 분석합니다. 계속할까요?')) return;
     setRetrying(true);
@@ -838,7 +833,7 @@ export function TranslatePage() {
   };
 
   // 문장 구조 분석
-  const handleSentenceAnalysis = (subtitle: SubtitleItem) => {
+  const _handleSentenceAnalysis = (subtitle: SubtitleItem) => {
     setSentenceData({
       sentence: subtitle.original,
       parts: getMockSentenceParts(subtitle.original),
@@ -880,7 +875,7 @@ export function TranslatePage() {
     setSubtitles(prev => prev.filter(s => s.id !== id));
   };
 
-  const handleAddSubtitle = () => {
+  const _handleAddSubtitle = () => {
     const last = subtitles[subtitles.length - 1];
     const startSec = last?.endSec ?? 0;
     setSubtitles(prev => [...prev, {
@@ -1208,7 +1203,7 @@ export function TranslatePage() {
 
           {/* 탭 헤더 */}
           <div className="flex items-center border-b border-slate-200 shrink-0 px-2 bg-white">
-            {(['요약', '자막', '관용표현'] as ActiveTab[]).map((tab, i) => {
+            {(['요약', '자막', '관용표현'] as ActiveTab[]).map((tab) => {
               const labels: Record<ActiveTab, string> = { '요약': '영상 요약', '자막': '자막 목록', '관용표현': '관용 표현' };
               const isActive = activeTab === tab;
               return (
@@ -1514,9 +1509,9 @@ export function TranslatePage() {
                     {/* 단어 해설 */}
                     {rightPanel === 'word' && selectedWord && (
                       <div className="space-y-3">
-                        <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-center relative">
+                        <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-center">
                           {selectedWord.matchedExpression && (
-                            <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 mb-2">
                               <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                               </svg>

@@ -104,11 +104,6 @@ export function DashboardPage() {
     });
   };
 
-  const showProcessingToast = () => {
-    setProcessingToast(true);
-    setTimeout(() => setProcessingToast(false), 2500);
-  };
-
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (!confirm(`선택한 ${selectedIds.size}개 프로젝트를 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
@@ -222,7 +217,6 @@ export function DashboardPage() {
 
   const completedCount = projects.filter(p => p.status === 'COMPLETED').length;
   const processingCount = projects.filter(p => p.status === 'PROCESSING' || p.status === 'CREATED').length;
-  const displayName = user?.displayName || user?.email?.split('@')[0] || '';
 
   return (
     <div className="min-h-screen bg-slate-50">

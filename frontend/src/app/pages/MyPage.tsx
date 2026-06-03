@@ -15,14 +15,6 @@ function formatDate(isoString?: string | null) {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
-function formatStudyTime(minutes: number): string {
-  if (minutes <= 0) return '0분';
-  if (minutes < 60) return `${minutes}분`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
-}
-
 type SubPage = 'main' | 'settings';
 
 type RecentProject = ProjectResult & { clickedAt: string };
@@ -233,7 +225,7 @@ export function MyPage() {
         {/* 새 프로젝트 CTA */}
         <div
           onClick={() => navigate('/upload')}
-          className="relative rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 p-6 cursor-pointer hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg shadow-emerald-100 overflow-hidden"
+          className="relative rounded-2xl bg-emerald-600 p-6 cursor-pointer hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg shadow-emerald-100 overflow-hidden"
         >
           <div className="relative flex items-center justify-between">
             <div>
@@ -256,8 +248,6 @@ export function MyPage() {
     </div>
   );
 }
-
-const PROFILE_PHOTO_KEY = 'overlang_profile_photo';
 
 // ── 계정 설정 서브페이지 ──────────────────────────────
 function SettingsPage({
