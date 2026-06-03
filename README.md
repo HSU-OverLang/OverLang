@@ -6,17 +6,21 @@
 
 ## 📋 프로젝트 소개
 
-OverLang는 영상 기반 언어 학습을 돕기 위한 AI 분석 플랫폼입니다.
-프론트엔드에서 영상을 업로드하고, 백엔드는 인증/프로젝트/작업/파일 업로드를 관리하며, AI 모듈은 STT, OCR, 번역 파이프라인을 비동기 작업으로 처리합니다.
+OverLang은 영상 기반 언어 학습을 돕기 위한 AI 통합 분석 플랫폼입니다. YouTube URL 또는 직접 업로드한 영상을 입력하면, AI가 음성 인식(STT)과 화면 텍스트(OCR)를 동시에 추출하고 번역·분석하여 완성된 학습 경험을 제공합니다.
+
+프론트엔드에서 영상을 업로드하면, 백엔드가 인증·프로젝트·작업·파일 업로드를 관리하고, AI 모듈이 STT → OCR → 번역 → LLM 분석 파이프라인을 Redis 큐 + Celery Worker 기반으로 비동기 처리합니다. 각 단계의 진행 상황은 실시간으로 프론트엔드에 표시됩니다.
 
 ### 주요 기능
 
-- 🎯 **AI 영상 분석**: STT, OCR, 번역, 학습 데이터 생성을 하나의 작업으로 처리
-- 🔐 **Firebase 인증**: Firebase ID Token 기반 로그인 및 사용자 정보 조회
-- 📁 **파일 업로드**: 영상 파일을 S3에 업로드하고 프로젝트 생성에 활용
-- 🧩 **프로젝트/작업 관리**: 프로젝트별 AI 작업 생성, 목록 조회, 상태 조회
-- 📝 **자막 편집 화면**: 분석 결과를 기반으로 자막과 OCR 텍스트를 편집하는 프론트엔드 UI
-- 📚 **학습 기능 UI**: 단어장, 학습 노트, 마이페이지 등 학습 흐름을 위한 화면 구성
+- 🎯 **AI 영상 분석**: STT, OCR, 번역, 학습 데이터 생성을 하나의 파이프라인으로 처리 (최대 10단계)
+- 🔐 **Firebase 인증**: Firebase ID Token 기반 이메일/비밀번호 및 Google OAuth 로그인
+- 📁 **파일 업로드 / YouTube 연동**: 영상 파일 S3 업로드 또는 YouTube URL로 프로젝트 생성
+- 🧩 **프로젝트 대시보드**: 프로젝트 목록 조회, 처리 상태 뱃지, 썸네일, 선택 삭제, 재처리 요청
+- 📝 **번역 뷰어 (TranslatePage)**: 자막 목록 조회·편집, 단어 클릭/드래그 즉시 분석, OCR 오버레이, 구간 반복, 자막 저장
+- 🔍 **단어 분석 패널**: 단어 뜻·관련 단어 AI 분석, 관용표현 감지(matchedExpression), TTS 발음 재생, 학습 노트 저장
+- 📚 **AI 학습 콘텐츠**: 영상 요약, 빈출 단어 카드(설명 펼치기), 관용 표현 카드
+- 🃏 **단어장 (StudyPage)**: 저장 단어 플래시카드(앞면: 단어 / 뒷면: 직역·실제 의미), AI 예문 생성, TTS 발음 듣기
+- 👤 **마이페이지**: 학습 통계, 최근 시청 프로젝트, 프로필 설정
 
 ---
 
@@ -24,44 +28,70 @@ OverLang는 영상 기반 언어 학습을 돕기 위한 AI 분석 플랫폼입�
 
 ### Frontend
 
-- **Framework**: React 19.2.0
-- **Language**: TypeScript 5.9.3
-- **Build Tool**: Vite 7.3.1
-- **Styling**: Tailwind CSS 4.1.18
-- **Routing**: React Router DOM 7.13.0
-- **Auth**: Firebase Web SDK 12.9.0
-- **Icons**: Lucide React 0.563.0
-- **Utilities**: clsx, tailwind-merge
+| 항목 | 버전 | 용도 |
+|------|------|------|
+| React | 19.2.0 | UI 프레임워크 |
+| TypeScript | 5.9.3 | 타입 안전성 |
+| Vite | 7.3.1 | 번들러 및 개발 서버 |
+| Tailwind CSS | 4.1.18 | 유틸리티 기반 스타일링 |
+| React Router DOM | 7.13.0 | 클라이언트 사이드 라우팅 |
+| Firebase Web SDK | 12.9.0 | 인증 (Google OAuth + 이메일) |
+| Lucide React | 0.563.0 | 아이콘 라이브러리 |
+| clsx + tailwind-merge | — | 조건부 클래스 유틸리티 |
+
+### 프론트엔드 페이지 구성
+
+| 페이지 | 경로 | 설명 |
+| ------ | ---- | ---- |
+| HomePage | `/` | 랜딩 페이지, 플로팅 문자 애니메이션 |
+| LoginPage | `/login` | Firebase 이메일 로그인 |
+| RegisterPage | `/register` | 회원가입 |
+| ForgotPasswordPage | `/forgot-password` | 비밀번호 재설정 |
+| DashboardPage | `/dashboard` | 프로젝트 목록, 상태 뱃지, 선택 삭제 |
+| UploadPage | `/upload` | 영상 업로드 / YouTube URL 입력 |
+| ProcessingPage | `/processing/:jobId` | AI 처리 진행 상태 표시 |
+| TranslatePage | `/translate/:projectId` | 자막 뷰어·편집, 단어 분석, OCR, 학습 콘텐츠 |
+| StudyPage | `/study` | 저장 단어 플래시카드, AI 예문, TTS |
+| WordsPage | `/words` | 저장 단어 전체 목록 |
+| MyPage | `/mypage` | 학습 통계, 최근 시청, 프로필 설정 |
 
 ### Backend
 
-- **Framework**: Spring Boot 3.5.10
-- **Language**: Java 21
-- **Database**: PostgreSQL
-- **ORM**: Spring Data JPA (Hibernate)
-- **Cache / Queue**: Redis
-- **Auth**: Firebase Admin SDK + Custom Auth Interceptor
-- **Storage**: AWS S3 SDK
-- **API Docs**: SpringDoc OpenAPI
-- **Build Tool**: Gradle
-- **Formatter**: Spotless + Google Java Format
+| 항목 | 버전 / 내용 | 용도 |
+|------|-------------|------|
+| Spring Boot | 3.5.10 | API 서버 프레임워크 |
+| Java | 21 | 런타임 |
+| PostgreSQL | 16 | 주 데이터베이스 |
+| Spring Data JPA | — | ORM (Hibernate) |
+| Redis | 7 | 캐시 및 AI 작업 큐 |
+| Firebase Admin SDK | 9.2.0 | 서버 사이드 토큰 검증 |
+| AWS S3 SDK | 2.25.20 | 영상 파일 스토리지 |
+| SpringDoc OpenAPI | 2.8.5 | Swagger UI 자동 생성 |
+| Gradle | — | 빌드 도구 |
+| Spotless + Google Java Format | — | 코드 포맷터 |
+| Kuromoji (일본어) / Jieba (중국어) | — | 형태소 분석기 |
 
 ### AI
 
-- **Language**: Python 3
-- **Runtime**: CUDA 12.1 Docker image
-- **AI Framework**: PyTorch 2.1.2 + CUDA 12.1
-- **Speech Recognition**: WhisperX, Faster-Whisper 1.0.3
-- **OCR**: EasyOCR, OpenCV
-- **API**: FastAPI, Uvicorn
-- **Worker**: Celery + Redis
+| 항목 | 버전 / 내용 | 용도 |
+|------|-------------|------|
+| Python | 3.10+ | 런타임 |
+| PyTorch + CUDA | 2.1.2 + 12.1 | GPU 연산 |
+| WhisperX + faster-whisper | — | 음성 인식 (STT) + 타임스탬프 정렬 |
+| pyannote.audio | 3.1.1 | 화자 분리 (diarization) |
+| EasyOCR + OpenCV | — | 화면 텍스트 추출 (OCR) |
+| OpenAI GPT API | — | 번역 및 LLM 분석 |
+| FastAPI + Uvicorn | 0.110+ | AI API 서버 |
+| Celery + Redis | 5.3+ | 비동기 작업 큐 |
+| yt-dlp | 2025.1.15+ | YouTube 영상 다운로드 |
 
 ### Infrastructure
 
-- **Containerization**: Docker & Docker Compose
-- **Database**: PostgreSQL 16
-- **Cache / Broker**: Redis 7
-- **Object Storage**: AWS S3
+| 항목 | 내용 |
+|------|------|
+| 컨테이너 | Docker & Docker Compose |
+| GPU 지원 | NVIDIA Container Toolkit (docker compose profile: `gpu-only`) |
+| 오브젝트 스토리지 | AWS S3 |
 
 ---
 
@@ -122,12 +152,16 @@ OverLang/
 
 ### 사전 요구사항
 
-- **Node.js**: 22 이상 권장
-- **Java**: 21
-- **Python**: 3.10 이상 권장
-- **Docker**: 최신 버전
-- **NVIDIA GPU**: AI Docker 실행 시 필요
-- **AWS S3 / Firebase**: 실제 업로드 및 인증 테스트 시 필요
+| 항목 | 버전 | 비고 |
+|------|------|------|
+| Node.js | 20 이상 | 프론트엔드 개발 |
+| Java | 21 | 백엔드 개발 |
+| Python | 3.10 이상 | AI 로컬 실행 시 |
+| Docker + Docker Compose | 최신 | 전체 스택 실행 |
+| NVIDIA GPU + Container Toolkit | — | AI 파이프라인 실행 시 필요 |
+| Firebase 프로젝트 | — | 인증 (서비스 계정 JSON 필요) |
+| AWS S3 버킷 | — | 영상 파일 업로드 |
+| OpenAI API Key | — | 번역 및 LLM 분석 |
 
 ### 설치 및 실행
 
@@ -487,12 +521,14 @@ Backend API는 다음 응답 형식을 사용합니다.
 
 ### 서비스 목록
 
-| 서비스     | 포트 | 설명                         |
-| ---------- | ---- | ---------------------------- |
-| PostgreSQL | 5432 | 백엔드 데이터베이스          |
-| Redis      | 6379 | AI 작업 브로커 및 캐시       |
-| AI         | 8000 | FastAPI 분석 API             |
-| AI Worker  | -    | Celery 기반 비동기 분석 작업 |
+| 컨테이너 | 포트 | 설명 | 프로파일 |
+|----------|------|------|----------|
+| `overlang_backend` | 8080 | Spring Boot API 서버 | 기본 |
+| `overlang_postgres` | 5432 | PostgreSQL 데이터베이스 | 기본 |
+| `redis` | 6379 | Redis (큐 + 캐시) | 기본 |
+| `overlang_ai` | 8000 | FastAPI AI 서버 | `gpu-only` |
+| `overlang_ai_worker` | — | Celery 비동기 워커 | `gpu-only` |
+| `overlang_ai_queue_consumer` | — | Redis 큐 컨슈머 | `gpu-only` |
 
 ### GPU 사용 설정
 
@@ -503,6 +539,38 @@ docker-compose --profile gpu-only up -d --build
 ```
 
 **사전 요구사항**: NVIDIA Driver, NVIDIA Container Toolkit 설치
+
+### 아키텍처 다이어그램
+
+```
+사용자 브라우저
+      │
+      │ HTTPS
+      ▼
+  Frontend (React + Vite)  :5173
+      │
+      │ REST API (Firebase ID Token)
+      ▼
+  Backend (Spring Boot)    :8080
+      │                         │
+      │ Redis LPUSH              │ HTTP Callback
+      ▼                         │
+  Job Queue (Redis)  :6379      │
+      │                         │
+      ▼                         │
+  AI Queue Consumer             │
+      │                         │
+      ▼                         │
+  Celery Worker                 │
+      │                         │
+      ▼                         │
+  AI Pipeline                   │
+  (WhisperX → EasyOCR →        │
+   GPT 번역 → GPT 분석)         │
+      │                         │
+      └─────────────────────────┘
+            결과 → PostgreSQL 저장
+```
 
 ---
 

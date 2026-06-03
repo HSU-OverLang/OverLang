@@ -94,7 +94,7 @@ export function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
-  const [processingToast, setProcessingToast] = useState(false);
+  const [processingToast, _setProcessingToast] = useState(false);
 
   const toggleSelect = (pid: number) => {
     setSelectedIds(prev => {

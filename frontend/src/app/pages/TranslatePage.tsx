@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Header } from '@/components/layout/Header';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { getVideoPresignedUrl, getProjectJobs, getSegments, getOcrItems, updateTranslation, getLearningContents, retryJob } from '@/api/video';
+import { useLocation, useParams } from 'react-router-dom';
+import { getVideoPresignedUrl, getProjectJobs, getSegments, getOcrItems, updateTranslation, getLearningContents } from '@/api/video';
 import type { SegmentResult, OcrItemResult, SegmentWord, LearningContentsResult } from '@/api/video';
 import { explainWord, saveWord, getMySavedWords } from '@/api/words';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -217,7 +217,6 @@ interface SavedWord {
 
 // ── 컴포넌트 ───────────────────────────────────────────
 export function TranslatePage() {
-  const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ projectId: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -354,7 +353,6 @@ export function TranslatePage() {
 
   // 저장 토스트
   const [saveToast, setSaveToast] = useState(false);
-  const [retrying, setRetrying] = useState(false);
 
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -374,7 +372,7 @@ export function TranslatePage() {
   const savedWordSetRef = useRef<Set<string>>(new Set());
   // 레이스 컨디션 방지: 가장 최신 요청 ID만 결과를 반영
   const explainRequestIdRef = useRef(0);
-  const [sentenceData, setSentenceData] = useState<{ sentence: string; parts: { text: string; meaning: string; color: string }[]; grammar: string } | null>(null);
+  const [sentenceData] = useState<{ sentence: string; parts: { text: string; meaning: string; color: string }[]; grammar: string } | null>(null);
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>(() => {
     // demo 모드: projectId 없을 때 localStorage 확인
     try {
@@ -586,22 +584,6 @@ export function TranslatePage() {
     }
   };
 
-  // 저장 핸들러
-  const _handleRetry = async () => {
-    if (!projectId || retrying) return;
-    if (!window.confirm('영상을 다시 분석합니다. 계속할까요?')) return;
-    setRetrying(true);
-    try {
-      const result = await retryJob(projectId);
-      navigate('/processing', {
-        state: { jobId: result.jobId, projectId, videoSrc, targetLanguage },
-      });
-    } catch {
-      alert('재처리 요청에 실패했습니다. 잠시 후 다시 시도해주세요.');
-    } finally {
-      setRetrying(false);
-    }
-  };
 
   const handleSaveSubtitles = async () => {
     // projectId 없으면 localStorage 저장 (demo 모드)
@@ -832,40 +814,6 @@ export function TranslatePage() {
     }
   };
 
-  // 문장 구조 분석
-  const _handleSentenceAnalysis = (subtitle: SubtitleItem) => {
-    setSentenceData({
-      sentence: subtitle.original,
-      parts: getMockSentenceParts(subtitle.original),
-      grammar: getMockGrammar(subtitle.original),
-    });
-    setRightPanel('sentence');
-    setActiveTab('자막');
-  };
-
-  const getMockSentenceParts = (sentence: string) => {
-    if (sentence.includes("get the ball rolling")) {
-      return [
-        { text: "Let's", meaning: '~하자 (제안)', color: 'bg-pink-100 text-pink-700' },
-        { text: 'get the ball rolling', meaning: '시작하다 (관용구)', color: 'bg-green-100 text-green-700' },
-        { text: 'with', meaning: '~와 함께', color: 'bg-slate-100 text-slate-700' },
-        { text: 'our first idiom', meaning: '우리의 첫 번째 관용구', color: 'bg-purple-100 text-purple-700' },
-      ];
-    }
-    return sentence.split(' ').slice(0, 4).map((w, i) => ({
-      text: w,
-      meaning: `단어 ${i + 1}`,
-      color: ['bg-pink-100 text-pink-700', 'bg-green-100 text-green-700', 'bg-blue-100 text-blue-700', 'bg-purple-100 text-purple-700'][i % 4],
-    }));
-  };
-
-  const getMockGrammar = (sentence: string) => {
-    if (sentence.includes("get the ball rolling")) {
-      return "이 문장은 'Let's + 동사원형' 구조로 청자에게 함께 행동하자고 제안하는 표현입니다. 'get the ball rolling'은 관용구로, 직역하면 '공을 굴리다'이지만 실제로는 '일을 시작하다'는 의미입니다.";
-    }
-    return "이 문장은 현재 시제로 일반적인 사실이나 습관을 나타냅니다.";
-  };
-
   // 자막 수정
   const handleSubtitleChange = (id: number, field: 'original' | 'translation' | 'paraphrase', value: string) => {
     setSubtitles(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
@@ -873,21 +821,6 @@ export function TranslatePage() {
 
   const handleDeleteSubtitle = (id: number) => {
     setSubtitles(prev => prev.filter(s => s.id !== id));
-  };
-
-  const _handleAddSubtitle = () => {
-    const last = subtitles[subtitles.length - 1];
-    const startSec = last?.endSec ?? 0;
-    setSubtitles(prev => [...prev, {
-      id: Date.now(),
-      start: secToTimecode(startSec),
-      end: secToTimecode(startSec + 3),
-      startSec,
-      endSec: startSec + 3,
-      original: '',
-      translation: '',
-      words: [],
-    }]);
   };
 
   return (
