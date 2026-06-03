@@ -580,7 +580,7 @@ export function HomePage() {
           <div className={`h-full relative flex flex-col items-center justify-center px-6 text-center overflow-hidden bg-white ${fadeIn(6)}`}>
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_theme(colors.emerald.50),_transparent_70%)] pointer-events-none" />
 
-            <div className="relative max-w-xl">
+            <div className="relative max-w-4xl">
 
               <h2 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.0] tracking-normal mb-6 whitespace-nowrap">
                 지금 바로 <span className="text-emerald-500">시작하세요.</span>
