@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getMySavedWords, deleteSavedWord, explainWord, generateWordExamples } from '@/api/words';
 import type { SavedWordResult, ExampleItem } from '@/api/words';
 import { useAuth } from '@/app/providers/AuthProvider';

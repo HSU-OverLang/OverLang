@@ -42,13 +42,8 @@ export function LoginPage() {
 
       {/* ── 왼쪽 브랜딩 패널 ── */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-emerald-600 to-teal-500 p-12 text-white">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold">OverLang</span>
+        <div className="cursor-pointer" onClick={() => navigate('/')}>
+          <img src="/Logo.png" alt="OverLang" className="h-10 w-auto brightness-0 invert" />
         </div>
 
         <div>
@@ -80,13 +75,8 @@ export function LoginPage() {
         <div className="w-full max-w-md">
 
           {/* 모바일 로고 */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
-              <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-              </svg>
-            </div>
-            <span className="font-bold text-slate-800">OverLang</span>
+          <div className="mb-8 lg:hidden">
+            <img src="/Logo.png" alt="OverLang" className="h-9 w-auto" />
           </div>
 
           <h1 className="text-3xl font-extrabold text-slate-900 mb-1">다시 만나요!</h1>
