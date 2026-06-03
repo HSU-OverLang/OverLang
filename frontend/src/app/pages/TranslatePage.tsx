@@ -1224,7 +1224,7 @@ export function TranslatePage() {
                           {isExpanded && (
                             <div className="px-3 pb-3">
                               <div className="rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
-                                <p className="text-xs text-slate-600 leading-relaxed">{kw.content}</p>
+                                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{kw.content?.replace(/(?<!\n)\[/g, '\n[').trimStart()}</p>
                               </div>
                             </div>
                           )}
