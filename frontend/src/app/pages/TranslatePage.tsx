@@ -309,7 +309,15 @@ export function TranslatePage() {
     if (!projectId || videoSrc || authLoading || !user) return;
     setVideoLoading(true);
     getVideoPresignedUrl(projectId)
-      .then(url => setActiveVideo(url))
+      .then(url => {
+        setActiveVideo(url);
+        // URL 세팅 후 video 엘리먼트 로드 트리거
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.load();
+          }
+        }, 100);
+      })
       .catch(() => setActiveVideo(DEMO_VIDEO))
       .finally(() => setVideoLoading(false));
   }, [projectId, authLoading, user]);
@@ -373,16 +381,9 @@ export function TranslatePage() {
   // 레이스 컨디션 방지: 가장 최신 요청 ID만 결과를 반영
   const explainRequestIdRef = useRef(0);
   const [sentenceData] = useState<{ sentence: string; parts: { text: string; meaning: string; color: string }[]; grammar: string } | null>(null);
-  const [subtitles, setSubtitles] = useState<SubtitleItem[]>(() => {
-    // demo 모드: projectId 없을 때 localStorage 확인
-    try {
-      const saved = JSON.parse(localStorage.getItem('overlang_subtitles_demo') ?? 'null');
-      if (Array.isArray(saved) && saved.length > 0) return saved;
-    } catch { /* ignore */ }
-    return MOCK_SUBTITLES;
-  });
-  const [ocrData, setOcrData] = useState<OcrOverlay[]>(MOCK_OCR);
-  const [dataLoading, setDataLoading] = useState(false);
+  const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
+  const [ocrData, setOcrData] = useState<OcrOverlay[]>([]);
+  const [dataLoading, setDataLoading] = useState(!!projectId);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [sourceLang, setSourceLang] = useState<string>('en-US');
   const [targetLang, setTargetLang] = useState<string>('ko-KR');
@@ -512,6 +513,7 @@ export function TranslatePage() {
   // 활성 자막으로 자동 스크롤 (오른쪽 패널 - 중앙 정렬)
   useEffect(() => {
     if (!activeSubtitle) return;
+    if (activeTab !== '자막') setActiveTab('자막');
     const el = activeSubtitleRefs.current.get(activeSubtitle.id);
     const container = subtitleListRef.current;
     if (el && container) {
@@ -1473,7 +1475,7 @@ export function TranslatePage() {
                             {selectedWord.relatedWords && selectedWord.relatedWords.length > 0 && (
                               <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">관련 단어</p>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1.5">
                                   {selectedWord.relatedWords.map((rw, i) => (
                                     <span key={i} onClick={() => { window.speechSynthesis.cancel(); setTimeout(() => { const u = new SpeechSynthesisUtterance(rw); u.lang = selectedWord.lang; u.rate = 0.9; if (window.speechSynthesis.paused) window.speechSynthesis.resume(); window.speechSynthesis.speak(u); }, 100); }} className="cursor-pointer text-xs px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 transition-colors">{rw}</span>
                                   ))}
