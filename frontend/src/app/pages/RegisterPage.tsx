@@ -53,54 +53,21 @@ export function RegisterPage() {
     <div className="min-h-screen flex">
 
       {/* ── 왼쪽 브랜딩 패널 ── */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-teal-600 to-emerald-500 p-12 text-white">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold">OverLang</span>
-        </div>
-
-        <div>
+      <div className="hidden lg:flex lg:w-1/2 flex-col bg-gradient-to-br from-teal-600 to-emerald-500 p-12 text-white">
+        <div className="flex-1 flex flex-col justify-center">
           <h2 className="text-4xl font-extrabold leading-tight mb-4">
-            지금 바로 시작해보세요
+            지금 바로 시작해보세요.
           </h2>
           <p className="text-teal-100 text-lg leading-relaxed">
-            무료로 가입하고 AI 기반 영상 언어 학습을<br />경험해보세요.
+            무료로 가입하고 AI 기반 영상 언어 학습을 경험해보세요.
           </p>
-          <div className="mt-10 grid grid-cols-2 gap-4">
-            {[
-              { value: '98%', label: '자막 정확도' },
-              { value: '5초', label: '평균 생성 시간' },
-              { value: '30+', label: '지원 언어' },
-              { value: '무료', label: '기본 플랜' },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-2xl bg-white/10 backdrop-blur-sm p-4">
-                <p className="text-2xl font-extrabold">{stat.value}</p>
-                <p className="text-sm text-teal-100 mt-0.5">{stat.label}</p>
-              </div>
-            ))}
-          </div>
         </div>
-
         <p className="text-teal-200 text-sm">© 2026 OverLang. All rights reserved.</p>
       </div>
 
       {/* ── 오른쪽 폼 ── */}
       <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 py-12 overflow-y-auto">
         <div className="w-full max-w-md">
-
-          {/* 모바일 로고 */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
-              <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-              </svg>
-            </div>
-            <span className="font-bold text-slate-800">OverLang</span>
-          </div>
 
           <h1 className="text-3xl font-extrabold text-slate-900 mb-1">계정 만들기</h1>
           <p className="text-slate-500 mb-8">무료로 가입하고 AI 영상 학습을 시작하세요</p>

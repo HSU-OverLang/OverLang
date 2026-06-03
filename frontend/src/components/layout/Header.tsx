@@ -45,7 +45,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
 
         {/* ── 로고 ── */}
         <Link to="/" className="flex items-center shrink-0">
-          <img src="/Logo.png" alt="OverLang" className="h-20 w-auto" />
+          <img src="/Logo.png" alt="OverLang" className="h-11 w-auto" />
         </Link>
 
         {/* ── 로그인 상태별 우측 영역 ── */}

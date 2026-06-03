@@ -41,12 +41,8 @@ export function LoginPage() {
     <div className="min-h-screen flex">
 
       {/* ── 왼쪽 브랜딩 패널 ── */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-emerald-600 to-teal-500 p-12 text-white">
-        <div className="cursor-pointer" onClick={() => navigate('/')}>
-          <img src="/Logo.png" alt="OverLang" className="h-10 w-auto brightness-0 invert" />
-        </div>
-
-        <div>
+      <div className="hidden lg:flex lg:w-1/2 flex-col bg-gradient-to-br from-emerald-600 to-teal-500 p-12 text-white">
+        <div className="flex-1 flex flex-col justify-center">
           <h2 className="text-4xl font-extrabold leading-tight mb-4">
             영상 속 모든 언어를<br />이해하고 학습하세요.
           </h2>
@@ -55,12 +51,23 @@ export function LoginPage() {
           </p>
           <div className="mt-10 space-y-4">
             {[
-              { icon: '✦', text: 'AI 자막 자동 생성' },
-              { icon: '🌐', text: '화면 텍스트 OCR 번역' },
-              { icon: '📖', text: '단어 드래그 즉시 검색' },
+              {
+                text: 'AI 자막 자동 생성',
+                svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />,
+              },
+              {
+                text: '화면 텍스트 OCR 번역',
+                svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />,
+              },
+              {
+                text: '단어 드래그 즉시 검색',
+                svg: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />,
+              },
             ].map((item) => (
               <div key={item.text} className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-sm">{item.icon}</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+                  <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">{item.svg}</svg>
+                </span>
                 <span className="text-emerald-50">{item.text}</span>
               </div>
             ))}
@@ -73,11 +80,6 @@ export function LoginPage() {
       {/* ── 오른쪽 로그인 폼 ── */}
       <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 py-12">
         <div className="w-full max-w-md">
-
-          {/* 모바일 로고 */}
-          <div className="mb-8 lg:hidden">
-            <img src="/Logo.png" alt="OverLang" className="h-9 w-auto" />
-          </div>
 
           <h1 className="text-3xl font-extrabold text-slate-900 mb-1">다시 만나요!</h1>
           <p className="text-slate-500 mb-8">계정에 로그인하여 학습을 계속하세요.</p>
