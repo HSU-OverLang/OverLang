@@ -225,6 +225,8 @@ export function TranslatePage() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const videoWrapperRef = useRef<HTMLDivElement>(null);
   const [wrapperHeight, setWrapperHeight] = useState(400);
+  const [wrapperWidth, setWrapperWidth] = useState(0);
+  const [videoDimensions, setVideoDimensions] = useState<{ w: number; h: number } | null>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -548,18 +550,40 @@ export function TranslatePage() {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // 비디오 래퍼 높이 추적 (fontSizeRatio → px 변환용)
+  // 비디오 래퍼 크기 추적
   useEffect(() => {
     const el = videoWrapperRef.current;
     if (!el) return;
     setWrapperHeight(el.offsetHeight);
+    setWrapperWidth(el.offsetWidth);
     const ro = new ResizeObserver(entries => {
-      const h = entries[0]?.contentRect.height;
-      if (h) setWrapperHeight(h);
+      const rect = entries[0]?.contentRect;
+      if (rect) { setWrapperHeight(rect.height); setWrapperWidth(rect.width); }
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // object-contain 기준 실제 영상 렌더링 영역 계산
+  const getVideoRect = () => {
+    if (!wrapperWidth || !wrapperHeight) return { left: 0, top: 0, width: wrapperWidth, height: wrapperHeight };
+    // YouTube는 항상 16:9, 파일 업로드는 videoDimensions 사용
+    const vAspect = videoDimensions ? videoDimensions.w / videoDimensions.h : 16 / 9;
+    const cAspect = wrapperWidth / wrapperHeight;
+    let displayW, displayH, offsetX, offsetY;
+    if (vAspect > cAspect) {
+      displayW = wrapperWidth;
+      displayH = wrapperWidth / vAspect;
+      offsetX = 0;
+      offsetY = (wrapperHeight - displayH) / 2;
+    } else {
+      displayH = wrapperHeight;
+      displayW = wrapperHeight * vAspect;
+      offsetX = (wrapperWidth - displayW) / 2;
+      offsetY = 0;
+    }
+    return { left: offsetX, top: offsetY, width: displayW, height: displayH };
+  };
 
   // 비디오 시간 업데이트 핸들러 (구간 반복 포함)
   const handleTimeUpdate = () => {
@@ -850,14 +874,20 @@ export function TranslatePage() {
                 className={isFullscreen ? 'w-full h-full object-contain' : 'w-full h-full object-contain'}
                 controls
                 src={activeVideo}
+                onLoadedMetadata={e => {
+                  const v = e.currentTarget;
+                  if (v.videoWidth && v.videoHeight) setVideoDimensions({ w: v.videoWidth, h: v.videoHeight });
+                }}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
               />
             )}
 
-            {/* OCR 오버레이 - 재생 중일 때만 표시 */}
-            {showOcr && isPlaying && activeOcr.map(ocr => {
+            {/* OCR 오버레이 - 실제 영상 렌더링 영역 기준 */}
+            {showOcr && isPlaying && (() => {
+              const vRect = getVideoRect();
+              return activeOcr.map(ocr => {
               if (!ocr.translation) return null;
               const fontSizeRatio = ocr.style?.fontSizeRatio;
               // API는 대문자 'BOLD'/'NORMAL', CSS는 소문자 필요
@@ -893,10 +923,10 @@ export function TranslatePage() {
                     <div
                       className="absolute pointer-events-none"
                       style={{
-                        left: `${blurRegion.x * 100}%`,
-                        top: `${blurRegion.y * 100}%`,
-                        width: `${blurRegion.w * 100}%`,
-                        height: `${blurRegion.h * 100}%`,
+                        left: `${vRect.left + blurRegion.x * vRect.width}px`,
+                        top: `${vRect.top + blurRegion.y * vRect.height}px`,
+                        width: `${blurRegion.w * vRect.width}px`,
+                        height: `${blurRegion.h * vRect.height}px`,
                         backdropFilter: 'blur(8px)',
                         WebkitBackdropFilter: 'blur(8px)',
                         // dominantBackgroundColor가 있으면 우선 사용 (영상과 가장 비슷한 배경색)
@@ -910,10 +940,10 @@ export function TranslatePage() {
                   <div
                     className="absolute"
                     style={{
-                      left: `${ocr.x}%`,
-                      top: `${ocr.y}%`,
-                      width: `${ocr.w}%`,
-                      minHeight: `${ocr.h}%`,
+                      left: `${vRect.left + (ocr.x / 100) * vRect.width}px`,
+                      top: `${vRect.top + (ocr.y / 100) * vRect.height}px`,
+                      width: `${(ocr.w / 100) * vRect.width}px`,
+                      minHeight: `${(ocr.h / 100) * vRect.height}px`,
                       overflow: 'visible',
                       pointerEvents: 'none',
                       backgroundColor: blurRegion ? 'transparent' : bgColor,
@@ -938,7 +968,8 @@ export function TranslatePage() {
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
 
             {/* 구간 반복 표시 */}
             {repeatRange && (
