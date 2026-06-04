@@ -905,11 +905,20 @@ export function TranslatePage() {
               const bgColor = ocr.style?.backgroundColor ?? ocr.style?.dominantBackgroundColor ?? 'rgba(0,0,0,0.55)';
               const blurRegion = ocr.style?.blurRegion;
 
+              // 박스 너비 기준으로 폰트 크기 상한 계산 (번역 텍스트가 더 길 수 있어서 0.85 배율 적용)
+              const boxW = (ocr.w / 100) * vRect.width;
+              const boxH = (ocr.h / 100) * vRect.height;
+              const parsedFontSize = parseFloat(fontSize);
+              const maxFontByWidth = boxW / Math.max(ocr.translation?.length ?? 1, 1) * 1.8;
+              const cappedFontSize = `${Math.min(parsedFontSize * 0.85, maxFontByWidth)}px`;
+
               const textStyle: React.CSSProperties = {
-                fontSize,
+                fontSize: cappedFontSize,
                 fontWeight,
                 textAlign,
                 whiteSpace: 'pre-line',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
                 lineHeight: 1.2,
                 letterSpacing: '-0.01em',
                 color: textColor,
@@ -941,9 +950,10 @@ export function TranslatePage() {
                     style={{
                       left: `${vRect.left + (ocr.x / 100) * vRect.width}px`,
                       top: `${vRect.top + (ocr.y / 100) * vRect.height}px`,
-                      width: `${(ocr.w / 100) * vRect.width}px`,
-                      minHeight: `${(ocr.h / 100) * vRect.height}px`,
-                      overflow: 'visible',
+                      width: `${boxW}px`,
+                      minHeight: `${boxH}px`,
+                      maxHeight: `${boxH * 2.5}px`,
+                      overflow: 'hidden',
                       pointerEvents: 'none',
                       backgroundColor: blurRegion ? 'transparent' : bgColor,
                       ...(!blurRegion ? { backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' } : {}),
