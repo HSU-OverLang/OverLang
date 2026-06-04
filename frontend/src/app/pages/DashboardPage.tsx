@@ -219,10 +219,11 @@ export function DashboardPage() {
   const processingCount = projects.filter(p => p.status === 'PROCESSING' || p.status === 'CREATED').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       <Header />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
         {/* ── 페이지 헤더 ── */}
         <div className="mb-8">
@@ -584,6 +585,7 @@ export function DashboardPage() {
             })}
           </div>
         )}
+      </div>
       </main>
 
       {/* ── 제목 수정 모달 ── */}
