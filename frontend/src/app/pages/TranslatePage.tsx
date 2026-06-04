@@ -503,7 +503,6 @@ export function TranslatePage() {
   // 활성 자막으로 자동 스크롤 (오른쪽 패널 - 중앙 정렬)
   useEffect(() => {
     if (!activeSubtitle) return;
-    if (activeTab !== '자막') setActiveTab('자막');
     const el = activeSubtitleRefs.current.get(activeSubtitle.id);
     const container = subtitleListRef.current;
     if (el && container) {

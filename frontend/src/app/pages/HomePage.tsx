@@ -390,7 +390,7 @@ export function HomePage() {
                 <div className="mb-3">
                   <p className="text-xs font-bold text-slate-600 mb-2">🔑 빈출 단어</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {['idiom', 'professional', 'natural', 'fluent', 'context'].map(w => (
+                    {['idiom', 'professional', 'natural', 'fluent'].map(w => (
                       <span key={w} className="text-xs bg-slate-100 text-slate-600 rounded-lg px-2.5 py-1 font-medium">{w}</span>
                     ))}
                   </div>
