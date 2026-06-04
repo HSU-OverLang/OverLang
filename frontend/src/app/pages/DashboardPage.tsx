@@ -585,6 +585,9 @@ export function DashboardPage() {
             })}
           </div>
         )}
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
       </div>
       </main>
 
@@ -666,9 +669,6 @@ export function DashboardPage() {
           AI가 영상을 분석하는 중이에요. 완료 후 다시 시도해주세요.
         </div>
       )}
-      <footer className="mt-auto py-4 text-center">
-        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
-      </footer>
     </div>
   );
 }
