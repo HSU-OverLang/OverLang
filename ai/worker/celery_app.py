@@ -6,22 +6,20 @@ load_dotenv()
 print("REDIS_URL =", os.getenv("REDIS_URL"))
 print("PWD =", os.getcwd())
 
-REDIS_URL = os.getenv("REDIS_URL")
 
-if REDIS_URL:
-    BROKER_URL = REDIS_URL
-    BACKEND_URL = REDIS_URL
-else:
-    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT = os.getenv("REDIS_PORT", "6379")
-    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+def _resolve_redis_url() -> str:
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        return redis_url
 
-    if REDIS_PASSWORD:
-        BROKER_URL = f"redis://default:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0"
-    else:
-        BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+    redis_host = os.getenv("REDIS_HOST", "localhost")
+    redis_port = os.getenv("REDIS_PORT", "6379")
+    return f"redis://{redis_host}:{redis_port}/0"
 
-    BACKEND_URL = BROKER_URL
+
+# Redis Config
+BROKER_URL = _resolve_redis_url()
+BACKEND_URL = BROKER_URL
 
 celery_app = Celery(
     "ai_worker",

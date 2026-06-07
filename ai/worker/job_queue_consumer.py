@@ -10,7 +10,8 @@ from typing import Any
 import redis
 from dotenv import load_dotenv
 
-from ai.pipeline.callback_client import is_backend_job_valid
+from ai.api.schemas import CallbackPayload, CurrentStage, ErrorCode, JobStatus
+from ai.pipeline.callback_client import is_backend_job_valid, send_callback
 from ai.worker.celery_app import celery_app
 
 load_dotenv()
@@ -20,7 +21,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_QUEUE_KEY = "job-queue"
 DEFAULT_BLOCK_TIMEOUT_SECONDS = 5
 DEFAULT_RETRY_DELAY_SECONDS = 3.0
+DEFAULT_IDLE_WAIT_SECONDS = 2.0
 PROCESS_JOB_TASK_NAME = "ai.worker.tasks.process_job_task"
+ACTIVE_JOB_LOCK_PATTERN = "overlang:job-lock:*"
+CELERY_QUEUE_KEY = "celery"
 
 
 def main() -> None:
@@ -70,10 +74,37 @@ def consume_backend_job_queue(
 
     while True:
         try:
+            if _should_wait_for_idle_worker(redis_client):
+                if _fail_job_when_worker_busy():
+                    queued_item = redis_client.blpop(
+                        queue_key,
+                        timeout=block_timeout_seconds,
+                    )
+                    if queued_item is None:
+                        if once:
+                            logger.info(
+                                "No payload received before timeout: queueKey=%s",
+                                queue_key,
+                            )
+                            return
+                        continue
+
+                    _, raw_payload = queued_item
+                    _fail_payload_because_worker_is_busy(raw_payload)
+                    if once:
+                        return
+                    continue
+
+                time.sleep(_resolve_idle_wait_seconds())
+                continue
+
             queued_item = redis_client.blpop(queue_key, timeout=block_timeout_seconds)
             if queued_item is None:
                 if once:
-                    logger.info("No payload received before timeout: queueKey=%s", queue_key)
+                    logger.info(
+                        "No payload received before timeout: queueKey=%s",
+                        queue_key,
+                    )
                     return
                 continue
 
@@ -111,6 +142,20 @@ def _build_redis_client() -> redis.Redis:
     return redis.Redis(host=redis_host, port=redis_port, db=0, decode_responses=True)
 
 
+def _should_wait_for_idle_worker(redis_client: redis.Redis) -> bool:
+    if not _require_idle_worker_before_dispatch():
+        return False
+
+    if redis_client.llen(CELERY_QUEUE_KEY) > 0:
+        return True
+
+    active_lock = next(
+        redis_client.scan_iter(match=ACTIVE_JOB_LOCK_PATTERN, count=1),
+        None,
+    )
+    return active_lock is not None
+
+
 def _dispatch_payload(raw_payload: str) -> None:
     payload = _parse_payload(raw_payload)
     if payload is None:
@@ -129,6 +174,42 @@ def _dispatch_payload(raw_payload: str) -> None:
         "Backend job payload dispatched: jobId=%s celeryTaskId=%s",
         job_id,
         task.id,
+    )
+
+
+def _fail_payload_because_worker_is_busy(raw_payload: str) -> None:
+    payload = _parse_payload(raw_payload)
+    if payload is None:
+        return
+
+    job_id = payload.get("jobId") or payload.get("job_id")
+    if job_id is None:
+        logger.warning("Backend job payload has no jobId and cannot be failed.")
+        return
+
+    if not is_backend_job_valid(job_id):
+        logger.info(
+            "Busy job failure skipped because job is no longer valid: jobId=%s",
+            job_id,
+        )
+        return
+
+    send_callback(
+        CallbackPayload(
+            job_id=job_id,
+            status=JobStatus.FAILED,
+            progress=0,
+            current_stage=CurrentStage.QUEUED,
+            segments=[],
+            ocr_items=[],
+            learning_data=None,
+            error_code=ErrorCode.UNKNOWN_ERROR.value,
+            error_message="AI worker is busy. The job was not started.",
+        )
+    )
+    logger.warning(
+        "Backend job failed because worker is busy: jobId=%s",
+        job_id,
     )
 
 
@@ -153,6 +234,25 @@ def _resolve_retry_delay_seconds() -> float:
             str(DEFAULT_RETRY_DELAY_SECONDS),
         )
     )
+
+
+def _resolve_idle_wait_seconds() -> float:
+    return float(
+        os.getenv(
+            "BACKEND_JOB_DISPATCH_IDLE_WAIT_SECONDS",
+            str(DEFAULT_IDLE_WAIT_SECONDS),
+        )
+    )
+
+
+def _require_idle_worker_before_dispatch() -> bool:
+    value = os.getenv("BACKEND_JOB_DISPATCH_REQUIRE_IDLE_WORKER", "true")
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _fail_job_when_worker_busy() -> bool:
+    value = os.getenv("BACKEND_JOB_FAIL_WHEN_WORKER_BUSY", "false")
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 if __name__ == "__main__":

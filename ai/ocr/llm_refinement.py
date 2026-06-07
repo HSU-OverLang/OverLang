@@ -120,6 +120,11 @@ def _serialize_ocr_item(index: int, item: OcrItem) -> dict[str, Any]:
         "startTime": item.start_time,
         "endTime": item.end_time,
         "boundingBox": item.bounding_box.model_dump(by_alias=True),
+        "candidates": [
+            candidate.model_dump(by_alias=True)
+            for candidate in item.ocr_candidates
+            if candidate.text.strip()
+        ],
     }
 
 
@@ -143,13 +148,19 @@ def _build_instructions(source_language: str | None) -> str:
         "You clean OCR outputs for a video translation and learning service. "
         f"The source language hint is {source}. "
         "Return one decision for every input item using the same index. "
+        "Each item may include OCR candidates from the same temporal/spatial track. "
+        "Use candidates only to choose or lightly normalize the most reliable source "
+        "text for that same item. Prefer repeated, high-confidence, natural text in "
+        "the source language. "
         "Drop only OCR noise, UI promotion text, channel subscribe prompts, random "
         "symbols, broken gibberish, repeated duplicate fragments, or text that is "
         "clearly not meaningful screen content. "
         "Keep meaningful titles, captions, labels, names, numbers with context, and "
         "short intentional UI words such as OK, No, Yes, MIN when they are meaningful. "
         "For kept items, clean only obvious OCR spacing, punctuation, or duplicated "
-        "token errors. Do not translate. Do not invent missing text. "
+        "token errors. Do not translate. Do not invent missing text or add meaning "
+        "that is not supported by originText or candidates. Do not change time or "
+        "bounding box information. If confidence is low, keep the original text. "
         "Return only JSON matching the schema."
     )
 
