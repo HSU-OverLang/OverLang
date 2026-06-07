@@ -219,10 +219,11 @@ export function DashboardPage() {
   const processingCount = projects.filter(p => p.status === 'PROCESSING' || p.status === 'CREATED').length;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       <Header />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
         {/* ── 페이지 헤더 ── */}
         <div className="mb-8">
@@ -584,6 +585,10 @@ export function DashboardPage() {
             })}
           </div>
         )}
+      <footer className="py-4 text-center">
+        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
+      </footer>
+      </div>
       </main>
 
       {/* ── 제목 수정 모달 ── */}
@@ -664,9 +669,6 @@ export function DashboardPage() {
           AI가 영상을 분석하는 중이에요. 완료 후 다시 시도해주세요.
         </div>
       )}
-      <footer className="mt-auto py-4 text-center">
-        <p className="text-xs text-slate-300">© 2026 OverLang. All rights reserved.</p>
-      </footer>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function Header({ fluid = true }: { fluid?: boolean }) {
           : 'bg-white/95 backdrop-blur-md'
       }`}
     >
-      <div className={`flex items-center justify-between ${fluid ? 'w-full h-14 px-16' : 'mx-auto h-16 max-w-6xl px-6'}`}>
+      <div className={`flex items-center justify-between ${fluid ? 'w-full h-14 px-4 md:px-16' : 'mx-auto h-16 max-w-6xl px-4 md:px-6'}`}>
 
         {/* ── 로고 ── */}
         <Link to="/" className="flex items-center shrink-0">

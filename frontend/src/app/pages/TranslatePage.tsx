@@ -179,18 +179,6 @@ interface OcrOverlay {
 // ── 목 데이터 ──────────────────────────────────────────
 const DEMO_VIDEO = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
-const MOCK_SUBTITLES: SubtitleItem[] = [
-  { id: 1, start: '00:00:00', end: '00:00:03', startSec: 0,  endSec: 3,  original: 'Hello, everyone! Welcome to our English learning session.', translation: '안녕하세요, 여러분! 영어 학습 세션에 오신 것을 환영합니다.', words: [] },
-  { id: 2, start: '00:00:03', end: '00:00:07', startSec: 3,  endSec: 7,  original: "Today, we're going to dive into some essential business idioms.", translation: '오늘은 필수적인 비즈니스 관용구들을 본격적으로 배워보겠습니다.', words: [] },
-  { id: 3, start: '00:00:07', end: '00:00:12', startSec: 7,  endSec: 12, original: 'These phrases will help you sound more natural in professional settings.', translation: '이 표현들은 전문적인 환경에서 더 자연스럽게 들리는 데 도움이 될 것입니다.', words: [] },
-  { id: 4, start: '00:00:12', end: '00:00:16', startSec: 12, endSec: 16, original: 'Remember, practice makes perfect!', translation: '기억하세요, 연습이 완벽함을 만듭니다!', words: [] },
-  { id: 5, start: '00:00:16', end: '00:00:20', startSec: 16, endSec: 20, original: "Let's get the ball rolling with our first idiom.", translation: '첫 번째 관용구로 시작해 봅시다.', words: [] },
-];
-
-const MOCK_OCR: OcrOverlay[] = [
-  { id: 1, original: 'Business Idioms', translation: '비즈니스 관용구', x: 15, y: 18, w: 20, h: 5, startSec: 0, endSec: 999 },
-  { id: 2, original: 'Chapter 1',       translation: '챕터 1',           x: 15, y: 30, w: 12, h: 5, startSec: 0, endSec: 999 },
-];
 
 type RightPanel = 'word' | 'sentence' | null;
 type ActiveTab = '요약' | '자막' | '관용표현';
@@ -237,6 +225,8 @@ export function TranslatePage() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const videoWrapperRef = useRef<HTMLDivElement>(null);
   const [wrapperHeight, setWrapperHeight] = useState(400);
+  const [wrapperWidth, setWrapperWidth] = useState(0);
+  const [videoDimensions, setVideoDimensions] = useState<{ w: number; h: number } | null>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -309,7 +299,15 @@ export function TranslatePage() {
     if (!projectId || videoSrc || authLoading || !user) return;
     setVideoLoading(true);
     getVideoPresignedUrl(projectId)
-      .then(url => setActiveVideo(url))
+      .then(url => {
+        setActiveVideo(url);
+        // URL 세팅 후 video 엘리먼트 로드 트리거
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.load();
+          }
+        }, 100);
+      })
       .catch(() => setActiveVideo(DEMO_VIDEO))
       .finally(() => setVideoLoading(false));
   }, [projectId, authLoading, user]);
@@ -360,7 +358,7 @@ export function TranslatePage() {
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [subtitlePosition, setSubtitlePosition] = useState<'overlay' | 'bottom'>('overlay');
   const [subtitleFontSize, setSubtitleFontSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [ocrFontSize, setOcrFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [ocrFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('자막');
   const [expandedKeyword, setExpandedKeyword] = useState<number | null>(null);
@@ -373,16 +371,9 @@ export function TranslatePage() {
   // 레이스 컨디션 방지: 가장 최신 요청 ID만 결과를 반영
   const explainRequestIdRef = useRef(0);
   const [sentenceData] = useState<{ sentence: string; parts: { text: string; meaning: string; color: string }[]; grammar: string } | null>(null);
-  const [subtitles, setSubtitles] = useState<SubtitleItem[]>(() => {
-    // demo 모드: projectId 없을 때 localStorage 확인
-    try {
-      const saved = JSON.parse(localStorage.getItem('overlang_subtitles_demo') ?? 'null');
-      if (Array.isArray(saved) && saved.length > 0) return saved;
-    } catch { /* ignore */ }
-    return MOCK_SUBTITLES;
-  });
-  const [ocrData, setOcrData] = useState<OcrOverlay[]>(MOCK_OCR);
-  const [dataLoading, setDataLoading] = useState(false);
+  const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
+  const [ocrData, setOcrData] = useState<OcrOverlay[]>([]);
+  const [dataLoading, setDataLoading] = useState(!!projectId);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [sourceLang, setSourceLang] = useState<string>('en-US');
   const [targetLang, setTargetLang] = useState<string>('ko-KR');
@@ -558,18 +549,40 @@ export function TranslatePage() {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // 비디오 래퍼 높이 추적 (fontSizeRatio → px 변환용)
+  // 비디오 래퍼 크기 추적
   useEffect(() => {
     const el = videoWrapperRef.current;
     if (!el) return;
     setWrapperHeight(el.offsetHeight);
+    setWrapperWidth(el.offsetWidth);
     const ro = new ResizeObserver(entries => {
-      const h = entries[0]?.contentRect.height;
-      if (h) setWrapperHeight(h);
+      const rect = entries[0]?.contentRect;
+      if (rect) { setWrapperHeight(rect.height); setWrapperWidth(rect.width); }
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // object-contain 기준 실제 영상 렌더링 영역 계산
+  const getVideoRect = () => {
+    if (!wrapperWidth || !wrapperHeight) return { left: 0, top: 0, width: wrapperWidth, height: wrapperHeight };
+    // YouTube는 항상 16:9, 파일 업로드는 videoDimensions 사용
+    const vAspect = videoDimensions ? videoDimensions.w / videoDimensions.h : 16 / 9;
+    const cAspect = wrapperWidth / wrapperHeight;
+    let displayW, displayH, offsetX, offsetY;
+    if (vAspect > cAspect) {
+      displayW = wrapperWidth;
+      displayH = wrapperWidth / vAspect;
+      offsetX = 0;
+      offsetY = (wrapperHeight - displayH) / 2;
+    } else {
+      displayH = wrapperHeight;
+      displayW = wrapperHeight * vAspect;
+      offsetX = (wrapperWidth - displayW) / 2;
+      offsetY = 0;
+    }
+    return { left: offsetX, top: offsetY, width: displayW, height: displayH };
+  };
 
   // 비디오 시간 업데이트 핸들러 (구간 반복 포함)
   const handleTimeUpdate = () => {
@@ -824,28 +837,29 @@ export function TranslatePage() {
   };
 
   return (
-    <div className="h-screen bg-white flex flex-col overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-white flex flex-col md:overflow-hidden">
 
       {/* ── 상단 헤더 ── */}
       <Header fluid />
 
-      {/* ── 본문 (3단 레이아웃) ── */}
-      <div className="flex flex-1 overflow-hidden px-16 pt-3">
+      {/* ── 본문 (데스크탑: 3단 / 모바일: 세로 스택) ── */}
+      <div className="flex flex-col md:flex-row md:flex-1 md:overflow-hidden md:px-16 md:pt-3">
 
         {/* ── 왼쪽: 영상 영역 ── */}
-        <div className="flex flex-col w-[55%] border-r border-slate-200 overflow-hidden shrink-0">
+        <div className="flex flex-col md:w-[55%] md:border-r border-slate-200 md:overflow-hidden md:shrink-0">
           {/* 영상 플레이어 */}
           {/* 외부 컨테이너: fullscreen 시 화면 전체 + 중앙 정렬 */}
           <div
             ref={videoContainerRef}
             className={`bg-black w-full${isFullscreen ? ' flex items-center justify-center' : ''}`}
+            style={isFullscreen ? undefined : { height: 'calc((100vh - 53px) * 2 / 3)' }}
           >
             {/* 내부 래퍼: 비디오와 OCR이 항상 같은 크기를 공유 */}
             {/* fullscreen 시 aspect-ratio + max 제약으로 contain 동작 */}
             <div
               ref={videoWrapperRef}
-              className={`relative w-full overflow-hidden${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ''}`}
-              style={isFullscreen ? undefined : { height: 'calc((100vh - 53px) * 2 / 3)' }}
+              className={`relative w-full h-full overflow-hidden${isFullscreen ? ' aspect-video max-h-screen max-w-[100vw]' : ''}`}
+              style={isFullscreen ? { height: undefined } : undefined}
             >
             {videoLoading ? (
               <div className="w-full h-full flex items-center justify-center">
@@ -859,14 +873,20 @@ export function TranslatePage() {
                 className={isFullscreen ? 'w-full h-full object-contain' : 'w-full h-full object-contain'}
                 controls
                 src={activeVideo}
+                onLoadedMetadata={e => {
+                  const v = e.currentTarget;
+                  if (v.videoWidth && v.videoHeight) setVideoDimensions({ w: v.videoWidth, h: v.videoHeight });
+                }}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
               />
             )}
 
-            {/* OCR 오버레이 - 재생 중일 때만 표시 */}
-            {showOcr && isPlaying && activeOcr.map(ocr => {
+            {/* OCR 오버레이 - 실제 영상 렌더링 영역 기준 */}
+            {showOcr && isPlaying && (() => {
+              const vRect = getVideoRect();
+              return activeOcr.map(ocr => {
               if (!ocr.translation) return null;
               const fontSizeRatio = ocr.style?.fontSizeRatio;
               // API는 대문자 'BOLD'/'NORMAL', CSS는 소문자 필요
@@ -885,11 +905,20 @@ export function TranslatePage() {
               const bgColor = ocr.style?.backgroundColor ?? ocr.style?.dominantBackgroundColor ?? 'rgba(0,0,0,0.55)';
               const blurRegion = ocr.style?.blurRegion;
 
+              // 박스 너비 기준으로 폰트 크기 상한 계산 (번역 텍스트가 더 길 수 있어서 0.85 배율 적용)
+              const boxW = (ocr.w / 100) * vRect.width;
+              const boxH = (ocr.h / 100) * vRect.height;
+              const parsedFontSize = parseFloat(fontSize);
+              const maxFontByWidth = boxW / Math.max(ocr.translation?.length ?? 1, 1) * 1.8;
+              const cappedFontSize = `${Math.min(parsedFontSize * 0.85, maxFontByWidth)}px`;
+
               const textStyle: React.CSSProperties = {
-                fontSize,
+                fontSize: cappedFontSize,
                 fontWeight,
                 textAlign,
                 whiteSpace: 'pre-line',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
                 lineHeight: 1.2,
                 letterSpacing: '-0.01em',
                 color: textColor,
@@ -902,10 +931,10 @@ export function TranslatePage() {
                     <div
                       className="absolute pointer-events-none"
                       style={{
-                        left: `${blurRegion.x * 100}%`,
-                        top: `${blurRegion.y * 100}%`,
-                        width: `${blurRegion.w * 100}%`,
-                        height: `${blurRegion.h * 100}%`,
+                        left: `${vRect.left + blurRegion.x * vRect.width}px`,
+                        top: `${vRect.top + blurRegion.y * vRect.height}px`,
+                        width: `${blurRegion.w * vRect.width}px`,
+                        height: `${blurRegion.h * vRect.height}px`,
                         backdropFilter: 'blur(8px)',
                         WebkitBackdropFilter: 'blur(8px)',
                         // dominantBackgroundColor가 있으면 우선 사용 (영상과 가장 비슷한 배경색)
@@ -919,11 +948,12 @@ export function TranslatePage() {
                   <div
                     className="absolute"
                     style={{
-                      left: `${ocr.x}%`,
-                      top: `${ocr.y}%`,
-                      width: `${ocr.w}%`,
-                      minHeight: `${ocr.h}%`,
-                      overflow: 'visible',
+                      left: `${vRect.left + (ocr.x / 100) * vRect.width}px`,
+                      top: `${vRect.top + (ocr.y / 100) * vRect.height}px`,
+                      width: `${boxW}px`,
+                      minHeight: `${boxH}px`,
+                      maxHeight: `${boxH * 2.5}px`,
+                      overflow: 'hidden',
                       pointerEvents: 'none',
                       backgroundColor: blurRegion ? 'transparent' : bgColor,
                       ...(!blurRegion ? { backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' } : {}),
@@ -947,7 +977,8 @@ export function TranslatePage() {
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
 
             {/* 구간 반복 표시 */}
             {repeatRange && (
@@ -1072,23 +1103,6 @@ export function TranslatePage() {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-slate-200 mx-0.5" />
-
-            {/* OCR 폰트 크기 */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-medium mr-0.5 bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">OCR</span>
-              {(['small', 'medium', 'large'] as const).map(size => (
-                <button
-                  key={size}
-                  onClick={() => setOcrFontSize(size)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                    ocrFontSize === size ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {size === 'small' ? '작게' : size === 'medium' ? '중간' : '크게'}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* 자막 전체 스크롤 리스트 */}
@@ -1132,7 +1146,7 @@ export function TranslatePage() {
         </div>
 
         {/* ── 오른쪽: 탭 패널 ── */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-1 md:overflow-hidden min-h-[60vh] md:min-h-0">
 
           {/* 탭 헤더 */}
           <div className="flex items-center border-b border-slate-200 shrink-0 px-2 bg-white">
@@ -1241,7 +1255,7 @@ export function TranslatePage() {
                           {isExpanded && (
                             <div className="px-3 pb-3">
                               <div className="rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
-                                <p className="text-xs text-slate-600 leading-relaxed">{kw.content}</p>
+                                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{kw.content?.replace(/(?<!\n)\[/g, '\n[').trimStart()}</p>
                               </div>
                             </div>
                           )}
@@ -1260,7 +1274,7 @@ export function TranslatePage() {
 
               {/* 자막 목록 */}
               <div className={`flex flex-col ${rightPanel ? 'w-1/2 border-r border-slate-200' : 'w-full'} overflow-hidden`}>
-                <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0 h-[41px]">
                   <p className="text-xs font-bold text-slate-600">
                     {dataLoading ? '불러오는 중...' : `${subtitles.length}개의 자막`}
                   </p>
@@ -1425,8 +1439,8 @@ export function TranslatePage() {
 
               {/* 단어 해설 / 문장 분석 패널 (분할 뷰) */}
               {rightPanel && (
-                <div className="w-1/2 flex flex-col overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0">
+                <div className="w-1/2 flex flex-col overflow-hidden border-l border-slate-200">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 shrink-0 h-[41px]">
                     <p className="text-xs font-bold text-slate-600">
                       {rightPanel === 'word' ? '단어 해설' : '문장 분석'}
                     </p>
@@ -1491,7 +1505,7 @@ export function TranslatePage() {
                             {selectedWord.relatedWords && selectedWord.relatedWords.length > 0 && (
                               <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">관련 단어</p>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1.5">
                                   {selectedWord.relatedWords.map((rw, i) => (
                                     <span key={i} onClick={() => { window.speechSynthesis.cancel(); setTimeout(() => { const u = new SpeechSynthesisUtterance(rw); u.lang = selectedWord.lang; u.rate = 0.9; if (window.speechSynthesis.paused) window.speechSynthesis.resume(); window.speechSynthesis.speak(u); }, 100); }} className="cursor-pointer text-xs px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 transition-colors">{rw}</span>
                                   ))}

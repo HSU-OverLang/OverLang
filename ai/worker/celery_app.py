@@ -3,6 +3,8 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+print("REDIS_URL =", os.getenv("REDIS_URL"))
+print("PWD =", os.getcwd())
 
 
 def _resolve_redis_url() -> str:

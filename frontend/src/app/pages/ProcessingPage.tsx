@@ -108,6 +108,10 @@ export function ProcessingPage() {
   };
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
     if (authLoading) return;
     if (!user) {
       navigate('/login', { replace: true });
