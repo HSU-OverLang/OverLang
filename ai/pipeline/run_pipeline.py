@@ -45,6 +45,7 @@ from ai.stt_service import STTService
 from ai.translation import create_translation_service
 
 ProgressCallback = Callable[[CurrentStage, float, dict[str, Any] | None], None]
+CancellationCallback = Callable[[], None]
 
 RECOVERABLE_ISSUE_MESSAGES = {
     "OCR_FAILED": "OCR processing failed; available non-OCR results were saved.",
@@ -372,6 +373,7 @@ UNSAFE_COMPACT_SPLIT_PREFIXES = {
 def run_pipeline(
     job: AnalysisRequest | WorkerJobPayload | dict[str, Any],
     progress_callback: ProgressCallback | None = None,
+    cancellation_callback: CancellationCallback | None = None,
     job_id: str | int | None = None,
     keep_intermediate_files: bool = True,
 ) -> AnalysisResult:
@@ -453,7 +455,11 @@ def run_pipeline(
                 save_intermediate(resolved_job_id, "frame_extraction", frames)
 
                 _report_progress(progress_callback, CurrentStage.OCR_TEXT_DETECTION, 55.0)
-                ocr_items = _run_ocr_stage(normalized_job, frames)
+                ocr_items = _run_ocr_stage(
+                    normalized_job,
+                    frames,
+                    cancellation_callback=cancellation_callback,
+                )
                 try:
                     refined_ocr_items = refine_ocr_items_with_llm(
                         ocr_items,
@@ -743,6 +749,7 @@ def _run_stt_stage(
 def _run_ocr_stage(
     job: AnalysisRequest | WorkerJobPayload,
     frames: list[dict[str, object]],
+    cancellation_callback: CancellationCallback | None = None,
 ) -> list[OcrItem]:
     runtime_options = _extract_runtime_options(job)
     frame_interval = float(runtime_options["frame_interval"])
@@ -755,6 +762,8 @@ def _run_ocr_stage(
     last_global_scan_timestamp: float | None = None
     consecutive_skipped_frames = 0
     for frame in frames:
+        _check_cancellation(cancellation_callback)
+
         frame_timestamp = float(frame["timestamp"])
         bbox_change_score = _calculate_latest_ocr_bbox_change_score(
             previous_ocr_frame_path,
@@ -817,6 +826,7 @@ def _run_ocr_stage(
         previous_ocr_frame_path = Path(str(frame["path"]))
         consecutive_skipped_frames = 0
 
+    _check_cancellation(cancellation_callback)
     return build_ocr_items(
         raw_items,
         frame_interval_seconds=frame_interval,
@@ -826,6 +836,13 @@ def _run_ocr_stage(
         max_special_char_ratio=float(runtime_options["ocr_max_special_char_ratio"]),
         edge_margin=float(runtime_options["ocr_edge_margin"]),
     )
+
+
+def _check_cancellation(
+    cancellation_callback: CancellationCallback | None,
+) -> None:
+    if cancellation_callback is not None:
+        cancellation_callback()
 
 
 def _carry_forward_ocr_items(

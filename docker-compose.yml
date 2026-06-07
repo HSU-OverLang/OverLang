@@ -44,7 +44,7 @@ services:
               capabilities: [gpu]
     ports:
       - "8000:8000"
-    command: uvicorn ai.api.app:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn ai.api.app:app --host 0.0.0.0 --port 8000
 
   ai-worker:
     profiles: ["gpu-only"]
