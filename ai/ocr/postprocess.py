@@ -5,7 +5,7 @@ import re
 import statistics
 from typing import Any
 
-from ai.api.schemas import BoundingBox, OcrAnimation, OcrItem, OcrLine
+from ai.api.schemas import BoundingBox, OcrAnimation, OcrCandidate, OcrItem, OcrLine
 from ai.ocr.overlay_style import build_ocr_style
 
 LINE_VERTICAL_OVERLAP_THRESHOLD = 0.45
@@ -1057,7 +1057,40 @@ def _track_to_ocr_item(track: dict[str, Any]) -> OcrItem:
         confidence=confidence,
         lines=lines,
         style=style,
+        ocr_candidates=_build_ocr_candidates(track),
     )
+
+
+def _build_ocr_candidates(track: dict[str, Any]) -> list[OcrCandidate]:
+    candidates: list[OcrCandidate] = []
+    seen_keys: set[str] = set()
+    sorted_candidates = sorted(
+        track.get("textCandidates", []),
+        key=lambda candidate: (
+            float(candidate.get("confidence") or 0.0),
+            len(_compact_text(str(candidate.get("text", "")))),
+            float(candidate.get("timestamp") or 0.0),
+        ),
+        reverse=True,
+    )
+    for candidate in sorted_candidates:
+        text = str(candidate.get("text", "")).strip()
+        candidate_key = _text_vote_key(text) or _normalize_text(text)
+        if not text or not candidate_key or candidate_key in seen_keys:
+            continue
+
+        seen_keys.add(candidate_key)
+        candidates.append(
+            OcrCandidate(
+                text=text,
+                confidence=float(candidate.get("confidence") or 0.0),
+                timestamp=float(candidate.get("timestamp") or 0.0),
+            )
+        )
+        if len(candidates) >= _llm_candidate_limit():
+            break
+
+    return candidates
 
 
 def _build_ocr_item_lines(
@@ -1613,6 +1646,10 @@ def _text_vote_similarity_threshold() -> float:
         "AI_OCR_TEXT_VOTE_SIMILARITY_THRESHOLD",
         TEXT_VOTE_SIMILARITY_THRESHOLD,
     )
+
+
+def _llm_candidate_limit() -> int:
+    return _int_env("AI_OCR_LLM_CANDIDATE_LIMIT", 8)
 
 
 def _has_progressive_text_candidates(track: dict[str, Any]) -> bool:

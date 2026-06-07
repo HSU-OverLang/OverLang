@@ -231,6 +231,12 @@ class OcrLine(CamelModel):
     bounding_box: BoundingBox
 
 
+class OcrCandidate(CamelModel):
+    text: str
+    confidence: float | None = None
+    timestamp: float | None = None
+
+
 class OcrItem(CamelModel):
     start_time: float
     end_time: float
@@ -240,6 +246,10 @@ class OcrItem(CamelModel):
     confidence: float | None = None
     lines: list[OcrLine] = Field(default_factory=list)
     style: OcrStyle | None = None
+    ocr_candidates: list[OcrCandidate] = Field(
+        default_factory=list,
+        exclude=True,
+    )
 
 
 class LearningContent(CamelModel):
