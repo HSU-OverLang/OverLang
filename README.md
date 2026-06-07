@@ -14,6 +14,7 @@ AI 기반 영상 번역 및 학습 지원 플랫폼입니다. 사용자가 영�
 - 영상 요약, 핵심 단어, 관용 표현 학습 콘텐츠 조회
 
 ## 기술 스택
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/e3df1de3-68b5-4bd3-9119-507cb5622e61" />
 
 
 ## 프로젝트 구조
