@@ -771,7 +771,18 @@ def _run_ocr_stage(
             latest_detected_items,
             padding_ratio=float(runtime_options["ocr_bbox_change_padding"]),
         )
-        should_run_ocr = _should_run_ocr_for_frame(
+        should_run_global_scan = _should_run_global_ocr_scan(
+            latest_detected_items,
+            frame_timestamp,
+            last_global_scan_timestamp,
+            tracking_enabled=bool(runtime_options["ocr_tracking_enabled"]),
+            global_scan_interval_seconds=float(
+                runtime_options["ocr_global_scan_interval_seconds"]
+            ),
+        )
+        # Periodic full scan is the discovery path for new text, so it must bypass
+        # unchanged-frame skipping even when tracked bbox regions look stable.
+        should_run_ocr = should_run_global_scan or _should_run_ocr_for_frame(
             frame,
             latest_detected_items,
             consecutive_skipped_frames,
@@ -791,15 +802,6 @@ def _run_ocr_stage(
             consecutive_skipped_frames += 1
             continue
 
-        should_run_global_scan = _should_run_global_ocr_scan(
-            latest_detected_items,
-            frame_timestamp,
-            last_global_scan_timestamp,
-            tracking_enabled=bool(runtime_options["ocr_tracking_enabled"]),
-            global_scan_interval_seconds=float(
-                runtime_options["ocr_global_scan_interval_seconds"]
-            ),
-        )
         tracking_regions = None
         preprocess_variants = None
         if not should_run_global_scan:
@@ -807,9 +809,12 @@ def _run_ocr_stage(
                 latest_detected_items,
                 padding_ratio=float(runtime_options["ocr_tracking_padding"]),
             )
-            preprocess_variants = _split_csv_option(
-                runtime_options["ocr_tracking_preprocess_variants"]
-            )
+            if tracking_regions:
+                preprocess_variants = _split_csv_option(
+                    runtime_options["ocr_tracking_preprocess_variants"]
+                )
+            else:
+                should_run_global_scan = True
 
         detected_items = ocr_service.extract_frame_text(
             frame_path=str(frame["path"]),
@@ -2924,7 +2929,7 @@ def _extract_runtime_options(
         "ocr_change_threshold": float(
             options.get(
                 "ocr_change_threshold",
-                os.getenv("AI_OCR_CHANGE_THRESHOLD", "0.015"),
+                os.getenv("AI_OCR_CHANGE_THRESHOLD", "0.005"),
             )
         ),
         "ocr_skip_unchanged_frames": _to_bool(
@@ -2936,7 +2941,7 @@ def _extract_runtime_options(
         "ocr_max_skip_frames": int(
             options.get(
                 "ocr_max_skip_frames",
-                os.getenv("AI_OCR_MAX_SKIP_FRAMES", "1"),
+                os.getenv("AI_OCR_MAX_SKIP_FRAMES", "3"),
             )
         ),
         "ocr_min_confidence": float(
@@ -2975,7 +2980,7 @@ def _extract_runtime_options(
         "ocr_tracking_enabled": _to_bool(
             options.get(
                 "ocr_tracking_enabled",
-                os.getenv("AI_OCR_TRACKING_ENABLED", "false"),
+                os.getenv("AI_OCR_TRACKING_ENABLED", "true"),
             )
         ),
         "ocr_global_scan_interval_seconds": float(
@@ -2992,7 +2997,7 @@ def _extract_runtime_options(
         ),
         "ocr_tracking_preprocess_variants": options.get(
             "ocr_tracking_preprocess_variants",
-            os.getenv("AI_OCR_TRACKING_PREPROCESS_VARIANTS", "original,contrast"),
+            os.getenv("AI_OCR_TRACKING_PREPROCESS_VARIANTS", "original"),
         ),
     }
 
